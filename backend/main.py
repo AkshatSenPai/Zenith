@@ -1,13 +1,14 @@
 """Zenith — Milestone 1 backend wiring (thin routes; logic in the service modules)."""
 
 import anthropic
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 import memory_service
 from claude_service import run_loop, BudgetExceeded
 from rate_limiter import RateLimiter
+from stt_service import get_model, transcribe_audio
 from tools import run_tool
 
 limiter = RateLimiter()
@@ -20,6 +21,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+def _warm_stt() -> None:
+    """Load the whisper model once at boot so the first /transcribe is fast."""
+    get_model()
 
 
 class ChatRequest(BaseModel):
@@ -48,6 +55,16 @@ def health() -> dict:
 def usage() -> dict:
     """Live usage snapshot for the HUD gauges (does not consume a request slot)."""
     return limiter.stats()
+
+
+@app.post("/transcribe")
+async def transcribe(audio: UploadFile = File(...)) -> dict:
+    """Local STT: audio blob -> {text}. Not rate-limited (the /chat it triggers is)."""
+    try:
+        data = await audio.read()
+        return {"text": transcribe_audio(data)}
+    except Exception as exc:  # noqa: BLE001 — surface any decode/transcribe error
+        raise HTTPException(status_code=500, detail=f"Transcription failed: {exc}") from exc
 
 
 def _finish(working: list, outcome: dict, warning: str | None = None) -> ChatResponse:

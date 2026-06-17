@@ -18,6 +18,12 @@ cp .env.example .env                  # then edit .env and paste your ANTHROPIC_
 uvicorn main:app --reload --port 8000
 ```
 
+**Voice (Pass B):** the server loads the faster-whisper model at startup
+(~140MB for `base`, downloaded once to the Hugging Face cache). No ffmpeg
+needed — faster-whisper bundles audio decoding. Tune via the `WHISPER_*`
+vars in `backend/.env` (`base`/`cpu`/`int8` suits an 8GB Mac; a GPU rig can
+use `small`/`cuda`/`float16`).
+
 ## 2. Frontend — Next.js on :3000
 
 In a second terminal:

@@ -12,6 +12,9 @@ load_dotenv()
 WHISPER_MODEL = os.getenv("WHISPER_MODEL", "base")
 WHISPER_DEVICE = os.getenv("WHISPER_DEVICE", "cpu")
 WHISPER_COMPUTE = os.getenv("WHISPER_COMPUTE", "int8")
+# Pin the language so Hindi speech isn't mis-detected as Urdu (Arabic script).
+# "hi" -> Devanagari; set WHISPER_LANGUAGE=en for English, or blank for auto-detect.
+WHISPER_LANGUAGE = os.getenv("WHISPER_LANGUAGE", "hi") or None
 
 
 @lru_cache(maxsize=1)
@@ -24,5 +27,5 @@ def transcribe_audio(data: bytes) -> str:
     """Transcribe a recorded audio blob (webm/opus, wav, …) to text.
 
     Language is auto-detected (Hinglish-friendly). Returns "" when no speech."""
-    segments, _info = get_model().transcribe(io.BytesIO(data), language=None, beam_size=1)
+    segments, _info = get_model().transcribe(io.BytesIO(data), language=WHISPER_LANGUAGE, beam_size=1)
     return "".join(segment.text for segment in segments).strip()

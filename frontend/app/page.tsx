@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { startRecording, transcribe, speak, cancelSpeech, type RecordingHandle } from "../lib/voice";
 import { TopBar } from "../components/TopBar";
 import { ZenithOrb, type OrbState } from "../components/ZenithOrb";
 import { CalendarPanel } from "../components/CalendarPanel";
@@ -30,12 +31,16 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingAction | null>(null);
-  const [devState, setDevState] = useState<OrbState>("idle");
+  const [voiceState, setVoiceState] = useState<OrbState>("idle");
+  const [level, setLevel] = useState(0);
   const [usage, setUsage] = useState<Usage | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const recordingRef = useRef<RecordingHandle | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  // Pass A: orb shows "thinking" during a live request, else the dev-selected state.
-  const orbState: OrbState = loading ? "thinking" : devState;
+  // Pass B: live voice state wins; otherwise "thinking" while a request is in flight.
+  const orbState: OrbState = voiceState !== "idle" ? voiceState : loading ? "thinking" : "idle";
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -71,9 +76,9 @@ export default function Home() {
     }
   }
 
-  async function sendMessage() {
-    const text = input.trim();
-    if (!text || loading) return;
+  async function sendMessage(textArg?: string): Promise<string | null> {
+    const text = (textArg ?? input).trim();
+    if (!text || loading) return null;
     setError(null);
     setPending(null);
     setInput("");
@@ -88,21 +93,92 @@ export default function Home() {
       if (res.status === 429) {
         const d = await res.json().catch(() => ({}));
         setError(d.detail ?? "Rate limit reached. Thoda ruk ja, Boss.");
-        return;
+        return null;
       }
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
         setError(d.detail ?? `Server error (${res.status}).`);
-        return;
+        return null;
       }
-      applyData(await res.json());
+      const data = await res.json();
+      applyData(data);
+      return data.reply ?? null;
     } catch {
       setError("Can't reach Zenith's backend. Is it running on :8000?");
+      return null;
     } finally {
       setLoading(false);
       refreshUsage();
     }
   }
+
+  const startListening = useCallback(async () => {
+    if (recordingRef.current || loading) return;
+    cancelSpeech();
+    setError(null);
+    try {
+      const handle = await startRecording();
+      recordingRef.current = handle;
+      setVoiceState("listening");
+      const tick = () => {
+        if (!recordingRef.current) return;
+        setLevel(recordingRef.current.getLevel());
+        rafRef.current = requestAnimationFrame(tick);
+      };
+      rafRef.current = requestAnimationFrame(tick);
+    } catch {
+      setError("Mic blocked — check browser permissions.");
+      setVoiceState("idle");
+    }
+  }, [loading]);
+
+  const stopListening = useCallback(async () => {
+    const handle = recordingRef.current;
+    if (!handle) return;
+    recordingRef.current = null;
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    setLevel(0);
+    setVoiceState("thinking");
+    try {
+      const blob = await handle.stop();
+      const text = await transcribe(blob);
+      if (!text) {
+        setVoiceState("idle");
+        return;
+      }
+      const reply = await sendMessage(text);
+      if (reply) {
+        setVoiceState("speaking");
+        await speak(reply);
+      }
+    } catch {
+      setError("Voice failed — could not transcribe. Is the backend running on :8000?");
+    } finally {
+      setVoiceState("idle");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Push-to-talk: hold Space to record (ignored while typing in the text box).
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.code !== "Space" || e.repeat) return;
+      if (document.activeElement === inputRef.current) return; // typing a space
+      e.preventDefault();
+      void startListening();
+    }
+    function onKeyUp(e: KeyboardEvent) {
+      if (e.code !== "Space") return;
+      if (document.activeElement === inputRef.current) return;
+      void stopListening();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+    };
+  }, [startListening, stopListening]);
 
   async function resolvePending(approved: boolean) {
     if (!pending || loading) return;
@@ -133,7 +209,7 @@ export default function Home() {
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      sendMessage();
+      void sendMessage();
     }
   }
 
@@ -229,36 +305,41 @@ export default function Home() {
         </div>
       </div>
 
-      {/* bottom bar: waveform + dev orb cycler + input */}
+      {/* bottom bar: waveform + mic (push-to-talk) + input */}
       <div className="relative z-10 border-t border-zenith-cyan/20 px-4 py-3">
         <div className="mb-2">
-          <WaveformBar active={orbState === "listening" || orbState === "speaking"} />
+          <WaveformBar active={orbState === "listening" || orbState === "speaking"} level={level} />
         </div>
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1">
-            <span className="font-mono text-[8px] uppercase tracking-widest text-zenith-alert/70">dev</span>
-            {(["idle", "listening", "thinking", "speaking"] as OrbState[]).map((s) => (
-              <button
-                key={s}
-                onClick={() => setDevState(s)}
-                title={`orb: ${s}`}
-                className={`rounded-sm border px-1.5 py-1 font-mono text-[8px] uppercase tracking-widest transition ${
-                  devState === s ? "border-zenith-cyan text-zenith-cyan" : "border-zenith-cyan/20 text-zenith-text/40"
-                }`}
-              >
-                {s[0]}
-              </button>
-            ))}
-          </div>
+          <button
+            type="button"
+            onPointerDown={(e) => {
+              e.preventDefault();
+              void startListening();
+            }}
+            onPointerUp={() => void stopListening()}
+            onPointerLeave={() => {
+              if (recordingRef.current) void stopListening();
+            }}
+            title="Hold to talk (or hold Space)"
+            className={`rounded-lg border px-4 py-3 font-mono text-sm transition ${
+              voiceState === "listening"
+                ? "border-zenith-cyan bg-zenith-cyan/15 text-zenith-cyan"
+                : "border-zenith-cyan/30 text-zenith-text/70 hover:border-zenith-cyan"
+            }`}
+          >
+            {voiceState === "listening" ? "● REC" : "🎤"}
+          </button>
           <input
+            ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Type a message…  (voice arrives in Pass B)"
+            placeholder="Type a message…  (or hold Space to talk)"
             className="flex-1 rounded-lg border border-zenith-cyan/30 bg-black/40 px-4 py-3 font-body text-sm text-zenith-text outline-none placeholder:text-zenith-text/30 focus:border-zenith-cyan"
           />
           <button
-            onClick={sendMessage}
+            onClick={() => void sendMessage()}
             disabled={loading || input.trim() === ""}
             className="rounded-lg bg-zenith-cyan px-5 py-3 font-mono text-sm font-semibold uppercase tracking-widest text-zenith-bg transition disabled:cursor-not-allowed disabled:opacity-40"
           >

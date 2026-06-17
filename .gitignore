@@ -16,3 +16,10 @@ frontend/.env.local
 
 # OS
 .DS_Store
+
+# Build / tool caches (regenerable)
+*.tsbuildinfo
+.impeccable/
+
+# graphify knowledge graph output (regenerate with /graphify)
+graphify-out/

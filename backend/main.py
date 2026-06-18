@@ -1,7 +1,7 @@
 """Zenith — Milestone 1 backend wiring (thin routes; logic in the service modules)."""
 
 import anthropic
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -10,6 +10,7 @@ from claude_service import run_loop, BudgetExceeded
 from rate_limiter import RateLimiter
 from stt_service import get_model, transcribe_audio
 from tools import run_tool
+from tts_service import synthesize
 
 limiter = RateLimiter()
 PENDING: dict[str, list] = {}   # block.id -> in-progress working history awaiting confirm
@@ -36,6 +37,10 @@ class ChatRequest(BaseModel):
 class ConfirmRequest(BaseModel):
     id: str
     approved: bool
+
+
+class SpeakRequest(BaseModel):
+    text: str
 
 
 class ChatResponse(BaseModel):
@@ -65,6 +70,19 @@ async def transcribe(audio: UploadFile = File(...)) -> dict:
         return {"text": transcribe_audio(data)}
     except Exception as exc:  # noqa: BLE001 — surface any decode/transcribe error
         raise HTTPException(status_code=500, detail=f"Transcription failed: {exc}") from exc
+
+
+@app.post("/speak")
+async def speak(req: SpeakRequest) -> Response:
+    """Neural TTS: text -> MP3 audio bytes (browser-independent). Not rate-limited."""
+    text = req.text.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="No text to speak.")
+    try:
+        audio = await synthesize(text)
+    except Exception as exc:  # noqa: BLE001 — surface TTS/network errors
+        raise HTTPException(status_code=502, detail=f"TTS failed: {exc}") from exc
+    return Response(content=audio, media_type="audio/mpeg")
 
 
 def _finish(working: list, outcome: dict, warning: str | None = None) -> ChatResponse:

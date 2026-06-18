@@ -1,3 +1,5 @@
+import { cleanForSpeech } from "./format";
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 export type RecordingHandle = {
@@ -62,24 +64,42 @@ export async function transcribe(blob: Blob): Promise<string> {
   return (data.text ?? "").trim();
 }
 
-/** Speak text via the browser. Resolves when done; no-op if unsupported. */
-export function speak(text: string, lang = "hi-IN"): Promise<void> {
-  return new Promise((resolve) => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window) || !text) {
-      resolve();
-      return;
-    }
-    const utter = new SpeechSynthesisUtterance(text);
-    utter.lang = lang;
-    utter.onend = () => resolve();
-    utter.onerror = () => resolve();
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(utter);
-  });
+let _audio: HTMLAudioElement | null = null;
+
+/** Stop any in-flight TTS playback (called when the user starts a new recording). */
+export function cancelSpeech(): void {
+  if (_audio) {
+    _audio.pause();
+    _audio = null;
+  }
 }
 
-export function cancelSpeech(): void {
-  if (typeof window !== "undefined" && "speechSynthesis" in window) {
-    window.speechSynthesis.cancel();
+/** Speak text using the backend's neural TTS (/speak): browser-independent, plays the
+ *  returned MP3. Resolves when playback ends; fails silently (the reply is shown as text). */
+export async function speak(text: string): Promise<void> {
+  if (typeof window === "undefined") return;
+  const clean = cleanForSpeech(text);
+  if (!clean) return;
+  let url: string | null = null;
+  try {
+    const res = await fetch(`${API_URL}/speak`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: clean }),
+    });
+    if (!res.ok) return;
+    cancelSpeech();
+    url = URL.createObjectURL(await res.blob());
+    const audio = new Audio(url);
+    _audio = audio;
+    await new Promise<void>((resolve) => {
+      audio.onended = () => resolve();
+      audio.onerror = () => resolve();
+      void audio.play().catch(() => resolve());
+    });
+  } catch {
+    /* network/playback failed — the text reply is already visible */
+  } finally {
+    if (url) URL.revokeObjectURL(url);
   }
 }

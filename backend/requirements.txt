@@ -4,3 +4,5 @@ anthropic>=0.40.0
 python-dotenv>=1.0.0
 faster-whisper>=1.0.0
 python-multipart>=0.0.9
+indic-transliteration>=2.3.0
+edge-tts>=6.1.0

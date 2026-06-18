@@ -19,10 +19,18 @@ uvicorn main:app --reload --port 8000
 ```
 
 **Voice (Pass B):** the server loads the faster-whisper model at startup
-(~140MB for `base`, downloaded once to the Hugging Face cache). No ffmpeg
-needed — faster-whisper bundles audio decoding. Tune via the `WHISPER_*`
-vars in `backend/.env` (`base`/`cpu`/`int8` suits an 8GB Mac; a GPU rig can
-use `small`/`cuda`/`float16`).
+(~460MB for the default `small`, downloaded once to the Hugging Face cache).
+Transcripts come out in the **Latin alphabet**: the language is auto-detected, so English
+stays English and Hindi is transcribed in its real words then romanised (not translated).
+Override with `WHISPER_LANGUAGE=en` or `=hi` in `backend/.env` if auto-detect misbehaves. No ffmpeg needed — faster-whisper
+bundles audio decoding, and silence is skipped via VAD. Tune via the `WHISPER_*`
+vars in `backend/.env`: `small`/`cpu`/`int8` is the default; `base` is faster
+but weaker at Hindi. `small`/CPU mishears real Hinglish — for far better accuracy a GPU rig
+can use `large-v3`/`cuda`/`float16` (auto-falls back to CPU if CUDA is unavailable).
+
+**Speech out** uses Microsoft's free neural voices via `edge-tts` (`POST /speak` → MP3),
+so it sounds natural in any browser (needs internet). Set `ZENITH_TTS_VOICE` in
+`backend/.env` (default `en-IN-NeerjaNeural`; also try `hi-IN-SwaraNeural`).
 
 ## 2. Frontend — Next.js on :3000
 

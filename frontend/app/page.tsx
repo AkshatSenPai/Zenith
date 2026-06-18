@@ -10,6 +10,7 @@ import { WaveformBar } from "../components/WaveformBar";
 import { GaugeIndicator } from "../components/GaugeIndicator";
 import { StatusCard } from "../components/StatusCard";
 import { HexCorners } from "../components/hud/primitives";
+import { Markdown } from "../components/Markdown";
 
 type Message = { role: "user" | "assistant"; content: string };
 type PendingAction = { id: string; tool: string; input: Record<string, unknown> };
@@ -267,16 +268,15 @@ export default function Home() {
             )}
             {messages.map((m, i) => (
               <div key={i} className={m.role === "user" ? "text-right" : "text-left"}>
-                <span
-                  className={
-                    "inline-block max-w-[85%] whitespace-pre-wrap rounded-lg px-4 py-2 text-sm " +
-                    (m.role === "user"
-                      ? "bg-zenith-cyan/10 font-body text-zenith-text"
-                      : "bg-zenith-blue/10 font-mono text-zenith-cyan")
-                  }
-                >
-                  {m.content}
-                </span>
+                {m.role === "user" ? (
+                  <span className="inline-block max-w-[85%] whitespace-pre-wrap rounded-lg bg-zenith-cyan/10 px-4 py-2 font-body text-sm text-zenith-text">
+                    {m.content}
+                  </span>
+                ) : (
+                  <div className="inline-block max-w-[85%] rounded-lg bg-zenith-blue/10 px-4 py-2 text-left font-body text-sm text-zenith-text">
+                    <Markdown text={m.content} />
+                  </div>
+                )}
               </div>
             ))}
             {loading && (

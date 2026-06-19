@@ -1,29 +1,77 @@
-// Mock data for the HUD panels (Milestone 2, Pass A). Replaced by real
-// integrations in a later milestone — NOT wired to any API.
+// Mock data for the HUD panels (Milestone 2). Replaced by real integrations in
+// later milestones — NOT wired to any API. One source of truth for connection
+// status: both the orb's connection-map and the Connections panel read `connections`.
 
-export type CalEvent = { time: string; title: string };
+export type EventCategory = "client" | "internal" | "content";
+export type CalEvent = {
+  time: string;
+  duration: string;
+  title: string;
+  client: string;
+  category: EventCategory;
+};
+
+export const categoryColor: Record<EventCategory, string> = {
+  client: "bg-zenith-cyan",
+  internal: "bg-zenith-blue",
+  content: "bg-zenith-alert",
+};
 
 export const todayEvents: CalEvent[] = [
-  { time: "10:00", title: "Client call — Acme redesign" },
-  { time: "14:00", title: "SaaS sprint review" },
-  { time: "17:30", title: "Papa's channel — edit pass" },
+  { time: "10:00", duration: "45m", title: "Funnel call — Shadnagar Heights", client: "Shadnagar Heights", category: "client" },
+  { time: "13:30", duration: "30m", title: "Ad creative review", client: "Nivaan Realty", category: "client" },
+  { time: "17:30", duration: "30m", title: "Papa's channel — edit pass", client: "YouTube", category: "content" },
 ];
 
 export const tomorrowEvents: CalEvent[] = [
-  { time: "11:00", title: "Demo — Zenith beta" },
+  { time: "11:00", duration: "30m", title: "Demo — Zenith beta", client: "Internal", category: "internal" },
 ];
 
-export type CommChannel = "Gmail" | "WhatsApp" | "Discord";
-export type CommItem = { channel: CommChannel; who: string; preview: string };
+export const dayStats = { meetings: 3, unread: 5, drafts: 2 };
 
-export const commCounts: Record<CommChannel, number> = {
-  Gmail: 3,
-  WhatsApp: 5,
-  Discord: 2,
+export const focus = {
+  title: "Send Shadnagar Heights the revised proposal",
+  pending: 3,
 };
 
-export const commItems: CommItem[] = [
-  { channel: "WhatsApp", who: "Rahul", preview: "bhai kal aa raha hai?" },
-  { channel: "Gmail", who: "Acme Corp", preview: "Re: revised proposal" },
-  { channel: "Discord", who: "#dev-team", preview: "deploy looks good 🚀" },
+export type QuickAction = { id: string; label: string; milestone: string };
+export const quickActions: QuickAction[] = [
+  { id: "proposal", label: "Draft proposal", milestone: "M6" },
+  { id: "email", label: "New email", milestone: "M3" },
+  { id: "event", label: "Add event", milestone: "M3" },
+  { id: "note", label: "Log note", milestone: "M6" },
+];
+
+// --- Connections (drives the orb nodes AND the Connections panel) ---
+export type Channel = "Gmail" | "Calendar" | "WhatsApp" | "Discord";
+export type Connection = { channel: Channel; account: string; connected: boolean };
+
+// Order matters: the orb places nodes in this sequence around the core.
+export const connections: Connection[] = [
+  { channel: "Gmail", account: "lalpaarth1210@gmail.com", connected: true },
+  { channel: "Calendar", account: "Primary", connected: true },
+  { channel: "WhatsApp", account: "Not linked", connected: false },
+  { channel: "Discord", account: "Not linked", connected: false },
+];
+
+// --- Activity log (the audit trail that pairs with the confirm gate) ---
+export type ActivityTone = "ok" | "warn" | "info";
+export type ActivityType = "calendar" | "email" | "message" | "draft" | "note" | "warn";
+export type ActivityEntry = {
+  time: string;
+  action: string;
+  target?: string;
+  tone: ActivityTone;
+  type: ActivityType;
+};
+
+export const activityLog: ActivityEntry[] = [
+  { time: "14:02", action: "create_event", target: "confirmed", tone: "ok", type: "calendar" },
+  { time: "13:48", action: "email sent", target: "Nivaan Realty", tone: "ok", type: "email" },
+  { time: "13:30", action: "rate-limit warning", target: "120 / 150", tone: "warn", type: "warn" },
+  { time: "13:05", action: "draft_sequence", target: "5-step welcome", tone: "ok", type: "draft" },
+  { time: "12:15", action: "search_calendar", target: "3 events", tone: "info", type: "calendar" },
+  { time: "11:50", action: "send_message", target: "cancelled by user", tone: "warn", type: "message" },
+  { time: "11:32", action: "save_note", target: "Shadnagar call", tone: "ok", type: "note" },
+  { time: "10:58", action: "search_mail", target: "5 unread", tone: "info", type: "email" },
 ];

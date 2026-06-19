@@ -1,0 +1,50 @@
+"use client";
+
+import { activityLog, type ActivityTone, type ActivityType } from "../lib/mock";
+
+const toneColor: Record<ActivityTone, string> = {
+  ok: "text-zenith-cyan",
+  warn: "text-zenith-alert",
+  info: "text-zenith-text/55",
+};
+
+// Minimal 14px line icons per activity type (not Lucide/Feather defaults).
+function ActIcon({ type }: { type: ActivityType }) {
+  const common = { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.6, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, className: "h-3.5 w-3.5" };
+  switch (type) {
+    case "calendar":
+      return <svg {...common}><rect x="3" y="4.5" width="18" height="16" rx="2" /><path d="M3 9h18M8 2.5v4M16 2.5v4" /></svg>;
+    case "email":
+      return <svg {...common}><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 6 9-6" /></svg>;
+    case "message":
+      return <svg {...common}><path d="M4 5h16v11H9l-5 4z" /></svg>;
+    case "draft":
+      return <svg {...common}><path d="M7 3h7l5 5v13H7zM14 3v5h5" /></svg>;
+    case "note":
+      return <svg {...common}><path d="M16 3.5 20.5 8 9 19.5l-5 1 1-5z" /></svg>;
+    case "warn":
+      return <svg {...common}><path d="M12 3 22 20H2zM12 10v5M12 18h.01" /></svg>;
+  }
+}
+
+export function ActivityLog() {
+  return (
+    <section className="relative z-10 border-t border-zenith-cyan/12 p-4">
+      <div className="mb-3 font-mono text-[10px] uppercase tracking-widest text-zenith-cyan/70">Activity Log</div>
+      <ul className="space-y-2.5">
+        {activityLog.map((e, i) => (
+          <li key={i} className="flex items-start gap-2.5 font-mono text-[11px] leading-tight">
+            <span className={`mt-px shrink-0 ${toneColor[e.tone]}`}>
+              <ActIcon type={e.type} />
+            </span>
+            <span className="shrink-0 tabular-nums text-zenith-text/35">{e.time}</span>
+            <span className="min-w-0">
+              <span className={toneColor[e.tone]}>{e.action}</span>
+              {e.target && <span className="text-zenith-text/45"> {e.target}</span>}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}

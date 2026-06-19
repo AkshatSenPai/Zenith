@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { todayEvents, tomorrowEvents, type CalEvent } from "../lib/mock";
-import { TickRing } from "./hud/primitives";
+import { todayEvents, tomorrowEvents, categoryColor, type CalEvent } from "../lib/mock";
 
 export function CalendarPanel() {
   const [loading, setLoading] = useState(true);
@@ -13,28 +12,24 @@ export function CalendarPanel() {
     const id = setTimeout(() => {
       setData({ today: todayEvents, tomorrow: tomorrowEvents });
       setLoading(false);
-    }, 600);
+    }, 500);
     return () => clearTimeout(id);
   }, []);
 
   const day = now.getDate();
   const month = now.toLocaleDateString("en-GB", { month: "short" }).toUpperCase();
+  const weekday = now.toLocaleDateString("en-GB", { weekday: "long" });
 
   return (
-    <aside className="relative z-10 flex flex-col gap-4 border-r border-zenith-cyan/15 p-4">
+    <aside className="relative z-10 flex flex-col gap-4 border-r border-zenith-cyan/12 p-4">
       <div className="flex items-center gap-3">
-        <div className="relative h-16 w-16">
-          <svg viewBox="-32 -32 64 64" className="glow-cyan spin-slow h-16 w-16 stroke-zenith-cyan" fill="none" strokeWidth={1}>
-            <TickRing r={28} count={48} len={4} />
-          </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="font-display text-xl font-bold leading-none text-zenith-cyan">{day}</span>
-            <span className="font-mono text-[8px] tracking-widest text-zenith-text/50">{month}</span>
-          </div>
+        <div className="panel relative flex h-14 w-14 flex-col items-center justify-center">
+          <span className="font-display text-2xl font-bold leading-none tabular-nums text-zenith-cyan">{day}</span>
+          <span className="font-mono text-[8px] tracking-widest text-zenith-text/50">{month}</span>
         </div>
         <div>
-          <div className="font-mono text-[10px] uppercase tracking-widest text-zenith-text/40">Calendar</div>
-          <div className="font-body text-xs text-zenith-text/70">Your schedule</div>
+          <div className="font-mono text-[10px] uppercase tracking-widest text-zenith-cyan/70">Schedule</div>
+          <div className="font-body text-xs text-zenith-text/65">{weekday}</div>
         </div>
       </div>
 
@@ -59,12 +54,16 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 function EventList({ events }: { events: CalEvent[] }) {
   return (
-    <ul className="space-y-1">
+    <ul className="space-y-0.5">
       {events.map((e, i) => (
-        <li key={i} className="flex items-center gap-2 py-0.5">
-          <span className="h-2.5 w-2.5 shrink-0 rounded-full border border-zenith-cyan" />
-          <span className="font-mono text-[11px] text-zenith-cyan">{e.time}</span>
-          <span className="truncate font-body text-xs text-zenith-text/80">{e.title}</span>
+        <li key={i} className="press flex flex-col gap-0.5 rounded px-2 py-1.5 transition-colors hover:bg-zenith-cyan/[0.05]">
+          <div className="flex items-center gap-2">
+            <span className={`h-2 w-2 shrink-0 rounded-full ${categoryColor[e.category]}`} />
+            <span className="font-mono text-[11px] tabular-nums text-zenith-cyan">{e.time}</span>
+            <span className="font-mono text-[9px] text-zenith-text/35">{e.duration}</span>
+            <span className="truncate font-body text-xs text-zenith-text/85">{e.title}</span>
+          </div>
+          <span className="pl-4 font-mono text-[9px] uppercase tracking-wide text-zenith-text/35">{e.client}</span>
         </li>
       ))}
     </ul>
@@ -73,9 +72,9 @@ function EventList({ events }: { events: CalEvent[] }) {
 
 function Skeleton({ rows }: { rows: number }) {
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-2">
       {Array.from({ length: rows }).map((_, i) => (
-        <div key={i} className="h-3 w-full animate-pulse rounded bg-zenith-cyan/10" />
+        <div key={i} className="h-7 w-full animate-pulse rounded bg-zenith-cyan/[0.06]" />
       ))}
     </div>
   );

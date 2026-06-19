@@ -1,19 +1,37 @@
-export function WaveformBar({ active = false, level = 0 }: { active?: boolean; level?: number }) {
-  const W = 600;
-  const mid = 30;
-  const amp = (active ? 16 : 6) + level * 18; // live mic level boosts amplitude
-  let d = `M 0 ${mid}`;
-  for (let x = 0; x <= W; x += 5) {
-    const y = mid + amp * Math.sin(x / 22) * (0.65 + 0.35 * Math.sin(x / 90));
-    d += ` L ${x} ${y.toFixed(2)}`;
-  }
+import type { CSSProperties } from "react";
+
+const N = 32;
+
+/** Compact reactive visualizer: live frequency bars while listening/speaking,
+ *  a calm low pulse when idle. Heights animate via GPU `scaleY`. */
+export function WaveformBar({ active = false, bars }: { active?: boolean; bars?: number[] }) {
+  const live = active && !!bars && bars.length > 0;
   return (
-    <svg viewBox="0 0 600 60" preserveAspectRatio="none" className="glow-cyan h-12 w-full" fill="none">
-      <line x1={0} y1={mid} x2={600} y2={mid} className="stroke-zenith-cyan/15" strokeWidth={1} />
-      <g className="wave-scroll">
-        <path d={d} className="stroke-zenith-cyan" strokeWidth={1.5} />
-        <path d={d} transform="translate(600 0)" className="stroke-zenith-cyan" strokeWidth={1.5} />
-      </g>
-    </svg>
+    <div className={`flex h-9 items-end gap-[3px] ${active ? "glow-cyan" : ""}`} aria-hidden>
+      {Array.from({ length: N }).map((_, i) => {
+        const v = live ? bars![i % bars!.length] : 0;
+        const style: CSSProperties = live
+          ? {
+              height: "100%",
+              transformOrigin: "center",
+              transform: `scaleY(${Math.max(0.06, v)})`,
+              animation: "none",
+              transition: "transform 90ms linear",
+            }
+          : {
+              height: "100%",
+              transformOrigin: "center",
+              transform: "scaleY(0.22)",
+              animationDelay: `${(i % 8) * 90}ms`,
+            };
+        return (
+          <span
+            key={i}
+            className={`bar-idle w-[3px] shrink-0 rounded-full ${active ? "bg-zenith-cyan" : "bg-zenith-cyan/35"}`}
+            style={style}
+          />
+        );
+      })}
+    </div>
   );
 }

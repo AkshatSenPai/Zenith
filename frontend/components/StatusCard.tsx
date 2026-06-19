@@ -28,7 +28,9 @@ export function StatusCard({
 }) {
   const t = tones[tone];
   return (
-    <div className={`relative border ${t.border} bg-zenith-cyan/[0.03] px-4 py-3`}>
+    <div
+      className={`relative border ${t.border} bg-[#080b14] px-4 py-3 shadow-[0_4px_16px_rgba(0,0,0,0.55),inset_0_0_24px_rgba(0,255,229,0.03)]`}
+    >
       <Corner pos="tl" cls={t.corner} />
       <Corner pos="tr" cls={t.corner} />
       <Corner pos="bl" cls={t.corner} />
@@ -41,12 +43,12 @@ export function StatusCard({
       {(onConfirm || onCancel) && (
         <div className="mt-3 flex gap-2">
           {onConfirm && (
-            <button onClick={onConfirm} disabled={busy} className="rounded-sm bg-zenith-cyan px-4 py-1.5 font-mono text-[11px] font-semibold uppercase tracking-widest text-zenith-bg transition disabled:opacity-40">
+            <button onClick={onConfirm} disabled={busy} className="press rounded-sm bg-zenith-cyan px-4 py-1.5 font-mono text-[11px] font-semibold uppercase tracking-widest text-zenith-bg transition hover:bg-white disabled:opacity-40">
               Confirm
             </button>
           )}
           {onCancel && (
-            <button onClick={onCancel} disabled={busy} className="rounded-sm border border-zenith-red/50 px-4 py-1.5 font-mono text-[11px] font-semibold uppercase tracking-widest text-zenith-red transition disabled:opacity-40">
+            <button onClick={onCancel} disabled={busy} className="press rounded-sm border border-zenith-red/50 px-4 py-1.5 font-mono text-[11px] font-semibold uppercase tracking-widest text-zenith-red transition hover:border-zenith-red disabled:opacity-40">
               Cancel
             </button>
           )}

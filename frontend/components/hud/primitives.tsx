@@ -114,6 +114,20 @@ function HexCluster() {
   );
 }
 
+// Small L-shaped corner brackets for cards (premium HUD accent). Absolute-positioned;
+// the parent must be `relative`. Subtle by default; pass a brighter `cls` for emphasis.
+export function CardBrackets({ cls = "border-zenith-cyan/25", size = 8 }: { cls?: string; size?: number }) {
+  const s = `${size}px`;
+  return (
+    <>
+      <span className={`pointer-events-none absolute left-0 top-0 border-l border-t ${cls}`} style={{ width: s, height: s }} />
+      <span className={`pointer-events-none absolute right-0 top-0 border-r border-t ${cls}`} style={{ width: s, height: s }} />
+      <span className={`pointer-events-none absolute bottom-0 left-0 border-b border-l ${cls}`} style={{ width: s, height: s }} />
+      <span className={`pointer-events-none absolute bottom-0 right-0 border-b border-r ${cls}`} style={{ width: s, height: s }} />
+    </>
+  );
+}
+
 export function HexCorners() {
   return (
     <div className="pointer-events-none fixed inset-0 z-0">

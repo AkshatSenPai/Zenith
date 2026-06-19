@@ -44,6 +44,18 @@ def test_strips_whitespace(monkeypatch):
     assert stt_service.transcribe_audio(b"x") == "hello boss"
 
 
+def test_undecodable_clip_returns_blank(monkeypatch):
+    # An accidental mic tap is a header-only webm; faster-whisper's decoder raises
+    # (av.error.EOFError in prod). Treat it as "no speech", never a 500.
+    class _Boom:
+        def transcribe(self, *a, **k):
+            raise EOFError("End of file: '<none>'")
+
+    monkeypatch.setattr(stt_service, "WHISPER_LANGUAGE", None)
+    monkeypatch.setattr(stt_service, "get_model", lambda: _Boom())
+    assert stt_service.transcribe_audio(b"\x00" * 110) == ""
+
+
 def test_hindi_is_romanized_to_latin(monkeypatch):
     # Auto-detected Hindi → Devanagari → romanized to Latin (faithful words, Roman script).
     model = _use(monkeypatch, {None: ("अपने बारे में बताओ", "hi")})

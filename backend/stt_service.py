@@ -18,6 +18,7 @@ import os
 import re
 from functools import lru_cache
 
+from av.error import FFmpegError
 from dotenv import load_dotenv
 from faster_whisper import WhisperModel
 from indic_transliteration import sanscript
@@ -74,13 +75,22 @@ def _decode(model: WhisperModel, audio: io.BytesIO, language):
 def transcribe_audio(data: bytes) -> str:
     """Transcribe a recorded audio blob (webm/opus, wav, …) to Roman/Latin text.
 
-    Returns "" when there's no speech."""
+    Returns "" when there's no speech, or when the clip is too short/empty to decode —
+    e.g. an accidental mic tap produces a header-only webm and PyAV raises EOFError.
+    Callers treat "" as "nothing was said", so a stray tap is a clean no-op, not a 500.
+    (Model/CUDA load errors come from get_model() above and still surface.)"""
     model = get_model()
     audio = io.BytesIO(data)
-    segments, info = _decode(model, audio, WHISPER_LANGUAGE)
-    # Auto-detect drifted to something other than English/Hindi (e.g. Urdu)? Force Hindi so
-    # we get Devanagari we can romanise, instead of Arabic script we can't.
-    if WHISPER_LANGUAGE is None and info.language not in ("en", "hi"):
-        audio.seek(0)
-        segments, info = _decode(model, audio, "hi")
-    return _romanize("".join(segment.text for segment in segments).strip())
+    try:
+        segments, info = _decode(model, audio, WHISPER_LANGUAGE)
+        # Auto-detect drifted to something other than English/Hindi (e.g. Urdu)? Force Hindi
+        # so we get Devanagari we can romanise, instead of Arabic script we can't.
+        if WHISPER_LANGUAGE is None and info.language not in ("en", "hi"):
+            audio.seek(0)
+            segments, info = _decode(model, audio, "hi")
+        text = "".join(segment.text for segment in segments).strip()
+    except (FFmpegError, EOFError) as exc:  # undecodable/empty clip = no speech, not a crash
+        print(f"[stt] undecodable clip ({len(data)} bytes) — treating as no speech: "
+              f"{type(exc).__name__}: {exc}", flush=True)
+        return ""
+    return _romanize(text)

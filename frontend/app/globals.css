@@ -273,6 +273,24 @@ body {
   0%, 100% { transform: scaleY(0.16); }
   50% { transform: scaleY(0.4); }
 }
+@keyframes twinkle {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 0.28; }
+}
+.twinkle {
+  animation: twinkle 4s ease-in-out infinite;
+}
+/* core "voice" emanation — gentle expanding rings so idle reads as a live entity */
+@keyframes emanate {
+  0% { transform: scale(0.55); opacity: 0.4; }
+  80% { opacity: 0.05; }
+  100% { transform: scale(2.6); opacity: 0; }
+}
+.emanate {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: emanate 5s ease-out infinite;
+}
 @keyframes rise-in {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
@@ -309,7 +327,9 @@ body {
   .spin-vslow,
   .rise-in,
   .stagger > *,
-  .bar-idle {
+  .bar-idle,
+  .twinkle,
+  .emanate {
     animation: none !important;
   }
 }

@@ -8,12 +8,12 @@ import { ContextRail, type View } from "../components/ContextRail";
 import { ZenithOrb, type OrbState } from "../components/ZenithOrb";
 import { CalendarPanel } from "../components/CalendarPanel";
 import { QuickActions } from "../components/QuickActions";
+import { LeftRailExtras } from "../components/LeftRailExtras";
 import { ConnectionsPanel } from "../components/ConnectionsPanel";
 import { FocusCard } from "../components/FocusCard";
 import { ActivityLog } from "../components/ActivityLog";
 import { CommandCenter, type Message } from "../components/CommandCenter";
 import { PlaceholderView } from "../components/PlaceholderView";
-import { WaveformBar } from "../components/WaveformBar";
 import { GaugeIndicator } from "../components/GaugeIndicator";
 import { StatusCard } from "../components/StatusCard";
 import { HexCorners } from "../components/hud/primitives";
@@ -46,9 +46,12 @@ export default function Home() {
 
   // Live voice state wins; otherwise "thinking" while a request is in flight.
   const orbState: OrbState = voiceState !== "idle" ? voiceState : loading ? "thinking" : "idle";
-  const voiceActive = orbState === "listening" || orbState === "speaking";
-  // The command center expands (and the orb recedes) once there's any activity.
-  const chatActive = messages.length > 0 || loading || input.trim().length > 0 || orbState === "listening";
+  const voiceCycle = orbState !== "idle"; // listening / thinking / speaking
+  const convo = messages.length > 0 || loading;
+  // Orb stays big while idle or during a voice round-trip (so you watch it react); it recedes
+  // to reveal the command center once there's a conversation to read. The CC grows to match.
+  const orbBig = voiceCycle || !convo;
+  const ccExpanded = convo && !voiceCycle;
 
   async function refreshUsage() {
     try {
@@ -72,8 +75,8 @@ export default function Home() {
     }
     let raf = 0;
     const tick = () => {
-      if (voiceState === "listening" && recordingRef.current) setBars(recordingRef.current.getBars(32));
-      else if (voiceState === "speaking") setBars(getSpeechBars(32));
+      if (voiceState === "listening" && recordingRef.current) setBars(recordingRef.current.getBars(56));
+      else if (voiceState === "speaking") setBars(getSpeechBars(56));
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
@@ -243,7 +246,7 @@ export default function Home() {
     ) : null;
 
   return (
-    <div className="relative grid h-screen grid-rows-[auto_1fr_auto] overflow-hidden text-zenith-text">
+    <div className="relative grid h-screen grid-rows-[auto_1fr] overflow-hidden text-zenith-text">
       {/* ambient depth layers (behind content) */}
       <div className="bg-aura" />
       <div className="bg-grain" />
@@ -255,11 +258,11 @@ export default function Home() {
       <div className="stagger grid min-h-0 grid-cols-[64px_264px_1fr_320px]">
         <ContextRail view={view} onChange={setView} />
 
-        {/* left */}
-        <div className="hud-scroll flex min-h-0 flex-col overflow-y-auto">
+        {/* left — full-height divider; content fills down to a pinned footer */}
+        <div className="hud-scroll flex min-h-0 flex-col overflow-y-auto border-r border-zenith-cyan/12">
           <CalendarPanel />
           <QuickActions />
-          <section className="relative z-10 border-r border-zenith-cyan/12 p-4">
+          <section className="relative z-10 p-4">
             <div className="mb-3 font-mono text-[10px] uppercase tracking-widest text-zenith-cyan/70">Usage</div>
             <div className="flex justify-around">
               {usage ? (
@@ -273,32 +276,48 @@ export default function Home() {
               )}
             </div>
           </section>
+          <LeftRailExtras />
         </div>
 
         {/* center */}
         <div className="relative z-10 flex min-h-0 flex-col">
           {view === "chat" ? (
-            <div className="flex min-h-0 flex-1 flex-col items-center px-4 pb-3 pt-2">
+            <div className="flex min-h-0 flex-1 flex-col items-center px-4 pb-4 pt-2">
               <div
-                className="origin-top transition-transform duration-500 ease-out"
-                style={{ transform: chatActive ? "scale(0.82)" : "scale(1)" }}
+                className={`aspect-square shrink-0 transition-[width] duration-500 ease-out ${
+                  orbBig ? "w-[min(58vw,62vh)] max-w-[640px]" : "w-[min(34vw,34vh)] max-w-[360px]"
+                }`}
               >
-                <ZenithOrb state={orbState} size={340} connections={connections} />
+                <ZenithOrb state={orbState} connections={connections} bars={bars} />
               </div>
-              <div className="-mt-2 font-mono text-[10px] uppercase tracking-[0.35em] text-zenith-text/50">
+              <div className="-mt-1 mb-2 font-mono text-[10px] uppercase tracking-[0.35em] text-zenith-text/50">
                 Status: <span className="text-zenith-cyan">{orbState}</span>
               </div>
 
               {pending && (
-                <div className="mt-3 w-full max-w-2xl">
+                <div className="mb-2 w-full max-w-2xl">
                   <StatusCard tone="alert" title="Action — confirm before it runs" busy={loading} onConfirm={() => resolvePending(true)} onCancel={() => resolvePending(false)}>
                     {pendingBody}
                   </StatusCard>
                 </div>
               )}
 
-              <div className="mt-3 flex min-h-0 w-full flex-1 flex-col items-center">
-                <CommandCenter messages={messages} loading={loading} error={error} warning={warning} active={chatActive} />
+              <div className="flex min-h-0 w-full flex-1 flex-col items-center">
+                <CommandCenter
+                  messages={messages}
+                  loading={loading}
+                  error={error}
+                  warning={warning}
+                  expanded={ccExpanded}
+                  input={input}
+                  onInput={setInput}
+                  onSend={() => void sendMessage()}
+                  onKeyDown={handleKeyDown}
+                  inputRef={inputRef}
+                  voiceState={orbState}
+                  onMicDown={() => void startListening()}
+                  onMicUp={() => void stopListening()}
+                />
               </div>
             </div>
           ) : (
@@ -314,65 +333,6 @@ export default function Home() {
         </div>
       </div>
 
-      {/* bottom bar: mic (push-to-talk) · compact reactive waveform · input */}
-      <div className="relative z-10 border-t border-zenith-cyan/15 bg-[#05070d]/70 px-4 py-3">
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onPointerDown={(e) => {
-              e.preventDefault();
-              void startListening();
-            }}
-            onPointerUp={() => void stopListening()}
-            onPointerLeave={() => {
-              if (recordingRef.current) void stopListening();
-            }}
-            title="Hold to talk (or hold Space)"
-            className={`press flex items-center gap-2 rounded-lg border px-4 py-3 font-mono text-xs uppercase tracking-widest transition ${
-              orbState === "listening"
-                ? "border-zenith-cyan bg-zenith-cyan/15 text-zenith-cyan"
-                : "border-zenith-cyan/30 text-zenith-text/70 hover:border-zenith-cyan"
-            }`}
-          >
-            {orbState === "listening" ? (
-              <>
-                <span className="blink h-2 w-2 rounded-full bg-zenith-cyan" /> Rec
-              </>
-            ) : (
-              <MicIcon />
-            )}
-          </button>
-
-          <div className="hidden shrink-0 sm:block">
-            <WaveformBar active={voiceActive} bars={bars} />
-          </div>
-
-          <input
-            ref={inputRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Type a message…  (or hold Space to talk)"
-            className="flex-1 rounded-lg border border-zenith-cyan/25 bg-black/40 px-4 py-3 font-mono text-sm text-zenith-text outline-none transition-colors placeholder:text-zenith-text/30 focus:border-zenith-cyan"
-          />
-          <button
-            onClick={() => void sendMessage()}
-            disabled={loading || input.trim() === ""}
-            className="press rounded-lg bg-zenith-cyan px-5 py-3 font-mono text-sm font-semibold uppercase tracking-widest text-zenith-bg transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            Send
-          </button>
-        </div>
-      </div>
     </div>
-  );
-}
-
-function MicIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
-      <rect x="9" y="3" width="6" height="11" rx="3" />
-      <path d="M6 11a6 6 0 0 0 12 0M12 17v4" />
-    </svg>
   );
 }

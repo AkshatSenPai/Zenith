@@ -14,7 +14,7 @@ export function QuickActions() {
   }
 
   return (
-    <section className="relative z-10 border-r border-zenith-cyan/12 p-4">
+    <section className="relative z-10 p-4">
       <div className="mb-2.5 font-mono text-[10px] uppercase tracking-widest text-zenith-cyan/70">Quick Actions</div>
 
       <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[9px] uppercase tracking-widest text-zenith-text/45">

@@ -21,7 +21,7 @@ export function CalendarPanel() {
   const weekday = now.toLocaleDateString("en-GB", { weekday: "long" });
 
   return (
-    <aside className="relative z-10 flex flex-col gap-4 border-r border-zenith-cyan/12 p-4">
+    <aside className="relative z-10 flex flex-col gap-4 p-4">
       <div className="flex items-center gap-3">
         <div className="panel relative flex h-14 w-14 flex-col items-center justify-center">
           <span className="font-display text-2xl font-bold leading-none tabular-nums text-zenith-cyan">{day}</span>

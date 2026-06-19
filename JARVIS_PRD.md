@@ -1,6 +1,8 @@
 # ZENITH — Product Requirements Document (PRD)
-## Version 1.3 | June 2026
+## Version 1.4 | June 2026
 ### Product: Zenith  ·  Wake word: "Zenith"  ·  Repo codename: JARVIS
+
+> **What changed in v1.4 (HUD build pass — implements the v1.3 direction):** The app-style HUD is now **built** in the frontend. The orb became a **reactive connection-mesh** (a glowing core + a mesh of nodes that react to live audio; 4 states). The chat input + mic + send were **merged into one Command Center** (`CommandCenter.tsx`), and the side rails/panels were filled in — `ContextRail`, `LeftRailExtras`, `QuickActions`, `FocusCard`, `ConnectionsPanel`, `ActivityLog`, `PlaceholderView`. Since v1.2, the single `CommsPanel` was split into `ConnectionsPanel` + `ActivityLog`, and the standalone `WaveformBar` was removed (the orb is now the voice visualizer). Backend got a voice-robustness fix: empty/undecodable mic clips are treated as **no-speech** (no more 500s). Panels still render `lib/mock.ts`; **no Tauri shell yet**. An orb/HUD **visual redesign is queued** (`TODO.md`): calmer mesh, core-breathing + inward edge-flow reaction, drop the concentric/orbital rings, stay cyan, and a Command-Center minimize/restore control.
 
 > **What changed in v1.3 (this session — UI rethink, business context, scope):** UI art direction switched from film stills to clean **app-style dashboards** — the center orb becomes a **live connection-map**, plus a paginated monospace chat surface with a left context-rail, a **Connections list**, an **Activity log**, a **first-class confirm card**, fake telemetry **cut** (only the real `/usage` gauge kept), and the whole UI **de-Marvel'd** (Zenith's own naming; JARVIS internal only). Added the owner's **business context** (Arkquen — out of scope; ShapeOdyssey — agency) and a **Copy Factory / Template Studio** capability. **Pulled the personally-useful "future" features into Phase 1** (Copy Factory, Memory vault, Proactivity + WhatsApp triage); true SaaS machinery stays Phase 2. Added a Differentiation / moat + "don't build" section. Memory layer is now a **Markdown vault**, not Postgres.
 
@@ -244,20 +246,22 @@ Modeled on **app-style HUD dashboards** (the dashboard mockups), NOT the dense f
 +----------------------------------------------------------------+
 ```
 
-### Orb — live connection-map
-The center orb is a glowing core with **radiating nodes for Gmail / Calendar / WhatsApp / Discord** that light cyan when connected and dim when not — it doubles as an at-a-glance "what can Zenith reach right now." Four states:
-- **Idle:** slow cyan pulse, slow ring/node drift
-- **Listening:** fast bright pulse + reticle/ripple
-- **Thinking:** rotating arc + orbiting node, blue glow
-- **Speaking:** wave animation, full brightness, orange accent
+### Orb — reactive connection-mesh  *(implemented; redesign queued — see note)*
+The center orb is a glowing **core surrounded by a mesh of nodes** (Gmail / Calendar / WhatsApp / Discord) that light cyan when connected and **react to live audio** (mic + Zenith's voice) — it doubles as an at-a-glance "what can Zenith reach right now." Four states, **as currently implemented** in `ZenithOrb.tsx`:
+- **Idle:** core bloom, calm mesh, slow drift
+- **Listening:** brighter core, mesh reacts to mic level
+- **Thinking:** core shifts blue (`#5aa0ff`) + a brief orbiting dot
+- **Speaking:** core shifts orange (`#ff9a4d`), mesh reacts to TTS level
+
+> **Redesign queued (`TODO.md`, mock/visual only):** the per-node scaling reads as "bleeding dots" while speaking. Plan: move the reaction to a breathing **core + inward-flowing edges** (calm mesh, no ballooning), drop the blue thinking-orbit and any concentric/orbital rings, and keep **all states cyan** (revisit the orange speaking accent). Plus a Command-Center minimize/restore control.
 
 ### HUD Elements
-- **Command center:** paginated **monospace chat surface** with **copy / save / share** per answer, plus a **left context-rail** (chat / drafts / clients / settings)
-- **Connections list:** connected accounts + status dots (multi-account Gmail, multiple WhatsApp numbers, Discord servers)
-- **Activity log:** timestamped feed of what Zenith did ("create_event → confirmed", "email sent", "rate-limit warning") — the audit trail that pairs with the confirm gate
-- **Confirm / pending-action card — FIRST-CLASS:** a prominent StatusCard near the orb (this is the trust layer; never buried)
-- **Real `/usage` gauge:** API usage + daily cap + token budget (the ONE gauge kept)
-- Bottom **waveform bar** (voice activity) · top **timeline/status bar** · **hex corner accents** (used sparingly)
+- **Command center (`CommandCenter.tsx`):** chat input + **mic (hold space) + send merged into one surface**, with a monospace response area (**copy / save / share** per answer), a **left context-rail** (`ContextRail` + `LeftRailExtras`: chat / drafts / clients / settings), a **QuickActions** strip and a **FocusCard**
+- **Connections list (`ConnectionsPanel.tsx`):** connected accounts + status dots (multi-account Gmail, multiple WhatsApp numbers, Discord servers)
+- **Activity log (`ActivityLog.tsx`):** timestamped feed of what Zenith did ("create_event → confirmed", "email sent", "rate-limit warning") — the audit trail that pairs with the confirm gate
+- **Confirm / pending-action card — FIRST-CLASS:** a prominent `StatusCard` near the orb (this is the trust layer; never buried)
+- **Real `/usage` gauge (`GaugeIndicator`):** API usage + daily cap + token budget (the ONE gauge kept)
+- Top **timeline/status bar** (`TopBar`) · **hex corner accents** (`hud/primitives`, used sparingly). *(The standalone bottom waveform bar was dropped — voice activity now drives the reactive orb directly.)*
 - **CUT — do NOT build:** fake telemetry (CPU/GPU/disk/reactor/battery), a standing weather/environment widget, the decorative data-feed line graph
 
 ---
@@ -289,7 +293,7 @@ The center orb is a glowing core with **radiating nodes for Gmail / Calendar / W
 
 ## 8. FOLDER STRUCTURE
 
-> **Note (v1.2):** this is the **target** structure. The current backend is **flat** — `main.py`, `claude_service.py`, `memory_service.py`, `rate_limiter.py`, `stt_service.py`, `tts_service.py`, `tools.py`, and tests all live directly under `backend/` (no `routes/`/`services/`/`integrations/`/`database/` subdirs yet). `/transcribe`, `/speak`, `/chat`, `/chat/confirm`, `/usage` are all routes in `main.py`. The frontend has `app/page.tsx` + `components/` (`ZenithOrb`, `WaveformBar`, `GaugeIndicator`, `StatusCard`, `CalendarPanel`, `CommsPanel`, `TopBar`, `Markdown`, `hud/primitives.tsx`) + `lib/` (`voice.ts`, `format.ts`, `mock.ts`) — no `calendar/`/`inbox/`/`settings/` pages and **no `src-tauri/` yet**. Refactor toward the tree below as integrations land.
+> **Note (v1.4):** this is the **target** structure. The current backend is **flat** — `main.py`, `claude_service.py`, `memory_service.py`, `rate_limiter.py`, `stt_service.py`, `tts_service.py`, `tools.py`, plus tests (`test_stt.py`, `test_transcribe_route.py`, `test_speak_route.py`) live directly under `backend/` (no `routes/`/`services/`/`integrations/`/`database/` subdirs yet). Routes in `main.py`: `GET /`, `GET /usage`, `POST /transcribe`, `POST /speak`, `POST /chat`, `POST /chat/confirm` (no `/briefing` route yet). The frontend has `app/` (`page.tsx`, `layout.tsx`, `globals.css`) + `components/`: `ZenithOrb`, `CommandCenter` (chat input + mic + send merged), `ContextRail`, `LeftRailExtras`, `QuickActions`, `FocusCard`, `CalendarPanel`, `ConnectionsPanel`, `ActivityLog`, `PlaceholderView`, `GaugeIndicator`, `StatusCard`, `TopBar`, `Markdown`, `hud/primitives.tsx` + `lib/` (`voice.ts`, `format.ts`, `mock.ts`). Since v1.2, `CommsPanel` was split into `ConnectionsPanel` + `ActivityLog` and the standalone `WaveformBar` was removed (the orb is now the voice visualizer). No `calendar/`/`inbox/`/`settings/` pages and **no `src-tauri/` yet**. Refactor toward the tree below as integrations land.
 
 ```
 jarvis/                             # repo codename; brand = Zenith
@@ -508,10 +512,10 @@ SECRET_KEY=
 - **Do this BEFORE integrations** — every integration then plugs in as a tool
 
 ### Milestone 2 — HUD UI 🔄 IN PROGRESS
-- Orb states, panels (calendar/comms), waveform, gauges, status cards, top bar — **built** (still rendering `lib/mock.ts` placeholder data)
-- Voice in (faster-whisper `/transcribe`) ✅ + out (edge-tts `/speak`) ✅
+- App-style HUD **built** per the v1.3 direction: reactive connection-mesh orb (4 states), merged **Command Center** (chat + mic + send), `ContextRail` + `LeftRailExtras`, `QuickActions`, `FocusCard`, `CalendarPanel`, `ConnectionsPanel`, `ActivityLog`, gauges, status cards, top bar — still rendering `lib/mock.ts` placeholder data
+- Voice in (faster-whisper `/transcribe`) ✅ + out (edge-tts `/speak`) ✅; empty/undecodable mic clips handled as no-speech (no 500) ✅
 - Markdown reply rendering + emoji-strip ✅
-- **Remaining:** wire panels to live data; scaffold the Tauri desktop shell (`src-tauri/`) + grant mic permission there
+- **Remaining:** orb/HUD visual redesign (`TODO.md` — calmer mesh, core+edge reaction, drop rings, Command-Center minimize); wire panels to live data; scaffold the Tauri desktop shell (`src-tauri/`) + grant mic permission there
 
 ### Milestone 3 — Google ⬜ NEXT
 - OAuth (single account first → then multi-account)
@@ -638,5 +642,5 @@ all files, README setup guide, and .env.example
 
 ---
 
-*PRD Version 1.3 | Updated: June 2026 (from v1.2 · v1.1 · v1.0, June 15, 2026)*
-*Next Step: finish Milestone 2 — wire HUD panels to live data (apply the v1.3 UI direction: connection-map orb, Connections list, Activity log, first-class confirm card, telemetry cut) + scaffold the Tauri shell (`src-tauri/`) → then Milestone 3 (Google OAuth + Calendar/Gmail tools + morning briefing).*
+*PRD Version 1.4 | Updated: June 2026 (from v1.3 · v1.2 · v1.1 · v1.0, June 15, 2026)*
+*Next Step: finish Milestone 2 — orb/HUD visual redesign (`TODO.md`: calmer mesh, core+edge reaction, drop rings, Command-Center minimize), then wire HUD panels off `lib/mock.ts` to live data + scaffold the Tauri shell (`src-tauri/`) → then Milestone 3 (Google OAuth + Calendar/Gmail tools + morning briefing).*

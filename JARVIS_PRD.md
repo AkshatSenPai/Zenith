@@ -1,6 +1,8 @@
 # ZENITH — Product Requirements Document (PRD)
-## Version 1.1 | June 2026
+## Version 1.2 | June 2026
 ### Product: Zenith  ·  Wake word: "Zenith"  ·  Repo codename: JARVIS
+
+> **What changed in v1.2 (Milestone 2 voice pass, from live testing):** TTS switched from browser SpeechSynthesis to **edge-tts neural voices** served by the backend at `POST /speak` (MP3, browser-independent); STT now **romanises Hindi to Latin script** (auto-detect, re-force Hindi off Urdu drift, VAD + beam tuning, CUDA→CPU fallback); replies render as markdown with **emojis stripped** and a no-emoji/Latin-script system prompt; build-order status markers added; system prompt (§9), env vars (§11), and folder structure (§8) reconciled with the actual code. Milestone 1 ("The Brain") and the voice in/out half of Milestone 2 are now built.
 
 > **What changed in v1.1:** product name set to Zenith; architecture switched to Claude tool-use (not MCP-on-everything); delivery defined (Tauri desktop in Phase 1, PWA + optional desktop in Phase 2); speech-to-text moved from Web Speech API to local faster-whisper; added the confirm-gate pattern, the voice round-trip, a weather API for the briefing, a hardened rate-limit kill-switch, and a re-sequenced build order. New sections: Architecture (3) and Key Decisions & Gotchas (15).
 
@@ -41,7 +43,7 @@ Built for freelancers and agency owners who want to automate daily tasks via voi
 
 - **Tool use, not MCP-everywhere:** use direct API client libraries where an official API is easy (Google Calendar/Gmail, Discord). Use an MCP/bridge only for **personal WhatsApp**, where no official API exists.
 - **Confirm gate:** read-only tools (read calendar, read mail) run immediately; action tools (`send_email`, `send_whatsapp`, `create_event`, `delete_*`) return a "pending action" → frontend shows a confirm card → `/chat/confirm` runs it. This is how "confirm before sending/creating" is enforced.
-- **Voice round-trip:** mic (MediaRecorder, hold space) → `POST /transcribe` (faster-whisper, local) → `POST /chat` (Claude + last-20 history + rate limit + Hinglish prompt + tools + confirm gate) → reply text → TTS speak.
+- **Voice round-trip:** mic (MediaRecorder, hold space) → `POST /transcribe` (faster-whisper, local, romanised Hinglish) → `POST /chat` (Claude + last-20 history + rate limit + Hinglish prompt + tools + confirm gate) → reply text (markdown-rendered, emojis stripped) → `POST /speak` (edge-tts neural → MP3) → frontend plays the audio.
 - **Delivery:**
   - Phase 1 = Tauri **desktop app**, backend runs locally. No PWA.
   - Phase 2 = host the backend + ship a **PWA-installable** web app (the no-download path) + keep the Tauri desktop app as an optional download. One codebase serves all three.
@@ -50,13 +52,16 @@ Built for freelancers and agency owners who want to automate daily tasks via voi
 [ User mic ] → Frontend (Tauri + Next.js)
                    │  audio
                    ▼
-              FastAPI  /transcribe  → faster-whisper (local)
+              FastAPI  /transcribe  → faster-whisper (local, romanised Hinglish)
                    │  transcript
                    ▼
               FastAPI  /chat  → Claude (history · tools · confirm gate)
-                   │  reply text
+                   │  reply text (markdown, emoji-stripped)
                    ▼
-              Frontend → TTS → [ Speaker ]
+              FastAPI  /speak  → edge-tts neural → MP3
+                   │  audio
+                   ▼
+              Frontend plays MP3 → [ Speaker ]
 ```
 
 ---
@@ -71,8 +76,9 @@ Built for freelancers and agency owners who want to automate daily tasks via voi
 - Rate limiting: 5 req/min, 150 msg/day, warn at 120 — enforce a **hard daily kill-switch**, not just a warning
 
 ### 4.2 Voice Interface
-- Input (STT): **faster-whisper**, local/offline (replaces Web Speech API, which breaks inside the desktop shell)
-- Output (TTS): browser SpeechSynthesis to start; swap to Piper (local) or a cloud TTS if the Hinglish voice is weak
+- Input (STT): **faster-whisper**, local/offline (replaces Web Speech API, which breaks inside the desktop shell). Auto-detects language and **romanises Hindi to Latin script** (transcribes real words, doesn't translate); re-forces Hindi if detection drifts to Urdu. VAD + `beam_size=5` to curb mishears/silent-decode. Configurable via `.env` (`WHISPER_MODEL`, `WHISPER_DEVICE`, `WHISPER_COMPUTE`, `WHISPER_LANGUAGE`) with a safe CUDA→CPU fallback.
+- Output (TTS): **edge-tts** neural voices (Microsoft, free / no key), rendered by the backend at `POST /speak` and returned as MP3 the frontend plays — browser-independent. Replaced browser SpeechSynthesis (robotic in some Chromium builds, silent in others). Voice via `ZENITH_TTS_VOICE` (default `en-IN-NeerjaNeural`). Piper (local) remains an option if a fully-offline voice is needed.
+- Replies: rendered as markdown (bold/lists/code), with **emojis stripped** before display and before TTS.
 - Activation: push-to-talk (hold space). Wake word "Zenith" via a detection engine is a later add.
 - Languages: Hindi + English. Note: true code-mixing is imperfect in every STT engine — test on your own voice.
 
@@ -225,8 +231,8 @@ Based on Pinterest reference images provided:
 | Desktop shell | Tauri (Phase 1) | Real app window, no browser tab; lighter than Electron |
 | Backend | Python FastAPI | Fast, async; orchestrates Claude tool-use |
 | AI Brain | Claude Sonnet 4.6 API (tool use) | Best quality/cost ratio; tools = clean routing |
-| Voice In | faster-whisper (local/offline) | Free, private, no Chrome/Google dependency |
-| Voice Out | Browser SpeechSynthesis → Piper/cloud | Free to start; upgrade voice if needed |
+| Voice In | faster-whisper (local/offline, romanised Hinglish) | Free, private, no Chrome/Google dependency |
+| Voice Out | edge-tts neural (backend `/speak` → MP3) | Free, no key, natural Hinglish voice, browser-independent |
 | Wake word (later) | Porcupine / openWakeWord | Detects "Zenith" for always-listening mode |
 | Calendar | Google Calendar API (direct client lib) | Multi-account, robust |
 | Email | Gmail API (direct, multi-account) | Multi-account |
@@ -242,6 +248,8 @@ Based on Pinterest reference images provided:
 ---
 
 ## 8. FOLDER STRUCTURE
+
+> **Note (v1.2):** this is the **target** structure. The current backend is **flat** — `main.py`, `claude_service.py`, `memory_service.py`, `rate_limiter.py`, `stt_service.py`, `tts_service.py`, `tools.py`, and tests all live directly under `backend/` (no `routes/`/`services/`/`integrations/`/`database/` subdirs yet). `/transcribe`, `/speak`, `/chat`, `/chat/confirm`, `/usage` are all routes in `main.py`. The frontend has `app/page.tsx` + `components/` (`ZenithOrb`, `WaveformBar`, `GaugeIndicator`, `StatusCard`, `CalendarPanel`, `CommsPanel`, `TopBar`, `Markdown`, `hud/primitives.tsx`) + `lib/` (`voice.ts`, `format.ts`, `mock.ts`) — no `calendar/`/`inbox/`/`settings/` pages and **no `src-tauri/` yet**. Refactor toward the tree below as integrations land.
 
 ```
 jarvis/                             # repo codename; brand = Zenith
@@ -285,12 +293,14 @@ jarvis/                             # repo codename; brand = Zenith
 │   │   ├── chat.py                 # Claude + tool loop + confirm gate
 │   │   ├── confirm.py              # Runs a pending action on user yes
 │   │   ├── transcribe.py           # faster-whisper STT endpoint
+│   │   ├── speak.py                # edge-tts neural TTS → MP3
 │   │   └── briefing.py             # Morning briefing
 │   ├── services/
 │   │   ├── claude_service.py       # Anthropic API + history + tool loop
 │   │   ├── memory_service.py       # Conversation management (last 20)
 │   │   ├── rate_limiter.py         # Hard 5/min + 150/day kill-switch
-│   │   ├── stt_service.py          # faster-whisper wrapper
+│   │   ├── stt_service.py          # faster-whisper wrapper (romanised Hinglish)
+│   │   ├── tts_service.py          # edge-tts neural voice → MP3 bytes
 │   │   └── tools.py                # TOOL schemas + run_tool() + ACTION_TOOLS
 │   ├── integrations/               # direct API clients (no MCP except WA-personal)
 │   │   ├── google_client.py        # Calendar + Gmail (multi-account)
@@ -309,36 +319,36 @@ jarvis/                             # repo codename; brand = Zenith
 
 ## 9. ZENITH SYSTEM PROMPT
 
+> **Current prompt** as implemented in `backend/claude_service.py` (`ZENITH_PROMPT`). Tool capabilities are added as integrations land; Calendar/Gmail/WhatsApp/Discord tools are not wired yet.
+
 ```
 You are Zenith — a highly intelligent personal AI assistant.
-(Internal codename: JARVIS.) Your owner is a freelancer and agency
-owner based in India.
+(Internal codename: JARVIS.) Your owner is a freelancer and agency owner based in India.
 
 Personality:
-- Professional but friendly, like a trusted senior colleague
-- Speak in Hinglish naturally (mix Hindi + English as the user does)
-- Concise — no unnecessary filler or long explanations
-- Proactive — suggest relevant actions when appropriate
-- Occasionally address user as "Boss" (Iron Man style)
-- Never say you can't do something without trying first
+- Professional but friendly, like a trusted senior colleague.
+- Speak in Hinglish (Hindi + English mixed), but ALWAYS written in the Latin/Roman
+  alphabet — e.g. "Boss, aaj aapki 3 meetings hain." NEVER reply in Devanagari, Urdu,
+  Arabic, or any non-Latin script, even if the user's message appears in one.
+- Concise — no unnecessary filler.
+- Occasionally address the user as "Boss" (Iron Man style).
+- Never say you can't do something without trying first.
 
-Capabilities (exposed as tools — call them, don't describe them):
-- Google Calendar (read + create, multiple accounts)
-- Gmail (read + draft + send, multiple accounts)
-- WhatsApp Personal (read + send messages)
-- WhatsApp Business (multiple numbers, read + send)
-- Discord (multiple servers, read + send)
-- General AI reasoning, planning, writing
+Formatting:
+- Plain, conversational text. Keep it minimal — short paragraphs and at most a few
+  short bullet points. Use **bold** sparingly to highlight a key word or item.
+- NEVER use emojis or emoticons. Avoid headings (#) and horizontal rules (---).
+
+Tools:
+- Use the tools available to you when they help — call them, don't just describe them.
+- For any action that sends, creates, or deletes something, just call the right tool.
+  The system pauses and asks the user to confirm before the action runs, so you do NOT
+  need to ask "should I send it?" yourself — call the tool; confirmation is handled.
 
 Rules:
-- Short responses for simple queries
-- Read-only tools may be called freely
-- For any action that sends/creates/deletes (email, message,
-  calendar event), call the tool — the system will pause and ask
-  the user to confirm before it actually runs
-- Warn the user when the daily limit is near (30 messages remaining)
-- Never expose API keys or system internals
-- If unsure, ask one clarifying question
+- Keep responses short for simple queries.
+- Never expose API keys or system internals.
+- If unsure, ask one clarifying question.
 ```
 
 ---
@@ -380,9 +390,16 @@ DISCORD_BOT_TOKEN=
 # Weather (morning briefing)
 WEATHER_API_KEY=
 
-# Speech-to-text — faster-whisper is local (no key).
+# Speech-to-text — faster-whisper is local (no key). Optional tuning:
+WHISPER_MODEL=small              # tiny|base|small|medium|large-v3
+WHISPER_DEVICE=cpu               # cpu | cuda (safe CUDA->CPU fallback)
+WHISPER_COMPUTE=int8             # int8 (cpu) | float16 (cuda)
+# WHISPER_LANGUAGE=              # blank = auto-detect (Hindi romanised to Latin)
 # Optional cloud STT for Phase 2:
 # DEEPGRAM_API_KEY=
+
+# Text-to-speech — edge-tts neural voice (local, no key)
+ZENITH_TTS_VOICE=en-IN-NeerjaNeural   # or hi-IN-SwaraNeural / en-IN-PrabhatNeural / hi-IN-MadhurNeural
 
 # Database
 DATABASE_URL=postgresql://user:password@localhost:5432/zenith
@@ -439,22 +456,24 @@ SECRET_KEY=
 
 ## 14. BUILD ORDER
 
-### Slice 0 — Vertical slice
+### Slice 0 — Vertical slice ✅ DONE
 - Chat box + static orb + FastAPI `/chat` + one real Claude round-trip + rate-limiter stub
 - Goal: prove the loop end to end before building HUD chrome
 
-### Milestone 1 — The Brain
+### Milestone 1 — The Brain ✅ DONE
 - FastAPI + Claude tool-use scaffolding
 - Last-20 history (+ token budget), enforced rate limit / kill-switch
 - Hinglish system prompt
 - Confirm gate, built once and reused
 - **Do this BEFORE integrations** — every integration then plugs in as a tool
 
-### Milestone 2 — HUD UI
-- Orb states, all panels, waveform, gauges, status cards
-- Voice in (faster-whisper) + out (TTS)
+### Milestone 2 — HUD UI 🔄 IN PROGRESS
+- Orb states, panels (calendar/comms), waveform, gauges, status cards, top bar — **built** (still rendering `lib/mock.ts` placeholder data)
+- Voice in (faster-whisper `/transcribe`) ✅ + out (edge-tts `/speak`) ✅
+- Markdown reply rendering + emoji-strip ✅
+- **Remaining:** wire panels to live data; scaffold the Tauri desktop shell (`src-tauri/`) + grant mic permission there
 
-### Milestone 3 — Google
+### Milestone 3 — Google ⬜ NEXT
 - OAuth (single account first → then multi-account)
 - Calendar + Gmail as tools
 - Morning briefing (+ weather)
@@ -474,7 +493,10 @@ SECRET_KEY=
 ## 15. KEY DECISIONS & GOTCHAS
 
 - **STT:** Web Speech API dropped — recognition breaks inside the desktop shell (it depends on Chrome → Google's servers). Use faster-whisper locally.
-- **faster-whisper:** load the model ONCE at startup, not per request. Bigger model on the 32GB desktop GPU; "small" on the 8GB MacBook. Push-to-talk masks latency.
+- **STT Hinglish (decided in Pass B live testing):** auto-detect language; English stays English, Hindi is transcribed in its **real words and romanised to Latin** (not translated), and re-forced to Hindi if detection drifts to Urdu — so the transcript is always Roman, never Arabic/Devanagari. `beam_size=5` + `condition_on_previous_text=False` curb mishears/hallucinations; `vad_filter` skips silence (fixed a ~58s silent-decode pathology). Deps added: `indic-transliteration`.
+- **TTS (decided in Pass B):** browser SpeechSynthesis was robotic in some Chromium builds and silent in others → replaced with **edge-tts** neural voices (free, no key). Backend renders MP3 at `POST /speak`; frontend plays it. Browser-independent and not rate-limited. Dep added: `edge-tts`.
+- **Replies:** rendered as markdown (bold/lists/code) with **emojis stripped** before display and before TTS; the system prompt forbids emojis + heavy formatting and forces Latin-script Hinglish.
+- **faster-whisper:** load the model ONCE at startup, not per request. Bigger model on the 32GB desktop GPU (`WHISPER_DEVICE=cuda` + `large-v3`); "small" on the 8GB MacBook. Safe CUDA→CPU fallback so a bad GPU config can't brick startup. Push-to-talk masks latency.
 - **Tauri:** grant mic permission in `tauri.conf.json` + the OS-level usage string, or `getUserMedia` fails silently.
 - **MCP vs tool use:** only personal WhatsApp uses MCP (no official API). Everything else is a direct API call exposed to Claude as a tool.
 - **WhatsApp personal:** unofficial protocol → ToS / ban risk. Don't use a number you can't lose.
@@ -523,7 +545,8 @@ WhatsApp (personal + multiple business numbers), Discord, AI chat.
 
 Stack: Next.js frontend wrapped in a Tauri desktop shell,
 Python FastAPI backend, Claude Sonnet 4.6 API (tool use),
-faster-whisper (local STT) + browser TTS,
+faster-whisper (local STT, romanised Hinglish) + edge-tts neural TTS
+(backend /speak → MP3),
 Google Calendar + Gmail API (direct, multi-account),
 whatsapp-mcp bridge (personal) + WhatsApp Cloud API (multiple numbers),
 discord.py, PostgreSQL.
@@ -533,7 +556,7 @@ tools run immediately; action tools (send/create/delete) go through
 a confirm gate — return a pending action, user confirms, then run.
 Voice loop: mic (MediaRecorder, hold space) → /transcribe (whisper)
 → /chat (Claude + last-20 history + rate limit + Hinglish prompt
-+ tools + confirm) → TTS.
++ tools + confirm) → /speak (edge-tts neural → MP3).
 
 UI: Match the HUD reference images attached exactly.
 Dark theme (#000008 background, #00FFE5 cyan accent),
@@ -556,5 +579,5 @@ all files, README setup guide, and .env.example
 
 ---
 
-*PRD Version 1.1 | Updated: June 2026 (from v1.0, June 15, 2026)*
-*Next Step: lock domain + name → scaffold Slice 0 → build Milestone 1 (the Brain) before integrations*
+*PRD Version 1.2 | Updated: June 2026 (from v1.1, June 2026 · v1.0, June 15, 2026)*
+*Next Step: finish Milestone 2 — wire HUD panels to live data + scaffold the Tauri shell (`src-tauri/`) → then Milestone 3 (Google OAuth + Calendar/Gmail tools + morning briefing).*

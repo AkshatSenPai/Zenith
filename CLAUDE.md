@@ -61,13 +61,16 @@ Full details in JARVIS_PRD.md.
 ---
 
 ## UI STYLE
-- Background: #000008 (pure black)
-- Primary: #00FFE5 (cyan glow)
-- Secondary: #0066FF (electric blue)
-- Alert: #FF6B00 (orange) · Critical: #FF2020 (red)
-- Text: #E0F7F7 (cool white)
-- Font: Space Grotesk + Inter + JetBrains Mono
-- Iron Man HUD — center orb (idle/listening/thinking/speaking states), circular gauges, floating status cards, terminal chat, bottom waveform bar, top timeline bar, hexagonal corner accents.
+**Art direction (updated this session):** modeled on clean **app-style HUD dashboards**, NOT the dense film stills. Near-black canvas, one cyan, thin strokes, rounded "notched-corner" cards, generous spacing — legibility over decoration.
+- Background #000008 · Primary #00FFE5 · Secondary #0066FF · Alert #FF6B00 · Critical #FF2020 · Text #E0F7F7
+- Fonts: Space Grotesk (display) + Inter (body) + JetBrains Mono (chat/terminal)
+- **Center orb = live connection-map:** glowing core with radiating nodes for Gmail / Calendar / WhatsApp / Discord that light cyan when connected, dim when not. 4 states: idle / listening / thinking / speaking.
+- **Command center (chat):** paginated **monospace response surface** with copy / save / share per answer + a **left context-rail** (chat / drafts / clients / settings).
+- **Panels:** left CALENDAR · center orb + command center · right COMMUNICATIONS + **Connections list** (accounts + status dots) + **Activity log** (timestamped feed of what Zenith did: "create_event → confirmed", "email sent", "rate-limit warning").
+- **Confirm/pending-action card is FIRST-CLASS** — a prominent StatusCard near the orb. It's the trust layer; don't bury it.
+- **CUT (do not build):** fake telemetry (CPU/GPU/disk/reactor/battery), standing weather/environment widget, decorative data-feed graph. Keep only the **real `/usage` gauge** (API usage + daily cap + token budget).
+- **De-Marvel:** Zenith's own naming everywhere (your connections, your log, "Zenith" title). "JARVIS / Stark / J.A.R.V.I.S. Cloud / Pepper" never appear in the UI — JARVIS is the internal codename only.
+- Bottom waveform bar · top timeline/status bar · hex corner accents (kept, used sparingly).
 
 ---
 
@@ -78,6 +81,14 @@ Full details in JARVIS_PRD.md.
 - [ ] **Milestone 3 — Google:** OAuth (single account first → then multi-account), Calendar + Gmail as tools, morning briefing (+ weather).
 - [ ] **Milestone 4 — Messaging:** WhatsApp personal (bridge) → Discord → WhatsApp Business (last; most onboarding friction). Polling-based alerts for v1.
 - [ ] **Milestone 5 — Hardening:** settings page, usage/cost dashboard, kill-switch cap, README + `.env.example`, tests (rate limiter, tool router, confirm flow). Fold error/empty/loading states in throughout — don't save them for the end.
+
+### Phase-1 capabilities pulled in from "future" (this session's call: it's a daily driver for ME, so the things I'd actually use live in Phase 1, not parked as Phase-2 product ambition)
+- [ ] **Milestone 6 — Memory vault + Copy Factory:**
+  - **Memory = local Markdown vault** (Obsidian-style), NOT Postgres. Tools `search_notes` (read) + `save_note` (action). Daily logs, client notes/briefs, decisions; enables "what did I do last week" + **voice-matched drafts** (learns my writing style from the vault).
+  - **Copy Factory / Template Studio:** input = my existing client **intake form** (it already IS the brief). From one brief Zenith drafts — in my voice — email sequences, **WhatsApp WABA templates** (Meta `{{1}}` format, category-tagged), ad copy + creative briefs, and landing/funnel copy, in English/Hindi/Hinglish. **Copy only — I paste into Arkquen; nothing wired.** Tools: `draft_sequence`, `draft_ad_copy`, `draft_landing_copy` (output-only, no send).
+- [ ] **Milestone 7 — Proactivity + message triage:** background watcher surfaces *what slipped* as floating status cards (aging unanswered client msgs, commitments made, today's prep, deadlines). **WhatsApp triage** of my OWN personal + business messages: "who's waiting on a reply?" → drafts replies (confirm-gated). Builds on M3/M4; respects the rate/token cap.
+
+> **Stays in Phase 2 (true SaaS-only):** multi-user auth (Clerk), per-user encrypted keys, Razorpay billing, hosted backend + PWA, the full **business-data dashboard** (clients/projects/invoices/time as a DB module — the lightweight version is just the vault in M6). Computer Use + Higgsfield remain optional/experimental.
 
 ---
 
@@ -91,6 +102,18 @@ Full details in JARVIS_PRD.md.
 - **WhatsApp personal (bridge):** unofficial → ToS/ban risk. Don't point it at a number you can't afford to lose.
 - **WhatsApp Business "1000 free msgs":** outdated — verify Meta's current per-conversation pricing; ship with ONE business number first.
 - **Domain:** still to lock (non-.com). Verify on porkbun, then trademark-check before paying.
+- **Differentiation / moat:** the field splits into pretty JARVIS clones (great UI, no real work) and serious assistants (powerful, no soul). Zenith's lane → *a proactive, Hinglish-speaking, WhatsApp-native assistant that handles the founder's work and acts with a visible trust layer (confirm gate + activity log).* Aesthetics get attention; that sentence is the reason to pay.
+- **DON'T BUILD (saturated / non-differentiating — zero effort):** PC/system monitoring (CPU/GPU/disk/reactor/battery telemetry — cosplay); calendar auto-scheduling à la Motion (just integrate Calendar); WhatsApp Business customer-chatbots / lead-gen (different product, saturated in India); smart-home/IoT; more 3D holographic eye-candy.
+- **Arkquen = OUT of Zenith's scope.** It's a white-label subscription being rebuilt — a moving target. Arkquen runs the *client machine* (funnels/CRM/automated sequences); Zenith runs the *founder* (proposals, ad copy, briefs, reporting, comms, Copy Factory). No integration.
+- **Memory = Markdown vault** (Obsidian-style), not Postgres — local, private, and it doubles as the Copy Factory's brief store (one client brief → sequences + ad copy + proposals + pre-call briefs).
+
+---
+
+## BUSINESS CONTEXT (the owner's world — what Zenith is built around)
+- **Arkquen** (arkquen.com) — real-estate-focused funnel / CRM / WhatsApp+email automation platform. Currently a **white-labeled subscription the owner resells**, on the way to **building their own**. Runs the *client-facing machine*. **Zenith does NOT integrate with it.**
+- **ShapeOdyssey** (shapeodyssey.com) — digital agency that builds **customer-acquisition systems**: Meta/Google ads + funnels (in Arkquen) + websites + automation. Team-based.
+- **Division of labour:** Arkquen runs the client machine → **Zenith runs *you***: proposals, agreements, ad copy, creative briefs, campaign reporting, website/funnel copy, ad-hoc client comms, and the Copy Factory. None of it overlaps Arkquen.
+- **Long-game (Phase 2):** the owner works in a team, so Zenith eventually trends toward a *founder's command center over a team* (delegation, "what's pending across everyone"). Phase 1 stays the personal driver.
 
 ---
 
@@ -116,4 +139,4 @@ Production quality, complete code, no placeholders. Deliver: full codebase + REA
 
 ---
 
-*Plan updated to reflect decisions on: name (Zenith), wake word, tool-use architecture, Tauri desktop / PWA delivery, faster-whisper STT, confirm gate, and refined build order. Synced with JARVIS_PRD.md v1.2 (Milestone 2 voice pass): edge-tts neural TTS via `/speak`, romanised-Hinglish STT, markdown/no-emoji replies.*
+*Synced with JARVIS_PRD.md v1.3. v1.3 adds (this session): app-style UI direction (connection-map orb, paginated chat + left rail, connections list, activity log, first-class confirm card, fake telemetry cut, de-Marvel'd); business context (Arkquen out / ShapeOdyssey); and the personally-useful "future" features pulled into Phase 1 — Copy Factory (M6), Memory vault (M6), Proactivity + WhatsApp triage (M7). True SaaS machinery (multi-user, billing, hosting/PWA, full business dashboard) stays Phase 2.*

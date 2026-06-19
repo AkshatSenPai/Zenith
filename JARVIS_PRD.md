@@ -1,6 +1,8 @@
 # ZENITH — Product Requirements Document (PRD)
-## Version 1.2 | June 2026
+## Version 1.3 | June 2026
 ### Product: Zenith  ·  Wake word: "Zenith"  ·  Repo codename: JARVIS
+
+> **What changed in v1.3 (this session — UI rethink, business context, scope):** UI art direction switched from film stills to clean **app-style dashboards** — the center orb becomes a **live connection-map**, plus a paginated monospace chat surface with a left context-rail, a **Connections list**, an **Activity log**, a **first-class confirm card**, fake telemetry **cut** (only the real `/usage` gauge kept), and the whole UI **de-Marvel'd** (Zenith's own naming; JARVIS internal only). Added the owner's **business context** (Arkquen — out of scope; ShapeOdyssey — agency) and a **Copy Factory / Template Studio** capability. **Pulled the personally-useful "future" features into Phase 1** (Copy Factory, Memory vault, Proactivity + WhatsApp triage); true SaaS machinery stays Phase 2. Added a Differentiation / moat + "don't build" section. Memory layer is now a **Markdown vault**, not Postgres.
 
 > **What changed in v1.2 (Milestone 2 voice pass, from live testing):** TTS switched from browser SpeechSynthesis to **edge-tts neural voices** served by the backend at `POST /speak` (MP3, browser-independent); STT now **romanises Hindi to Latin script** (auto-detect, re-force Hindi off Urdu drift, VAD + beam tuning, CUDA→CPU fallback); replies render as markdown with **emojis stripped** and a no-emoji/Latin-script system prompt; build-order status markers added; system prompt (§9), env vars (§11), and folder structure (§8) reconciled with the actual code. Milestone 1 ("The Brain") and the voice in/out half of Milestone 2 are now built.
 
@@ -28,6 +30,12 @@ Built for freelancers and agency owners who want to automate daily tasks via voi
 - Manages websites, SaaS projects
 - Uses VS Code, Claude Code daily
 - Needs: schedule management, email, WhatsApp, ad creation, coding help
+
+**The owner's businesses (what Zenith is built around):**
+- **Arkquen** (arkquen.com) — a real-estate-focused funnel / CRM / WhatsApp+email automation platform. Currently a **white-labeled subscription the owner resells**, on the way to **building their own**. It runs the *client-facing machine* (funnels, CRM, automated sequences). **Zenith does NOT integrate with Arkquen** — it's a moving target and out of scope.
+- **ShapeOdyssey** (shapeodyssey.com) — a digital agency that builds **customer-acquisition systems**: Meta/Google ads + funnels (built in Arkquen) + websites + automation. Team-based.
+- **Division of labour:** Arkquen runs the client machine → **Zenith runs *you***: proposals, agreements, ad copy, creative briefs, campaign reporting, website/funnel copy, ad-hoc client comms, and the Copy Factory (§4.9). None of it overlaps Arkquen.
+- **Long-game (Phase 2):** the owner works in a team, so Zenith eventually trends toward a *founder's command center over a team*. Phase 1 stays the personal driver.
 
 **Target Market (Phase 2):** Indian freelancers and agency owners
 - Age 22-35
@@ -131,9 +139,24 @@ Built for freelancers and agency owners who want to automate daily tasks via voi
 - Voice speed + language preference
 - Daily usage + cost dashboard, with the kill-switch cap
 
+### 4.9 Copy Factory / Template Studio  *(pulled into Phase 1 — the owner's highest-value daily job)*
+Input = the owner's **existing client intake form** (it already *is* the brief: niche, offer, audience, price, funnel type, merge variables). From one brief, Zenith generates **in the owner's voice**:
+- Multi-stage **email sequences** (welcome → nurture → booking → reminder → no-show → re-engage)
+- **WhatsApp (WABA) templates** in Meta's `{{1}}` positional format, **tagged by category** (Marketing / Utility / Authentication) to reduce approval rejections
+- **Ad copy + creative briefs** (Meta/Google) and **landing-page / funnel copy**
+- Output in **English, Hindi, or Hinglish** (Telugu on request), with A/B subject-line + hook variants
+
+Zenith writes the **copy only — the owner pastes it into Arkquen. Nothing is wired to Arkquen.** Tools: `draft_sequence`, `draft_ad_copy`, `draft_landing_copy` (output-only; no send). The same client brief also feeds proposals and pre-call briefs → one input, many outputs ("client copy factory"). (Validated this session against a real client, Shadnagar Heights.)
+
+### 4.10 Memory — Markdown vault (Obsidian-style)  *(replaces Postgres-for-memory)*
+A **local Markdown vault** Zenith reads/writes: daily logs, client notes/briefs, meeting notes, decisions. Tools: `search_notes` (read), `save_note` (action). Enables "what did I do last week?", "notes from the Acme call", and **voice-matched drafts** (Zenith learns the owner's writing style from the vault). The vault doubles as the Copy Factory's brief store. Local + private; matches the Phase-1 privacy stance.
+
+### 4.11 Proactivity + message triage  *(pulled into Phase 1)*
+Move from reactive (ask → answer) to proactive. A background watcher surfaces *what slipped* as floating HUD status cards: aging unanswered client messages (Gmail/WhatsApp), commitments made ("you said you'd send Rahul the proposal"), today's prep, approaching deadlines. **WhatsApp triage** of the owner's *own* personal + business messages: "who's waiting on a reply?" → drafts replies (confirm-gated). Builds on M3/M4 tools; respects the rate/token cap. (Background scheduler/poller, e.g. APScheduler.)
+
 ---
 
-## 5. FUTURE FEATURES (Phase 2)
+## 5. FUTURE FEATURES (Phase 2 — true SaaS / heavier)
 
 ### 5.1 Computer Use (Desktop Control)
 - Anthropic Computer Use API (experimental — slow/expensive, treat carefully)
@@ -151,24 +174,37 @@ Built for freelancers and agency owners who want to automate daily tasks via voi
 - SaaS/website task prompts ready-made
 - "Ek landing page ka prompt banao with pricing table"
 
-### 5.4 Persistent Memory
-- PostgreSQL database
-- Conversations saved across sessions
-- User preferences remembered
-- "Last week maine kya kiya tha" → Zenith batayega
+### 5.4 Business-data module (the freelancer command center — heavy)
+- A real data layer (DB) for clients, projects, invoices, hours
+- Dashboards: revenue, profit, invoices pending, time tracking, upcoming deadlines, Quick Actions (Create Invoice / Send Proposal / Add Task)
+- Killer feature: **talk to your business data** — "summarize my month, what should I focus on?" → structured answer
+- Time tracking: **integrate** (Toggl/Clockify), don't rebuild. Trend indicators only once history is stored.
+- (The lightweight Phase-1 version is just the Markdown vault, §4.10.)
 
 ### 5.5 Multi-User (SaaS)
 - User authentication (Clerk)
-- Each user brings their own API key (store encrypted)
+- Each user brings their own API key (store **encrypted at rest**)
 - Per-user rate limiting
 - Razorpay payment integration
+- Hosted backend + **PWA-installable** web app (no-download path) + optional desktop download
+
+> **Note:** "Persistent memory" from earlier drafts is now a **Phase-1 Markdown vault** (§4.10), not a Phase-2 database.
+
+### 5.6 Differentiation / moat & "DON'T BUILD"
+**Positioning:** the field splits into pretty JARVIS clones (great UI, no real work) and serious assistants (powerful, no soul). Zenith's lane → *a proactive, Hinglish-speaking, WhatsApp-native assistant that handles the founder's work and acts with a visible trust layer (the confirm gate + activity log).* Aesthetics get attention; that sentence is the reason to pay. The two lead moats are **proactivity** and **WhatsApp triage of your own messages** (both §4.11).
+
+**DON'T BUILD (saturated / non-differentiating — spend zero effort):**
+- PC / system monitoring (CPU/GPU/disk/reactor/battery telemetry — cosplay)
+- Calendar auto-scheduling à la Motion/Reclaim (just integrate Calendar, don't compete)
+- WhatsApp Business customer-chatbots / lead-gen (a different product; saturated in India)
+- Smart-home / IoT; more 3D holographic eye-candy
 
 ---
 
 ## 6. UI DESIGN SPECIFICATION
 
-### Theme — Iron Man HUD
-Based on Pinterest reference images provided:
+### Theme — clean app-style HUD (updated v1.3)
+Modeled on **app-style HUD dashboards** (the dashboard mockups), NOT the dense film stills. Near-black canvas, one cyan, thin strokes, rounded **notched-corner cards**, generous spacing — **legibility over decoration**. **De-Marvel'd:** Zenith's own naming everywhere — "JARVIS / Stark / J.A.R.V.I.S. Cloud / Pepper" never appear in the UI; JARVIS is the internal codename only.
 
 **Colors:**
 - Background: Pure black #000008
@@ -183,42 +219,46 @@ Based on Pinterest reference images provided:
 - Body: Inter
 - Terminal/Code: JetBrains Mono
 
-### Layout (Desktop 1440px)
+### Layout (Desktop)
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│  ZENITH v1.0    Mon, 16 June 2026    [●] ONLINE  [⚙️]   │
-│  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  │
-├──────────────┬──────────────────────┬───────────────────┤
-│  CALENDAR    │                      │   COMMUNICATIONS  │
-│  ────────    │    [ ZENITH ORB ]    │   ─────────────   │
-│  ◉ 10am Meet │   Animated glowing   │   Gmail: 3 new    │
-│  ◉ 2pm Call  │   sphere with rings  │   WhatsApp: 5     │
-│  ◉ 5pm Review│   Pulse on voice     │   Discord: 2      │
-│              │                      │                   │
-│  TOMORROW    │   Status: LISTENING  │   [Recent msgs]   │
-│  ◉ 11am Demo │                      │                   │
-│              │  [Chat/Response area]│                   │
-├──────────────┴──────────────────────┴───────────────────┤
-│  [Waveform animation when voice active]                  │
-│  [🎤 Hold SPACE to speak]  [Type here...]      [Send ▶] │
-└─────────────────────────────────────────────────────────┘
++----------------------------------------------------------------+
+|  ZENITH   Fri, 19 Jun 2026      * ONLINE      [usage] [gear]    |  top bar
++---------------+--------------------------+-----------------------+
+|  CALENDAR     |                          |  CONNECTIONS          |
+|  . 10:00 Mtg  |      ( ZENITH ORB )      |  Gmail      [*] on     |
+|  . 14:00 Call |   connection-map core    |  Calendar   [*] on     |
+|  . 17:00 Rev  |   nodes: Gmail Cal WA Dc  |  WhatsApp   [ ] off    |
+|               |   (light up when linked) |  Discord    [ ] off    |
+|  TOMORROW     |                          | --------------------- |
+|  . 11:00 Demo |   state: listening...    |  ACTIVITY LOG         |
+|               |                          |  create_event  OK     |
+|  [left rail]  |  +--------------------+  |  email sent    OK     |
+|   chat        |  | command center     |  |  rate warn 120/150    |
+|   drafts      |  | paginated chat,    |  | --------------------- |
+|   clients     |  | monospace, "1/6",  |  |  [ CONFIRM CARD ]     |
+|   settings    |  | copy . save . share|  |  Send email to ...?   |
+|               |  +--------------------+  |  [Confirm] [Cancel]   |
++---------------+--------------------------+-----------------------+
+|  ~~ waveform (voice active) ~~    [ hold SPACE ] [ type... ] [>] |
++----------------------------------------------------------------+
 ```
 
-### Orb States
-- **Idle:** Slow cyan pulse, dim glow, slow orbital rings
-- **Listening:** Fast pulse, bright cyan, ripple animation, waveform
-- **Thinking:** Rotating arc, blue glow, processing animation
-- **Speaking:** Wave animation, full brightness, orange accent
+### Orb — live connection-map
+The center orb is a glowing core with **radiating nodes for Gmail / Calendar / WhatsApp / Discord** that light cyan when connected and dim when not — it doubles as an at-a-glance "what can Zenith reach right now." Four states:
+- **Idle:** slow cyan pulse, slow ring/node drift
+- **Listening:** fast bright pulse + reticle/ripple
+- **Thinking:** rotating arc + orbiting node, blue glow
+- **Speaking:** wave animation, full brightness, orange accent
 
-### HUD Elements (from reference images)
-- Circular gauge indicators — API usage, daily limit
-- Floating status cards — event alerts, message notifications
-- Terminal-style chat display — monospace font, cyan text
-- Bottom waveform bar — voice activity visualizer
-- Top timeline bar — date, time, day progress
-- Warning alerts — orange pop-ups for important notifications
-- Hexagonal accent elements — corners
+### HUD Elements
+- **Command center:** paginated **monospace chat surface** with **copy / save / share** per answer, plus a **left context-rail** (chat / drafts / clients / settings)
+- **Connections list:** connected accounts + status dots (multi-account Gmail, multiple WhatsApp numbers, Discord servers)
+- **Activity log:** timestamped feed of what Zenith did ("create_event → confirmed", "email sent", "rate-limit warning") — the audit trail that pairs with the confirm gate
+- **Confirm / pending-action card — FIRST-CLASS:** a prominent StatusCard near the orb (this is the trust layer; never buried)
+- **Real `/usage` gauge:** API usage + daily cap + token budget (the ONE gauge kept)
+- Bottom **waveform bar** (voice activity) · top **timeline/status bar** · **hex corner accents** (used sparingly)
+- **CUT — do NOT build:** fake telemetry (CPU/GPU/disk/reactor/battery), a standing weather/environment widget, the decorative data-feed line graph
 
 ---
 
@@ -488,6 +528,16 @@ SECRET_KEY=
 - Tests: rate limiter, tool router, confirm flow
 - Fold error/empty/loading states in throughout — don't save them for the end
 
+### Milestone 6 — Memory vault + Copy Factory  *(Phase 1)*
+- **Memory = local Markdown vault** (Obsidian-style), tools `search_notes` + `save_note`; daily logs, client briefs, decisions; voice-matched drafts (§4.10)
+- **Copy Factory / Template Studio:** intake-form-as-brief → email sequences, WABA templates (category-tagged), ad copy + creative briefs, landing/funnel copy, in EN/HI/Hinglish. Output-only; paste into Arkquen (§4.9)
+
+### Milestone 7 — Proactivity + WhatsApp triage  *(Phase 1)*
+- Background watcher (e.g. APScheduler) → "what slipped" as floating status cards
+- WhatsApp triage of your OWN messages: "who's waiting on a reply?" → confirm-gated drafts (§4.11)
+
+> **Phase 2 (after the personal driver is solid):** multi-user auth (Clerk), per-user encrypted keys, Razorpay billing, hosted backend + PWA, the full **business-data dashboard** (§5.4), and optional Computer Use / Higgsfield.
+
 ---
 
 ## 15. KEY DECISIONS & GOTCHAS
@@ -502,17 +552,26 @@ SECRET_KEY=
 - **WhatsApp personal:** unofficial protocol → ToS / ban risk. Don't use a number you can't lose.
 - **WhatsApp Business "1000 free msgs":** outdated — verify Meta's current per-conversation pricing; ship with one number first.
 - **Domain & trademark:** "Zenith" is a contested mark; lock a non-.com domain (porkbun) and get a trademark sign-off before the paid launch.
+- **Arkquen = OUT of scope** (white-label subscription being rebuilt — a moving target). Arkquen runs the *client machine*; Zenith runs the *founder*. No integration. (§2, §4.9)
+- **Memory = Markdown vault** (Obsidian-style), not Postgres — local, private, and it doubles as the Copy Factory's brief store. (§4.10)
+- **UI direction (v1.3):** app-style dashboards, not film stills — connection-map orb, paginated chat + left rail, Connections list, Activity log, first-class confirm card, fake telemetry cut, de-Marvel'd. (§6)
+- **Differentiation / DON'T BUILD:** see §5.6 — lead on proactivity + WhatsApp triage; skip system monitoring, Motion-style auto-scheduling, WABA customer-chatbots, smart-home, and 3D eye-candy.
+- **Phasing call (this session):** the personally-useful "future" features (Copy Factory, memory vault, proactivity, WhatsApp triage) were pulled into **Phase 1** because it's a daily driver for the owner; only true SaaS machinery stays Phase 2.
 
 ---
 
 ## 16. FUTURE ROADMAP
 
+### Phase 1 — later milestones (pulled in from "future" this session)
+- [ ] M6: Memory vault (Markdown / Obsidian-style) + Copy Factory / Template Studio
+- [ ] M7: Proactivity engine + WhatsApp triage of your own messages
+
 ### Phase 2 — Scale (Month 2-3)
 - [ ] Host backend + PWA-installable web app + optional desktop download
-- [ ] Anthropic Computer Use API
-- [ ] Higgsfield video/ad generation
-- [ ] Persistent memory (database)
+- [ ] Multi-user auth (Clerk) + per-user encrypted keys + per-user rate limits
+- [ ] Business-data dashboard (clients / projects / invoices / time; "talk to your business data")
 - [ ] Cloud STT (Deepgram) for multi-user voice
+- [ ] Optional / experimental: Anthropic Computer Use API · Higgsfield video/ad generation
 
 ### Phase 3 — Product (Month 4)
 - [ ] Trademark clearance + final domain for "Zenith"
@@ -579,5 +638,5 @@ all files, README setup guide, and .env.example
 
 ---
 
-*PRD Version 1.2 | Updated: June 2026 (from v1.1, June 2026 · v1.0, June 15, 2026)*
-*Next Step: finish Milestone 2 — wire HUD panels to live data + scaffold the Tauri shell (`src-tauri/`) → then Milestone 3 (Google OAuth + Calendar/Gmail tools + morning briefing).*
+*PRD Version 1.3 | Updated: June 2026 (from v1.2 · v1.1 · v1.0, June 15, 2026)*
+*Next Step: finish Milestone 2 — wire HUD panels to live data (apply the v1.3 UI direction: connection-map orb, Connections list, Activity log, first-class confirm card, telemetry cut) + scaffold the Tauri shell (`src-tauri/`) → then Milestone 3 (Google OAuth + Calendar/Gmail tools + morning briefing).*

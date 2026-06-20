@@ -1,17 +1,12 @@
 # Zenith — TODO (next session)
 
-Two priorities: **(1) fix voice speed + accuracy (English + GPU)** — the daily-use blocker —
-and **(2) rebuild the orb as a particle sphere** (replaces the old mesh-orb polish). Plus the
-Command Center minimize control, and a TTS item parked in the backlog.
-
-**Guard:** items **2 & 3 are MOCK/visual only** — no API wiring (Gmail/Calendar/WhatsApp/Discord),
-no Tauri/Pass B. **Item 1 is a backend config/robustness fix to the EXISTING voice pipeline**
-(allowed — it is not integration work). Use the **design/frontend skills** for item 2 (visual craft).
-Items are independent — order doesn't matter, but #1 is quick and high-impact, do it first.
+**Status (2026-06-20):** items **1–3 are DONE and shipped** (v1.5 voice + particle orb, plus the
+CC minimize/restore pass). Only **§4 (TTS backlog)** remains — and it's explicitly *not this
+session*. Full details kept below as a record.
 
 ---
 
-## 1. Voice — default to English + actually use the GPU  ⚡ PRIORITY (quick; fixes the ~20s lag)
+## 1. Voice — default to English + actually use the GPU  ✅ DONE (v1.5, commit f7c6d30)
 
 **Problem:** 10–12s of speech takes ~20s+ before Zenith starts answering, and it often mishears.
 **Root cause is NOT the language** — it's `small`/CPU faster-whisper silently running on **CPU
@@ -43,7 +38,7 @@ Files: `backend/stt_service.py` (model load + device logging), `backend/.env.exa
 
 ---
 
-## 2. Orb → glowing PARTICLE SPHERE  (REPLACES the old orb work)
+## 2. Orb → glowing PARTICLE SPHERE  ✅ DONE (v1.5, commit 6e7b285; tuned + owner-approved)
 
 **This supersedes the previous orb plan.** The per-node mesh reaction redesign and the
 ring-removal items are now **MOOT** — we're rebuilding the orb entirely as a WebGL particle
@@ -87,17 +82,16 @@ Files: `frontend/components/ZenithOrb.tsx` (**rewrite** — current mesh interna
 
 ---
 
-## 3. Command Center — minimize / restore  (kept from previous TODO)
+## 3. Command Center — minimize / restore  ✅ DONE
 
-When an answer is shown, allow minimizing the Command Center and reopening on demand.
-- Add a **minimize control** (chevron ▾) in the Command Center header.
-- Minimized = collapse to a thin bar / pill (e.g. "▸ Command Center"), freeing the space (the
-  bigger orb can take it). Click to expand back to the full panel.
-- Smooth transition (reuse the existing `--ease-out` / height-grow approach). Remember the last
-  state during the session.
+Built: a **▾ chevron** in the CC header (shown once there's a conversation) collapses the panel to
+a slim **"Command Center / Restore ⌃" pill**, handing the freed space to the orb (`orbBig`). Click
+the pill to restore. **Auto-restores on any new message** (e.g. a push-to-talk answer while
+minimized) so Zenith's reply is always shown — voice works while minimized, type after restoring.
+~300ms `ease-out` collapse. State: `ccMinimized` in `page.tsx`, folded into `orbBig` + `ccExpanded`.
 
-Files: `frontend/components/CommandCenter.tsx` (minimize state + toggle),
-`frontend/app/page.tsx` (drives `expanded`).
+Files: `frontend/components/CommandCenter.tsx` (chevron + pill + collapse),
+`frontend/app/page.tsx` (`ccMinimized` state + auto-restore + wiring).
 
 ---
 

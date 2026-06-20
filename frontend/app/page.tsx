@@ -41,6 +41,7 @@ export default function Home() {
   const [voiceState, setVoiceState] = useState<OrbState>("idle");
   const [bars, setBars] = useState<number[]>([]);
   const [usage, setUsage] = useState<Usage | null>(null);
+  const [ccMinimized, setCcMinimized] = useState(false);
   const recordingRef = useRef<RecordingHandle | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -50,8 +51,9 @@ export default function Home() {
   const convo = messages.length > 0 || loading;
   // Orb stays big while idle or during a voice round-trip (so you watch it react); it recedes
   // to reveal the command center once there's a conversation to read. The CC grows to match.
-  const orbBig = voiceCycle || !convo;
-  const ccExpanded = convo && !voiceCycle;
+  // Minimizing the CC (§3) also hands the space back to the orb.
+  const orbBig = voiceCycle || !convo || ccMinimized;
+  const ccExpanded = convo && !voiceCycle && !ccMinimized;
 
   async function refreshUsage() {
     try {
@@ -82,6 +84,12 @@ export default function Home() {
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, [voiceState]);
+
+  // Auto-restore the Command Center when a new message arrives (e.g. a push-to-talk answer
+  // while minimized) so Zenith's reply is always shown. (§3 minimize/restore)
+  useEffect(() => {
+    setCcMinimized(false);
+  }, [messages.length]);
 
   function applyData(data: {
     reply?: string;
@@ -317,6 +325,9 @@ export default function Home() {
                   voiceState={orbState}
                   onMicDown={() => void startListening()}
                   onMicUp={() => void stopListening()}
+                  minimized={ccMinimized}
+                  onMinimize={() => setCcMinimized(true)}
+                  onRestore={() => setCcMinimized(false)}
                 />
               </div>
             </div>

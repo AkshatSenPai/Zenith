@@ -32,6 +32,9 @@ export function CommandCenter({
   voiceState,
   onMicDown,
   onMicUp,
+  minimized,
+  onMinimize,
+  onRestore,
 }: {
   messages: Message[];
   loading: boolean;
@@ -46,6 +49,9 @@ export function CommandCenter({
   voiceState: OrbState;
   onMicDown: () => void;
   onMicUp: () => void;
+  minimized: boolean;
+  onMinimize: () => void;
+  onRestore: () => void;
 }) {
   const pairs = toPairs(messages);
   const total = Math.max(pairs.length, 1);
@@ -93,17 +99,41 @@ export function CommandCenter({
     >
       <CardBrackets cls="border-zenith-cyan/30" />
 
-      {/* header */}
-      <div className="flex items-center justify-between border-b border-zenith-cyan/12 px-4 py-2.5">
+      {/* header — doubles as the minimized "pill": click to restore when collapsed (§3) */}
+      <div
+        className={`flex items-center justify-between border-b border-zenith-cyan/12 px-4 py-2.5 ${minimized ? "cursor-pointer select-none" : ""}`}
+        onClick={minimized ? onRestore : undefined}
+        role={minimized ? "button" : undefined}
+        aria-label={minimized ? "Restore Command Center" : undefined}
+      >
         <div className="flex items-center gap-2">
           <span className="h-1.5 w-1.5 rounded-full bg-zenith-cyan/70" />
           <span className="font-mono text-[10px] uppercase tracking-[0.28em] text-zenith-cyan/75">Command Center</span>
         </div>
-        {!empty && (
-          <span className="font-mono text-[10px] tabular-nums tracking-widest text-zenith-text/40">
-            {String(page + 1).padStart(2, "0")} / {String(total).padStart(2, "0")}
-          </span>
-        )}
+        <div className="flex items-center gap-3">
+          {!empty && !minimized && (
+            <span className="font-mono text-[10px] tabular-nums tracking-widest text-zenith-text/40">
+              {String(page + 1).padStart(2, "0")} / {String(total).padStart(2, "0")}
+            </span>
+          )}
+          {minimized ? (
+            <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest text-zenith-cyan/70">
+              Restore <Chevron dir="up" />
+            </span>
+          ) : (
+            !empty && (
+              <button
+                type="button"
+                onClick={onMinimize}
+                aria-label="Minimize Command Center"
+                title="Minimize"
+                className="press text-zenith-text/40 transition hover:text-zenith-cyan"
+              >
+                <Chevron dir="down" />
+              </button>
+            )
+          )}
+        </div>
       </div>
 
       {/* response surface — grows in when there's a conversation, collapses otherwise */}
@@ -154,7 +184,8 @@ export function CommandCenter({
         </div>
       )}
 
-      {/* input row — always present (write + push-to-talk in one place) */}
+      {/* input row — collapses with the panel when minimized; reappears on restore (§3) */}
+      <div className={`overflow-hidden transition-all duration-300 ease-out ${minimized ? "max-h-0 opacity-0" : "max-h-28 opacity-100"}`}>
       <div className="flex items-center gap-2.5 border-t border-zenith-cyan/15 px-3 py-2.5">
         <button
           type="button"
@@ -184,6 +215,7 @@ export function CommandCenter({
           Send
         </button>
       </div>
+      </div>
     </div>
   );
 }
@@ -193,6 +225,14 @@ function FooterBtn({ onClick, disabled, children }: { onClick: () => void; disab
     <button onClick={onClick} disabled={disabled} className="press text-zenith-text/60 transition hover:text-zenith-cyan disabled:cursor-not-allowed disabled:text-zenith-text/20">
       {children}
     </button>
+  );
+}
+
+function Chevron({ dir }: { dir: "up" | "down" }) {
+  return (
+    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      {dir === "down" ? <path d="M6 9l6 6 6-6" /> : <path d="M18 15l-6-6-6 6" />}
+    </svg>
   );
 }
 

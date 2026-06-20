@@ -8,7 +8,7 @@ from pydantic import BaseModel
 import memory_service
 from claude_service import run_loop, BudgetExceeded
 from rate_limiter import RateLimiter
-from stt_service import get_model, transcribe_audio
+from stt_service import active_config, get_model, transcribe_audio
 from tools import run_tool
 from tts_service import synthesize
 
@@ -54,6 +54,13 @@ class ChatResponse(BaseModel):
 @app.get("/")
 def health() -> dict:
     return {"status": "ok", "service": "zenith-m2"}
+
+
+@app.get("/health")
+def health_detail() -> dict:
+    """Diagnostics: which device/model whisper ACTUALLY loaded on (catches the silent
+    CUDA->CPU fallback) + the active STT language. Open in the browser to verify the GPU."""
+    return {"status": "ok", "whisper": active_config()}
 
 
 @app.get("/usage")

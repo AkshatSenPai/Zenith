@@ -1,16 +1,31 @@
-"""Zenith — local speech-to-text via faster-whisper (Milestone 2, Pass B).
+"""Zenith - local speech-to-text via faster-whisper.
 
-Goal: faithful Roman/Latin transcripts for a code-switching (English + Hindi) user.
-- Auto-detect the language per utterance: English stays English; Hindi is transcribed
-  in its real words (Devanagari) then romanised to Latin — NOT translated to English.
-- If auto-detect drifts to a non-English, non-Hindi language (e.g. Urdu/Arabic script),
-  re-transcribe forced to Hindi so romanisation stays clean.
-- `_romanize()` turns any Devanagari into Latin, so the transcript is always Roman.
-- beam search + no prev-text conditioning + VAD curb hallucinations and skip silence.
+Language (v1.5): DEFAULTS TO ENGLISH for speed + accuracy. With WHISPER_LANGUAGE=en (the
+default) we force one English decode pass and skip transliteration entirely. The Hinglish
+path is kept but DORMANT behind the flag (a Phase-2 differentiator, not deleted):
+- WHISPER_LANGUAGE=en (or unset) -> English; single pass; no transliteration, no re-force.
+- WHISPER_LANGUAGE= (explicit blank) -> auto-detect: English stays English; Hindi is
+  transcribed in its real words then romanised to Latin (never Devanagari/Urdu), re-forcing
+  to Hindi if detection drifts to Urdu/Arabic script.
+- WHISPER_LANGUAGE=hi -> forced Hindi (romanised to Latin).
+beam search + no prev-text conditioning + VAD curb hallucinations and skip silence.
 
-Accuracy lever: `small`/CPU mishears real Hinglish. Set WHISPER_MODEL=large-v3 +
-WHISPER_DEVICE=cuda in .env for far better results on a GPU (falls back to CPU if CUDA
-is unavailable). Override detection with WHISPER_LANGUAGE=en or =hi.
+Speed: the model loads ONCE at startup (get_model + main._warm_stt). The big win is the
+GPU - large-v3 / cuda / float16 does a 12s clip in ~2-3s vs ~20s on small/CPU. The "safe"
+CUDA->CPU fallback below is now LOUD (startup WARNING + GET /health); it silently running
+on CPU was the real cause of the lag.
+
+GPU setup (faster-whisper / CTranslate2 on Windows, NVIDIA only):
+  1. NVIDIA GPU + recent driver. (CUDA needs NVIDIA; AMD/Intel fall back to CPU.)
+  2. CTranslate2 needs the CUDA 12 + cuDNN 9 runtime. Easiest is pip wheels, pinned to
+     match the installed ctranslate2:
+         pip install nvidia-cublas-cu12 nvidia-cudnn-cu12
+     (If the load still fails, match the cuDNN major to your ctranslate2 build.)
+  3. .env:  WHISPER_DEVICE=cuda  WHISPER_MODEL=large-v3  WHISPER_COMPUTE=float16
+  4. Verify it ACTUALLY loaded on the GPU: open http://localhost:8000/health and check
+     whisper.device == "cuda" and whisper.fallback == false (or read the startup log).
+  No NVIDIA GPU? Use WHISPER_DEVICE=cpu + WHISPER_MODEL=medium (English) - still far
+  faster than Hinglish small/CPU.
 """
 
 import io
@@ -26,13 +41,36 @@ from indic_transliteration.sanscript import transliterate
 
 load_dotenv()
 
-# `base` is too weak; `small` is the CPU sweet spot. For real accuracy on the 32GB GPU
-# desktop: WHISPER_MODEL=large-v3, WHISPER_DEVICE=cuda, WHISPER_COMPUTE=float16.
+# `base` is too weak; `small` is the safe CPU default. For real accuracy + speed on the
+# 32GB GPU desktop: WHISPER_MODEL=large-v3, WHISPER_DEVICE=cuda, WHISPER_COMPUTE=float16
+# (set in .env; the code default stays small/cpu so CPU-only machines still boot).
 WHISPER_MODEL = os.getenv("WHISPER_MODEL", "small")
 WHISPER_DEVICE = os.getenv("WHISPER_DEVICE", "cpu")
 WHISPER_COMPUTE = os.getenv("WHISPER_COMPUTE", "int8")
-# Unset = auto-detect (English→English, Hindi→romanised). Force "en" or "hi" to override.
-WHISPER_LANGUAGE = os.getenv("WHISPER_LANGUAGE") or None
+
+
+def _resolve_language(raw: str | None) -> str | None:
+    """English by default (fast: no transliteration, no Urdu re-force). An explicit blank
+    (WHISPER_LANGUAGE=) means auto-detect - the dormant Hinglish path. 'en'/'hi' pass
+    through, trimmed + lowercased."""
+    if raw is None:
+        return "en"
+    return raw.strip().lower() or None
+
+
+# Unset/"en" -> English (default). Blank -> auto-detect (dormant Hinglish). "hi" -> Hindi.
+WHISPER_LANGUAGE = _resolve_language(os.getenv("WHISPER_LANGUAGE"))
+
+# What the model ACTUALLY loaded on (vs requested) - populated by get_model() so the
+# silent CUDA->CPU fallback is visible at startup and via GET /health.
+ACTIVE: dict = {
+    "model": None,
+    "device": None,
+    "compute": None,
+    "requested_device": None,
+    "fallback": False,
+    "error": None,
+}
 
 _DEVANAGARI = re.compile(r"[ऀ-ॿ]")
 
@@ -42,15 +80,55 @@ def get_model() -> WhisperModel:
     """Load the model once and cache it (warmed at app startup).
 
     Falls back to CPU if a GPU was requested but CUDA/cuDNN isn't available, so opting
-    into WHISPER_DEVICE=cuda can't brick startup (e.g. the Blackwell/cuDNN gotcha)."""
+    into WHISPER_DEVICE=cuda can't brick startup. The fallback is now LOUD (see
+    _warn_cuda_fallback) and recorded on ACTIVE - silently running on CPU was the lag."""
+    ACTIVE.update(model=WHISPER_MODEL, requested_device=WHISPER_DEVICE)
     try:
-        return WhisperModel(WHISPER_MODEL, device=WHISPER_DEVICE, compute_type=WHISPER_COMPUTE)
+        model = WhisperModel(WHISPER_MODEL, device=WHISPER_DEVICE, compute_type=WHISPER_COMPUTE)
+        ACTIVE.update(device=WHISPER_DEVICE, compute=WHISPER_COMPUTE, fallback=False, error=None)
+        print(f"[stt] whisper loaded: model={WHISPER_MODEL} device={WHISPER_DEVICE} "
+              f"compute={WHISPER_COMPUTE} language={WHISPER_LANGUAGE or 'auto'}", flush=True)
+        return model
     except Exception as exc:
         if WHISPER_DEVICE == "cpu":
-            raise
-        print(f"[stt] {WHISPER_DEVICE!r} unavailable ({exc}); falling back to CPU "
-              f"(slow for big models — drop to a smaller WHISPER_MODEL on CPU).", flush=True)
-        return WhisperModel(WHISPER_MODEL, device="cpu", compute_type="int8")
+            raise  # CPU was explicitly requested and still failed -- a real error
+        model = WhisperModel(WHISPER_MODEL, device="cpu", compute_type="int8")
+        ACTIVE.update(device="cpu", compute="int8", fallback=True,
+                      error=f"{type(exc).__name__}: {exc}")
+        _warn_cuda_fallback(exc)
+        return model
+
+
+def _warn_cuda_fallback(exc: Exception) -> None:
+    """Loud, can't-miss warning that the GPU was requested but we are actually on CPU.
+    ASCII only - Windows consoles choke on fancy dashes (cp1252)."""
+    bar = "=" * 64
+    print(
+        "\n[stt] " + bar + "\n"
+        f"[stt] WARNING: WHISPER_DEVICE={WHISPER_DEVICE!r} requested but UNAVAILABLE -- running on CPU.\n"
+        f"[stt]   requested: device={WHISPER_DEVICE} model={WHISPER_MODEL} compute={WHISPER_COMPUTE}\n"
+        f"[stt]   actual:    device=cpu  model={WHISPER_MODEL} compute=int8\n"
+        f"[stt]   reason: {type(exc).__name__}: {exc}\n"
+        "[stt]   likely cause: missing CUDA 12 / cuDNN runtime for CTranslate2.\n"
+        "[stt]   fix: pip install nvidia-cublas-cu12 nvidia-cudnn-cu12 (matched to ctranslate2),\n"
+        "[stt]        or set WHISPER_DEVICE=cpu + a smaller WHISPER_MODEL (e.g. medium).\n"
+        "[stt]   NOTE: a large model on CPU is very slow -- THIS is the latency you are seeing.\n"
+        "[stt] " + bar + "\n",
+        flush=True,
+    )
+
+
+def active_config() -> dict:
+    """What STT is actually running - for GET /health and startup verification."""
+    return {
+        "language": WHISPER_LANGUAGE or "auto",
+        "model": ACTIVE["model"],
+        "device": ACTIVE["device"],
+        "compute": ACTIVE["compute"],
+        "requested_device": ACTIVE["requested_device"],
+        "fallback": ACTIVE["fallback"],
+        "error": ACTIVE["error"],
+    }
 
 
 def _romanize(text: str) -> str:
@@ -90,7 +168,10 @@ def transcribe_audio(data: bytes) -> str:
             segments, info = _decode(model, audio, "hi")
         text = "".join(segment.text for segment in segments).strip()
     except (FFmpegError, EOFError) as exc:  # undecodable/empty clip = no speech, not a crash
-        print(f"[stt] undecodable clip ({len(data)} bytes) — treating as no speech: "
+        print(f"[stt] undecodable clip ({len(data)} bytes) -- treating as no speech: "
               f"{type(exc).__name__}: {exc}", flush=True)
         return ""
+    # English mode: skip transliteration entirely (the Hinglish romanisation is dormant).
+    if WHISPER_LANGUAGE == "en":
+        return text
     return _romanize(text)

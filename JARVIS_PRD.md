@@ -1,6 +1,8 @@
 # ZENITH — Product Requirements Document (PRD)
-## Version 1.4 | June 2026
+## Version 1.5 | June 2026
 ### Product: Zenith  ·  Wake word: "Zenith"  ·  Repo codename: JARVIS
+
+> **What changed in v1.5 (orb direction + voice fix):** The orb is being rebuilt as a **glowing particle sphere** (react-three-fiber / WebGL + Bloom, ~40-60k cyan particles, audio-reactive core) — this **supersedes the reactive-mesh orb and the queued mesh-refinement**; the 4 connection nodes stay as labelled anchors around the sphere. STT now **defaults to English** (`WHISPER_LANGUAGE=en`) for speed + accuracy, with the **Hinglish / romanisation path kept dormant behind the flag** (not deleted — still the Phase-2 differentiator). Recommended desktop config: **`large-v3` on `cuda`/`float16`**, and the **silent CUDA->CPU fallback is now made visible** (startup log + active device/model on `/usage` or a new `/health`) — that silent fallback was the real cause of the ~20s latency. TTS stays **edge-tts** (English voices Neerja/Prabhat); **Kokoro** logged as a future offline-TTS option.
 
 > **What changed in v1.4 (HUD build pass — implements the v1.3 direction):** The app-style HUD is now **built** in the frontend. The orb became a **reactive connection-mesh** (a glowing core + a mesh of nodes that react to live audio; 4 states). The chat input + mic + send were **merged into one Command Center** (`CommandCenter.tsx`), and the side rails/panels were filled in — `ContextRail`, `LeftRailExtras`, `QuickActions`, `FocusCard`, `ConnectionsPanel`, `ActivityLog`, `PlaceholderView`. Since v1.2, the single `CommsPanel` was split into `ConnectionsPanel` + `ActivityLog`, and the standalone `WaveformBar` was removed (the orb is now the voice visualizer). Backend got a voice-robustness fix: empty/undecodable mic clips are treated as **no-speech** (no more 500s). Panels still render `lib/mock.ts`; **no Tauri shell yet**. An orb/HUD **visual redesign is queued** (`TODO.md`): calmer mesh, core-breathing + inward edge-flow reaction, drop the concentric/orbital rings, stay cyan, and a Command-Center minimize/restore control.
 
@@ -53,7 +55,7 @@ Built for freelancers and agency owners who want to automate daily tasks via voi
 
 - **Tool use, not MCP-everywhere:** use direct API client libraries where an official API is easy (Google Calendar/Gmail, Discord). Use an MCP/bridge only for **personal WhatsApp**, where no official API exists.
 - **Confirm gate:** read-only tools (read calendar, read mail) run immediately; action tools (`send_email`, `send_whatsapp`, `create_event`, `delete_*`) return a "pending action" → frontend shows a confirm card → `/chat/confirm` runs it. This is how "confirm before sending/creating" is enforced.
-- **Voice round-trip:** mic (MediaRecorder, hold space) → `POST /transcribe` (faster-whisper, local, romanised Hinglish) → `POST /chat` (Claude + last-20 history + rate limit + Hinglish prompt + tools + confirm gate) → reply text (markdown-rendered, emojis stripped) → `POST /speak` (edge-tts neural → MP3) → frontend plays the audio.
+- **Voice round-trip:** mic (MediaRecorder, hold space) → `POST /transcribe` (faster-whisper, local, English default) → `POST /chat` (Claude + last-20 history + rate limit + Hinglish prompt + tools + confirm gate) → reply text (markdown-rendered, emojis stripped) → `POST /speak` (edge-tts neural → MP3) → frontend plays the audio.
 - **Delivery:**
   - Phase 1 = Tauri **desktop app**, backend runs locally. No PWA.
   - Phase 2 = host the backend + ship a **PWA-installable** web app (the no-download path) + keep the Tauri desktop app as an optional download. One codebase serves all three.
@@ -62,7 +64,7 @@ Built for freelancers and agency owners who want to automate daily tasks via voi
 [ User mic ] → Frontend (Tauri + Next.js)
                    │  audio
                    ▼
-              FastAPI  /transcribe  → faster-whisper (local, romanised Hinglish)
+              FastAPI  /transcribe  → faster-whisper (local, English default)
                    │  transcript
                    ▼
               FastAPI  /chat  → Claude (history · tools · confirm gate)
@@ -81,16 +83,16 @@ Built for freelancers and agency owners who want to automate daily tasks via voi
 ### 4.1 AI Brain
 - Model: Claude Sonnet 4.6 API, via **tool use (function calling)**
 - Conversation history: last 20 messages maintained (+ a token budget — tool results balloon)
-- Language: Hinglish (Hindi + English mixed) support
+- Language: **English by default** (the owner is comfortable in English). The Hinglish path is kept but **dormant behind `WHISPER_LANGUAGE`** — a Phase-2 differentiator, not deleted.
 - Personality: Professional, concise, calls user "Boss" occasionally
 - Rate limiting: 5 req/min, 150 msg/day, warn at 120 — enforce a **hard daily kill-switch**, not just a warning
 
 ### 4.2 Voice Interface
-- Input (STT): **faster-whisper**, local/offline (replaces Web Speech API, which breaks inside the desktop shell). Auto-detects language and **romanises Hindi to Latin script** (transcribes real words, doesn't translate); re-forces Hindi if detection drifts to Urdu. VAD + `beam_size=5` to curb mishears/silent-decode. Configurable via `.env` (`WHISPER_MODEL`, `WHISPER_DEVICE`, `WHISPER_COMPUTE`, `WHISPER_LANGUAGE`) with a safe CUDA→CPU fallback.
+- Input (STT): **faster-whisper**, local/offline (replaces Web Speech API, which breaks inside the desktop shell). **Defaults to English (`WHISPER_LANGUAGE=en`)** for speed + accuracy — with `en` it skips transliteration entirely. The **Hinglish path is kept but dormant**: set `WHISPER_LANGUAGE=hi`/blank to re-enable auto-detect + **romanise Hindi to Latin** (real words, not translated; re-force off Urdu drift). VAD + `beam_size=5` curb mishears. **Run `large-v3` on `cuda`/`float16` on the GPU desktop** (~2-3s for a 12s clip vs ~20s on `small`/CPU). The CUDA→CPU fallback is safe but must be **logged loudly** — it silently ran on CPU before, which was the real cause of the lag. Configurable via `.env` (`WHISPER_MODEL`, `WHISPER_DEVICE`, `WHISPER_COMPUTE`, `WHISPER_LANGUAGE`).
 - Output (TTS): **edge-tts** neural voices (Microsoft, free / no key), rendered by the backend at `POST /speak` and returned as MP3 the frontend plays — browser-independent. Replaced browser SpeechSynthesis (robotic in some Chromium builds, silent in others). Voice via `ZENITH_TTS_VOICE` (default `en-IN-NeerjaNeural`). Piper (local) remains an option if a fully-offline voice is needed.
 - Replies: rendered as markdown (bold/lists/code), with **emojis stripped** before display and before TTS.
 - Activation: push-to-talk (hold space). Wake word "Zenith" via a detection engine is a later add.
-- Languages: Hindi + English. Note: true code-mixing is imperfect in every STT engine — test on your own voice.
+- Languages: **English default**; occasional Hindi words still transcribe fine. Full Hinglish code-mixing stays available behind the flag for Phase 2 (it's imperfect in every STT engine — that's why it's opt-in now).
 
 ### 4.3 Google Calendar Integration
 - Read today's and tomorrow's events
@@ -229,7 +231,7 @@ Modeled on **app-style HUD dashboards** (the dashboard mockups), NOT the dense f
 +---------------+--------------------------+-----------------------+
 |  CALENDAR     |                          |  CONNECTIONS          |
 |  . 10:00 Mtg  |      ( ZENITH ORB )      |  Gmail      [*] on     |
-|  . 14:00 Call |   connection-map core    |  Calendar   [*] on     |
+|  . 14:00 Call |   particle-sphere core   |  Calendar   [*] on     |
 |  . 17:00 Rev  |   nodes: Gmail Cal WA Dc  |  WhatsApp   [ ] off    |
 |               |   (light up when linked) |  Discord    [ ] off    |
 |  TOMORROW     |                          | --------------------- |
@@ -246,14 +248,10 @@ Modeled on **app-style HUD dashboards** (the dashboard mockups), NOT the dense f
 +----------------------------------------------------------------+
 ```
 
-### Orb — reactive connection-mesh  *(implemented; redesign queued — see note)*
-The center orb is a glowing **core surrounded by a mesh of nodes** (Gmail / Calendar / WhatsApp / Discord) that light cyan when connected and **react to live audio** (mic + Zenith's voice) — it doubles as an at-a-glance "what can Zenith reach right now." Four states, **as currently implemented** in `ZenithOrb.tsx`:
-- **Idle:** core bloom, calm mesh, slow drift
-- **Listening:** brighter core, mesh reacts to mic level
-- **Thinking:** core shifts blue (`#5aa0ff`) + a brief orbiting dot
-- **Speaking:** core shifts orange (`#ff9a4d`), mesh reacts to TTS level
+### Orb — glowing particle sphere  *(redesign — supersedes the reactive-mesh orb)*
+The orb is being rebuilt as a **glowing particle sphere**: ~40-60k cyan particles distributed over/within a sphere (Fibonacci + radial jitter), **AdditiveBlending + Bloom** for the premium glow, slow rotation, a brighter dense **core**. It is **audio-reactive** (mic + Zenith's voice): the **core breathes/brightens** and particles **displace outward while brightness flows inward** toward the core — **no per-node ballooning** (the old mesh "bleeding dots" is rejected). Built with **react-three-fiber / WebGL** (this look genuinely needs GPU particles — the 2D-vector approach doesn't apply here). The **4 connection nodes** (Gmail / Calendar / WhatsApp / Discord) stay as **labelled anchors around the sphere**, lit cyan when connected and dim when not — they keep it recognizably Zenith vs a generic AI sphere. Four states, **all cyan**: idle (slow shimmer) / listening / thinking (cooler tone + slow pulse or a small arc, **not a ring**) / speaking (brighter, **never orange**). Perf: one `<Points>` draw call, particle count in a tunable `const`, modest Bloom; test on the 8GB MacBook.
 
-> **Redesign queued (`TODO.md`, mock/visual only):** the per-node scaling reads as "bleeding dots" while speaking. Plan: move the reaction to a breathing **core + inward-flowing edges** (calm mesh, no ballooning), drop the blue thinking-orbit and any concentric/orbital rings, and keep **all states cyan** (revisit the orange speaking accent). Plus a Command-Center minimize/restore control.
+> **Implementation:** `ZenithOrb.tsx` is rewritten in R3F (deps: `three`, `@react-three/fiber`, `@react-three/drei`, `@react-three/postprocessing`); the old SVG mesh internals (`buildField` / `ReactiveNodes` / core-rings) are removed. The reactive `bars` feed from `page.tsx` (via `lib/voice.ts`) is preserved. Mock/visual only — no API wiring. See `TODO.md` §2. Plus the Command-Center **minimize/restore** control (`TODO.md` §3).
 
 ### HUD Elements
 - **Command center (`CommandCenter.tsx`):** chat input + **mic (hold space) + send merged into one surface**, with a monospace response area (**copy / save / share** per answer), a **left context-rail** (`ContextRail` + `LeftRailExtras`: chat / drafts / clients / settings), a **QuickActions** strip and a **FocusCard**
@@ -272,11 +270,12 @@ The center orb is a glowing **core surrounded by a mesh of nodes** (Gmail / Cale
 |-------|-----------|--------|
 | Frontend | Next.js 14 (App Router) | Best React framework, scalable |
 | Styling | Tailwind CSS | Fast HUD styling |
+| Orb (3D) | react-three-fiber + three.js + drei + postprocessing (Bloom) | Particle-sphere orb — needs WebGL/GPU particles |
 | Desktop shell | Tauri (Phase 1) | Real app window, no browser tab; lighter than Electron |
 | Backend | Python FastAPI | Fast, async; orchestrates Claude tool-use |
 | AI Brain | Claude Sonnet 4.6 API (tool use) | Best quality/cost ratio; tools = clean routing |
-| Voice In | faster-whisper (local/offline, romanised Hinglish) | Free, private, no Chrome/Google dependency |
-| Voice Out | edge-tts neural (backend `/speak` → MP3) | Free, no key, natural Hinglish voice, browser-independent |
+| Voice In | faster-whisper (local/offline; **English default**, Hinglish optional) | Free, private; `large-v3`/CUDA on the GPU box, no Chrome/Google dependency |
+| Voice Out | edge-tts neural (backend `/speak` → MP3); **Kokoro** = future local/offline option | Free, no key, natural Indian-English voice, browser-independent |
 | Wake word (later) | Porcupine / openWakeWord | Detects "Zenith" for always-listening mode |
 | Calendar | Google Calendar API (direct client lib) | Multi-account, robust |
 | Email | Gmail API (direct, multi-account) | Multi-account |
@@ -343,7 +342,7 @@ jarvis/                             # repo codename; brand = Zenith
 │   │   ├── claude_service.py       # Anthropic API + history + tool loop
 │   │   ├── memory_service.py       # Conversation management (last 20)
 │   │   ├── rate_limiter.py         # Hard 5/min + 150/day kill-switch
-│   │   ├── stt_service.py          # faster-whisper wrapper (romanised Hinglish)
+│   │   ├── stt_service.py          # faster-whisper wrapper (English default; Hinglish optional)
 │   │   ├── tts_service.py          # edge-tts neural voice → MP3 bytes
 │   │   └── tools.py                # TOOL schemas + run_tool() + ACTION_TOOLS
 │   ├── integrations/               # direct API clients (no MCP except WA-personal)
@@ -434,11 +433,12 @@ DISCORD_BOT_TOKEN=
 # Weather (morning briefing)
 WEATHER_API_KEY=
 
-# Speech-to-text — faster-whisper is local (no key). Optional tuning:
-WHISPER_MODEL=small              # tiny|base|small|medium|large-v3
-WHISPER_DEVICE=cpu               # cpu | cuda (safe CUDA->CPU fallback)
-WHISPER_COMPUTE=int8             # int8 (cpu) | float16 (cuda)
-# WHISPER_LANGUAGE=              # blank = auto-detect (Hindi romanised to Latin)
+# Speech-to-text — faster-whisper is local (no key).
+# DEFAULT = English. On the NVIDIA GPU desktop use the cuda/large-v3 settings below.
+WHISPER_LANGUAGE=en              # en (default) | hi | blank = auto-detect + romanise Hindi (Phase-2 Hinglish)
+WHISPER_MODEL=large-v3           # GPU: large-v3 · 8GB MacBook/CPU: small or medium
+WHISPER_DEVICE=cuda              # cuda (NVIDIA GPU) | cpu — fallback is safe but is now LOGGED loudly
+WHISPER_COMPUTE=float16          # float16 (cuda) | int8 (cpu)
 # Optional cloud STT for Phase 2:
 # DEEPGRAM_API_KEY=
 
@@ -515,7 +515,7 @@ SECRET_KEY=
 - App-style HUD **built** per the v1.3 direction: reactive connection-mesh orb (4 states), merged **Command Center** (chat + mic + send), `ContextRail` + `LeftRailExtras`, `QuickActions`, `FocusCard`, `CalendarPanel`, `ConnectionsPanel`, `ActivityLog`, gauges, status cards, top bar — still rendering `lib/mock.ts` placeholder data
 - Voice in (faster-whisper `/transcribe`) ✅ + out (edge-tts `/speak`) ✅; empty/undecodable mic clips handled as no-speech (no 500) ✅
 - Markdown reply rendering + emoji-strip ✅
-- **Remaining:** orb/HUD visual redesign (`TODO.md` — calmer mesh, core+edge reaction, drop rings, Command-Center minimize); wire panels to live data; scaffold the Tauri desktop shell (`src-tauri/`) + grant mic permission there
+- **Remaining:** orb redesign → **WebGL particle sphere** (`TODO.md` §2 — react-three-fiber, audio-reactive core, no rings, cyan-only) + Command-Center minimize/restore (`TODO.md` §3); the **voice English-default + GPU/`large-v3` + visible-fallback** fix (`TODO.md` §1); wire panels off `lib/mock.ts` to live data; scaffold the Tauri desktop shell (`src-tauri/`) + grant mic permission there
 
 ### Milestone 3 — Google ⬜ NEXT
 - OAuth (single account first → then multi-account)
@@ -547,10 +547,10 @@ SECRET_KEY=
 ## 15. KEY DECISIONS & GOTCHAS
 
 - **STT:** Web Speech API dropped — recognition breaks inside the desktop shell (it depends on Chrome → Google's servers). Use faster-whisper locally.
-- **STT Hinglish (decided in Pass B live testing):** auto-detect language; English stays English, Hindi is transcribed in its **real words and romanised to Latin** (not translated), and re-forced to Hindi if detection drifts to Urdu — so the transcript is always Roman, never Arabic/Devanagari. `beam_size=5` + `condition_on_previous_text=False` curb mishears/hallucinations; `vad_filter` skips silence (fixed a ~58s silent-decode pathology). Deps added: `indic-transliteration`.
+- **STT language (decided this session):** **default to English (`WHISPER_LANGUAGE=en`)** for speed + accuracy. The Hinglish path — auto-detect + **romanise Hindi to Latin** (real words, not translated; re-force off Urdu drift), `beam_size=5` + `condition_on_previous_text=False`, `vad_filter` (fixed a ~58s silent-decode), dep `indic-transliteration` — is **kept but dormant behind the flag** (a Phase-2 differentiator; do NOT delete). With `en`, transliteration is skipped entirely.
 - **TTS (decided in Pass B):** browser SpeechSynthesis was robotic in some Chromium builds and silent in others → replaced with **edge-tts** neural voices (free, no key). Backend renders MP3 at `POST /speak`; frontend plays it. Browser-independent and not rate-limited. Dep added: `edge-tts`.
 - **Replies:** rendered as markdown (bold/lists/code) with **emojis stripped** before display and before TTS; the system prompt forbids emojis + heavy formatting and forces Latin-script Hinglish.
-- **faster-whisper:** load the model ONCE at startup, not per request. Bigger model on the 32GB desktop GPU (`WHISPER_DEVICE=cuda` + `large-v3`); "small" on the 8GB MacBook. Safe CUDA→CPU fallback so a bad GPU config can't brick startup. Push-to-talk masks latency.
+- **faster-whisper:** load the model ONCE at startup, not per request. **`large-v3` on `cuda`/`float16` on the 32GB GPU desktop** (~2-3s for a 12s clip); `small`/`medium` on the 8GB MacBook. **The safe CUDA→CPU fallback was silently running on CPU even on the GPU box — the real cause of the ~20s latency.** Make it LOUD: log requested-vs-actual device/model at startup, warn on CUDA-unavailable (likely missing CUDA 12 + cuDNN runtime — `nvidia-cublas-cu12` / `nvidia-cudnn-cu12`), and expose the active device/model on `/usage` (or a new `/health`). NVIDIA only. Push-to-talk masks remaining latency.
 - **Tauri:** grant mic permission in `tauri.conf.json` + the OS-level usage string, or `getUserMedia` fails silently.
 - **MCP vs tool use:** only personal WhatsApp uses MCP (no official API). Everything else is a direct API call exposed to Claude as a tool.
 - **WhatsApp personal:** unofficial protocol → ToS / ban risk. Don't use a number you can't lose.
@@ -561,6 +561,8 @@ SECRET_KEY=
 - **UI direction (v1.3):** app-style dashboards, not film stills — connection-map orb, paginated chat + left rail, Connections list, Activity log, first-class confirm card, fake telemetry cut, de-Marvel'd. (§6)
 - **Differentiation / DON'T BUILD:** see §5.6 — lead on proactivity + WhatsApp triage; skip system monitoring, Motion-style auto-scheduling, WABA customer-chatbots, smart-home, and 3D eye-candy.
 - **Phasing call (this session):** the personally-useful "future" features (Copy Factory, memory vault, proactivity, WhatsApp triage) were pulled into **Phase 1** because it's a daily driver for the owner; only true SaaS machinery stays Phase 2.
+- **Orb (v1.5):** rebuilt as a **WebGL particle sphere** (react-three-fiber + Bloom, ~40-60k cyan particles, audio-reactive core; the 4 nodes anchored around it). **Supersedes** the reactive-mesh orb and the queued mesh-refinement. No concentric/orbital rings; speaking stays cyan (no orange). Perf: tunable particle `const`, modest Bloom, test on 8GB. (§6, `TODO.md` §2)
+- **TTS (v1.5):** edge-tts stays default (English voices Neerja/Prabhat). **Kokoro** (hexgrad/kokoro) logged as a future **offline** TTS option — verify Hindi support before switching. The reply-lag is edge-tts's round-trip (separate from STT); pre-fetch/stream later.
 
 ---
 
@@ -608,7 +610,7 @@ WhatsApp (personal + multiple business numbers), Discord, AI chat.
 
 Stack: Next.js frontend wrapped in a Tauri desktop shell,
 Python FastAPI backend, Claude Sonnet 4.6 API (tool use),
-faster-whisper (local STT, romanised Hinglish) + edge-tts neural TTS
+faster-whisper (local STT, English default) + edge-tts neural TTS
 (backend /speak → MP3),
 Google Calendar + Gmail API (direct, multi-account),
 whatsapp-mcp bridge (personal) + WhatsApp Cloud API (multiple numbers),
@@ -618,19 +620,19 @@ Architecture: Claude calls tools, FastAPI executes them. Read-only
 tools run immediately; action tools (send/create/delete) go through
 a confirm gate — return a pending action, user confirms, then run.
 Voice loop: mic (MediaRecorder, hold space) → /transcribe (whisper)
-→ /chat (Claude + last-20 history + rate limit + Hinglish prompt
+→ /chat (Claude + last-20 history + rate limit + system prompt
 + tools + confirm) → /speak (edge-tts neural → MP3).
 
 UI: Match the HUD reference images attached exactly.
 Dark theme (#000008 background, #00FFE5 cyan accent),
-animated center orb with orbital rings,
+animated particle-sphere orb (react-three-fiber, no rings),
 circular gauge indicators, floating status cards,
 terminal-style chat, bottom waveform visualizer.
 
 Constraints:
 - Rate limit: 5 req/min, 150 msg/day — hard kill-switch, not just a warning
 - Conversation history: last 20 messages only
-- Hinglish support (Hindi + English mixed)
+- English default (Hinglish kept dormant behind a flag — Phase 2)
 - All API keys via .env — never hardcoded
 - Multi-account: multiple Gmail + multiple WhatsApp business numbers
 - Confirmation before sending any message/email or creating/deleting events
@@ -642,5 +644,5 @@ all files, README setup guide, and .env.example
 
 ---
 
-*PRD Version 1.4 | Updated: June 2026 (from v1.3 · v1.2 · v1.1 · v1.0, June 15, 2026)*
-*Next Step: finish Milestone 2 — orb/HUD visual redesign (`TODO.md`: calmer mesh, core+edge reaction, drop rings, Command-Center minimize), then wire HUD panels off `lib/mock.ts` to live data + scaffold the Tauri shell (`src-tauri/`) → then Milestone 3 (Google OAuth + Calendar/Gmail tools + morning briefing).*
+*PRD Version 1.5 | Updated: June 2026 (from v1.4 · v1.3 · v1.2 · v1.1 · v1.0, June 15, 2026)*
+*Next Step (see `TODO.md`): (1) voice — English default + `large-v3`/CUDA + make the CPU-fallback visible; (2) orb → WebGL particle sphere; (3) Command-Center minimize. Then wire HUD panels off `lib/mock.ts` to live data + scaffold the Tauri shell (`src-tauri/`) → Milestone 3 (Google OAuth + Calendar/Gmail tools + morning briefing).*

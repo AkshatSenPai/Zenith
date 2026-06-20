@@ -24,6 +24,14 @@ body {
   color: #e0f7f7;
 }
 
+/* Orb: feather the WebGL canvas's rectangular edges to transparent so the additive/bloom
+   pass can't clip into a visible "square" around the sphere. Masks ONLY the <canvas>, so
+   the connection-node labels (separate DOM siblings) stay crisp and un-faded. */
+.orb-canvas canvas {
+  -webkit-mask-image: radial-gradient(circle closest-side at 50% 50%, #000 72%, transparent 94%);
+  mask-image: radial-gradient(circle closest-side at 50% 50%, #000 72%, transparent 94%);
+}
+
 /* ---------- HUD keyframes ---------- */
 @keyframes spin-cw {
   to {

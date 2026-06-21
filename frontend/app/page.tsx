@@ -17,6 +17,8 @@ import { PlaceholderView } from "../components/PlaceholderView";
 import { GaugeIndicator } from "../components/GaugeIndicator";
 import { StatusCard } from "../components/StatusCard";
 import { HexCorners } from "../components/hud/primitives";
+import { BootScreen } from "../components/BootScreen";
+import { StatusLabel } from "../components/StatusLabel";
 
 type PendingAction = { id: string; tool: string; input: Record<string, unknown> };
 type Usage = {
@@ -31,6 +33,7 @@ type Usage = {
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 export default function Home() {
+  const [booting, setBooting] = useState(true);
   const [view, setView] = useState<View>("chat");
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -255,6 +258,8 @@ export default function Home() {
 
   return (
     <div className="relative grid h-screen grid-rows-[auto_1fr] overflow-hidden text-zenith-text">
+      {booting && <BootScreen onDone={() => setBooting(false)} />}
+
       {/* ambient depth layers (behind content) */}
       <div className="bg-aura" />
       <div className="bg-grain" />
@@ -299,11 +304,11 @@ export default function Home() {
                 <ZenithOrb state={orbState} connections={connections} bars={bars} />
               </div>
               <div className="-mt-1 mb-2 font-mono text-[10px] uppercase tracking-[0.35em] text-zenith-text/50">
-                Status: <span className="text-zenith-cyan">{orbState}</span>
+                Status: <StatusLabel state={orbState} />
               </div>
 
               {pending && (
-                <div className="mb-2 w-full max-w-2xl">
+                <div className="rise-in mb-2 w-full max-w-2xl">
                   <StatusCard tone="alert" title="Action — confirm before it runs" busy={loading} onConfirm={() => resolvePending(true)} onCancel={() => resolvePending(false)}>
                     {pendingBody}
                   </StatusCard>

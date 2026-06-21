@@ -6,3 +6,13 @@ faster-whisper>=1.0.0
 python-multipart>=0.0.9
 indic-transliteration>=2.3.0
 edge-tts>=6.1.0
+
+# --- Local offline TTS (Kokoro) — ZENITH_TTS_ENGINE=kokoro -------------------
+# Needs Python 3.11 (spacy/blis ship no wheels for 3.14). Install the torch CPU
+# build first so we don't pull the ~2.5GB CUDA wheel:
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+# (Kokoro is 82M params — CPU is near-instant for short replies and leaves the
+#  GPU free for whisper. espeak-ng ships bundled via espeakng-loader.)
+torch>=2.4
+kokoro>=0.9.4
+soundfile>=0.12

@@ -10,7 +10,7 @@ from claude_service import run_loop, BudgetExceeded
 from rate_limiter import RateLimiter
 from stt_service import active_config, get_model, transcribe_audio
 from tools import run_tool
-from tts_service import synthesize
+from tts_service import active_tts_config, synthesize
 
 limiter = RateLimiter()
 PENDING: dict[str, list] = {}   # block.id -> in-progress working history awaiting confirm
@@ -59,8 +59,9 @@ def health() -> dict:
 @app.get("/health")
 def health_detail() -> dict:
     """Diagnostics: which device/model whisper ACTUALLY loaded on (catches the silent
-    CUDA->CPU fallback) + the active STT language. Open in the browser to verify the GPU."""
-    return {"status": "ok", "whisper": active_config()}
+    CUDA->CPU fallback) + the active STT language, plus the active TTS engine/voice.
+    Open in the browser to verify the GPU and which voice is serving."""
+    return {"status": "ok", "whisper": active_config(), "tts": active_tts_config()}
 
 
 @app.get("/usage")
@@ -81,15 +82,17 @@ async def transcribe(audio: UploadFile = File(...)) -> dict:
 
 @app.post("/speak")
 async def speak(req: SpeakRequest) -> Response:
-    """Neural TTS: text -> MP3 audio bytes (browser-independent). Not rate-limited."""
+    """Neural TTS: text -> audio bytes (browser-independent). edge-tts returns MP3,
+    Kokoro returns WAV; synthesize() reports the media type so we serve either. Not
+    rate-limited."""
     text = req.text.strip()
     if not text:
         raise HTTPException(status_code=400, detail="No text to speak.")
     try:
-        audio = await synthesize(text)
+        audio, media_type = await synthesize(text)
     except Exception as exc:  # noqa: BLE001 — surface TTS/network errors
         raise HTTPException(status_code=502, detail=f"TTS failed: {exc}") from exc
-    return Response(content=audio, media_type="audio/mpeg")
+    return Response(content=audio, media_type=media_type)
 
 
 def _finish(working: list, outcome: dict, warning: str | None = None) -> ChatResponse:

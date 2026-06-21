@@ -114,7 +114,8 @@ export function cancelSpeech(): void {
 }
 
 /** Speak text using the backend's neural TTS (/speak): browser-independent, plays the
- *  returned MP3. Resolves when playback ends; fails silently (the reply is shown as text). */
+ *  returned audio blob (MP3 from edge-tts, WAV from Kokoro). Resolves when playback ends;
+ *  fails silently (the reply is shown as text). */
 export async function speak(text: string): Promise<void> {
   if (typeof window === "undefined") return;
   const clean = cleanForSpeech(text);

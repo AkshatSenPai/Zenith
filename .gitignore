@@ -1,7 +1,11 @@
 # Python
 backend/__pycache__/
 backend/.venv/
+backend/.venv*/          # incl. .venv314-bak (old 3.14 venv kept as a backup)
 *.pyc
+
+# Local TTS voice samples (regenerate with the Kokoro verify script)
+backend/tts_samples/
 
 # Node / Next.js
 frontend/node_modules/

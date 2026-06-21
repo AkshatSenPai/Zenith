@@ -1,8 +1,8 @@
 # Zenith — TODO (next session)
 
-**Status (2026-06-20):** items **1–3 are DONE and shipped** (v1.5 voice + particle orb, plus the
-CC minimize/restore pass). Only **§4 (TTS backlog)** remains — and it's explicitly *not this
-session*. Full details kept below as a record.
+**Status (2026-06-21):** items **1–3 DONE** (v1.5 voice + particle orb + CC minimize/restore).
+**§4 half done:** the **Kokoro local/offline TTS** option shipped in v1.6 (`d8926bf`) and is now the
+default engine; only **TTS pre-fetch/stream** (cut reply lag) is left. Full details below as a record.
 
 ---
 
@@ -95,13 +95,15 @@ Files: `frontend/components/CommandCenter.tsx` (chevron + pill + collapse),
 
 ---
 
-## 4. Backlog — NOT this session: TTS latency + offline option
+## 4. Backlog: TTS latency + offline option
 
-The spoken reply lags a beat because **edge-tts** round-trips to Microsoft; quality is passable,
-not great. Later options (don't do now):
-- **Pre-fetch / stream** the TTS so it starts speaking sooner.
-- Evaluate **Kokoro** (hexgrad/kokoro) for fully-local **offline** TTS — verify English quality
-  first; Hindi support is limited. Keep edge-tts (English voices Neerja / Prabhat) as default for now.
+- ✅ **Kokoro local/offline TTS — DONE (v1.6, commit `d8926bf`).** Now the default engine
+  (`ZENITH_TTS_ENGINE=kokoro`, voice `af_heart`, English; edge-tts kept as the fallback). Backend
+  venv rebuilt on Python 3.11 (spacy/blis have no 3.14 wheels). CPU ~0.5× realtime. Hindi voices
+  are weak, so English-only for now (revisit if/when the Hinglish path goes live).
+- ⬜ **Pre-fetch / stream the TTS** so it starts speaking sooner. Still open — and now the *main*
+  voice-latency lever. Kokoro generates faster than realtime, so streaming the first chunk while the
+  rest synthesizes would make even long replies start in ~1s. (Was masked before by edge's round-trip.)
 
 ---
 

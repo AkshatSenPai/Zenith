@@ -118,12 +118,12 @@ export function BootScreen({ onDone }: { onDone: () => void }) {
       <div className="bg-grain" />
 
       {/* stylized boot orb (lightweight SVG — the real WebGL orb is revealed on dissolve) */}
-      <div ref={orb} className="relative mb-9">
+      <div ref={orb} className="relative mb-11">
         <BootOrb />
       </div>
 
       {/* boot log */}
-      <div className="w-[min(82vw,440px)] font-mono text-[12px] leading-[1.7] text-zenith-cyan/85">
+      <div className="w-[min(88vw,520px)] font-mono text-[14px] leading-[1.9] text-zenith-cyan/85">
         {lines.map((_, i) => (
           <div key={i} className="whitespace-pre">
             <span ref={(el) => { lineEls.current[i] = el; }} />
@@ -133,7 +133,7 @@ export function BootScreen({ onDone }: { onDone: () => void }) {
       </div>
 
       {/* progress line */}
-      <div className="mt-6 h-px w-[min(82vw,440px)] overflow-hidden bg-zenith-cyan/12">
+      <div className="mt-7 h-[2px] w-[min(88vw,520px)] overflow-hidden bg-zenith-cyan/12">
         <div ref={bar} className="h-full w-0 bg-zenith-cyan/70" />
       </div>
 
@@ -146,7 +146,7 @@ export function BootScreen({ onDone }: { onDone: () => void }) {
 
 function BootOrb() {
   return (
-    <svg viewBox="0 0 160 160" className="h-32 w-32 glow-cyan" fill="none">
+    <svg viewBox="0 0 160 160" className="h-48 w-48 glow-cyan" fill="none">
       <circle cx="80" cy="80" r="58" stroke="#00FFE5" strokeOpacity="0.12" />
       <circle cx="80" cy="80" r="44" stroke="#00FFE5" strokeOpacity="0.18" strokeDasharray="3 7" className="spin-vslow" />
       <circle cx="80" cy="80" r="30" stroke="#00FFE5" strokeOpacity="0.3" />

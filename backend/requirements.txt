@@ -8,11 +8,23 @@ indic-transliteration>=2.3.0
 edge-tts>=6.1.0
 
 # --- Local offline TTS (Kokoro) — ZENITH_TTS_ENGINE=kokoro -------------------
-# Needs Python 3.11 (spacy/blis ship no wheels for 3.14). Install the torch CPU
-# build first so we don't pull the ~2.5GB CUDA wheel:
-#   pip install torch --index-url https://download.pytorch.org/whl/cpu
-# (Kokoro is 82M params — CPU is near-instant for short replies and leaves the
-#  GPU free for whisper. espeak-ng ships bundled via espeakng-loader.)
+# Needs Python 3.11 (spacy/blis ship no wheels for 3.14). torch drives Kokoro;
+# faster-whisper (CTranslate2) drives STT. Pick ONE torch build:
+#
+#  GPU (recommended — NVIDIA): puts BOTH Kokoro AND whisper on the GPU. On an
+#  RTX 50-series (Blackwell, sm_120) use the cu128 wheels, then add the CUDA
+#  runtime libs CTranslate2 needs for whisper-on-cuda:
+#    pip install torch --index-url https://download.pytorch.org/whl/cu128
+#    pip install nvidia-cublas-cu12 nvidia-cudnn-cu12
+#  .env:  ZENITH_KOKORO_DEVICE=cuda  WHISPER_DEVICE=cuda  WHISPER_COMPUTE=float16
+#         WHISPER_MODEL=medium   (small/int8_float16 if VRAM is tight on 8GB)
+#  Verify on http://localhost:8000/health — whisper.device/tts.device == "cuda",
+#  whisper.fallback == false.  Measured: a paragraph TTS goes ~17s (CPU) -> ~1s.
+#
+#  CPU-only (portable fallback, no GPU): smaller install, but TTS runs at ~real
+#  time and pegs the CPU on long replies.
+#    pip install torch --index-url https://download.pytorch.org/whl/cpu
+#  (Kokoro is 82M params; espeak-ng ships bundled via espeakng-loader.)
 torch>=2.4
 kokoro>=0.9.4
 soundfile>=0.12

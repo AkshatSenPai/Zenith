@@ -8,7 +8,7 @@ from pydantic import BaseModel
 import memory_service
 from claude_service import run_loop, BudgetExceeded
 from rate_limiter import RateLimiter
-from stt_service import active_config, get_model, transcribe_audio
+from stt_service import active_config, transcribe_audio, warm as warm_stt
 from tools import run_tool
 from tts_service import active_tts_config, synthesize
 
@@ -26,8 +26,21 @@ app.add_middleware(
 
 @app.on_event("startup")
 def _warm_stt() -> None:
-    """Load the whisper model once at boot so the first /transcribe is fast."""
-    get_model()
+    """Load AND warm the whisper model at boot (one tiny inference) so the first real
+    /transcribe is fast instead of paying ~15s of one-time cuDNN init on the GPU."""
+    warm_stt()
+
+
+@app.on_event("startup")
+async def _warm_tts() -> None:
+    """Warm the TTS engine at boot. Kokoro on the GPU pays a one-time ~30s CUDA-init +
+    model-load + first-inference cost; doing it here means the user's first /speak is fast
+    instead of stalling the first reply of the session."""
+    try:
+        await synthesize("Zenith online.")
+        print("[tts] warmup complete", flush=True)
+    except Exception as exc:  # noqa: BLE001 — warmup is best-effort, never block boot
+        print(f"[tts] warmup skipped: {exc}", flush=True)
 
 
 class ChatRequest(BaseModel):

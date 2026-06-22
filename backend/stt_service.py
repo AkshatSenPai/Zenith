@@ -118,6 +118,28 @@ def _warn_cuda_fallback(exc: Exception) -> None:
     )
 
 
+def warm() -> None:
+    """Run ONE tiny inference at boot so the first real /transcribe is fast. Loading the
+    model (get_model) is not enough on the GPU: the first actual decode pays a one-time
+    cuDNN init/autotune (~15s observed) - this moves that to startup instead of the user's
+    first voice command. Output is discarded; VAD is off so the encoder definitely runs."""
+    import numpy as np
+
+    model = get_model()
+    try:
+        sr = 16000
+        t = np.linspace(0, 1.0, sr, endpoint=False, dtype=np.float32)
+        tone = (0.05 * np.sin(2 * np.pi * 220 * t)).astype(np.float32)
+        segments, _ = model.transcribe(
+            tone, language=WHISPER_LANGUAGE or "en", beam_size=1, vad_filter=False
+        )
+        for _ in segments:
+            pass  # force the lazy generator to actually run the decode
+        print("[stt] warmup complete", flush=True)
+    except Exception as exc:  # noqa: BLE001 — warmup is best-effort, never block boot
+        print(f"[stt] warmup skipped: {type(exc).__name__}: {exc}", flush=True)
+
+
 def active_config() -> dict:
     """What STT is actually running - for GET /health and startup verification."""
     return {

@@ -4,7 +4,7 @@ Living handoff doc: where the project is *right now*, what shipped recently, and
 For the full spec read **`CLAUDE.md`** (project context), **`JARVIS_PRD.md`** (PRD), and
 **`TODO.md`** (task list). This file is the quick "catch me up" — update it at the end of a session.
 
-_Last updated: 2026-06-21_
+_Last updated: 2026-06-22_
 
 ---
 
@@ -54,19 +54,27 @@ daily driver. See `CLAUDE.md`.
 - ⚠️ **STT tests still unrun** — `backend/test_stt.py`, `backend/test_transcribe_route.py` load the
   whisper model and haven't been executed. Run `pytest backend/` (the rebuilt 3.11 venv now has the
   deps). The TTS/speak/health tests (8) pass as of 2026-06-21.
-- ⚠️ **STT not on the GPU** — `/health` shows whisper on `small`/`cpu` (the user's `.env` has no
-  `WHISPER_DEVICE=cuda`). The voice TTS now runs locally; STT is still the slow CPU path. See the
-  GPU STT target below to move whisper onto the RTX 5060.
+- ✅ **Voice now on the GPU (2026-06-22)** — both Kokoro TTS and Whisper STT run on the RTX 5060
+  via `.env` (`ZENITH_KOKORO_DEVICE=cuda`, `WHISPER_DEVICE=cuda`, `WHISPER_MODEL=medium`,
+  `WHISPER_COMPUTE=float16`). Paragraph TTS ~17.6s → ~1.3s; STT ~1.1s; CPU freed (no more "lags
+  when speaking"). torch reinstalled as **cu128** (Blackwell sm_120). `.env` is gitignored, so a
+  fresh clone runs CPU until those keys + the GPU install are re-applied (see `requirements.txt`).
 - ⚠️ Confirm `npm install` pulled the r3f deps (`three`, `@react-three/fiber`, `drei`,
   `postprocessing`) before `npm run dev`.
-- **GPU STT target:** `WHISPER_DEVICE=cuda WHISPER_MODEL=large-v3 WHISPER_COMPUTE=float16
-  WHISPER_LANGUAGE=en`. Needs CUDA 12 + cuDNN (`nvidia-cublas-cu12` / `nvidia-cudnn-cu12`). Verify on
-  `http://localhost:8000/health` (`device==cuda`, `fallback==false`).
+- **GPU note (8GB, shared):** the orb's WebGL + browser + both models share the card; ~2.3GB free
+  with everything up, so `medium` was chosen over `large-v3` for headroom. If VRAM ever OOMs, drop
+  to `WHISPER_MODEL=small` or `WHISPER_COMPUTE=int8_float16`. Backend boot now takes ~30-45s (the
+  warmups) — expected, not a hang. Verify on `/health` (`device==cuda`, `fallback==false`).
 - **Audio hardware note (2026-06-20):** mic/speaker weirdness was the **front-panel jacks** (flaky
   detection + crackle); the **rear motherboard jacks** fixed mic, output, and the crackle. Single-plug
   (TRRS) earphone on separate jacks needs a combo dongle or a CTIA splitter to do mic+audio at once.
 
 ## Recent sessions
+- **2026-06-22** — **Voice → GPU** (`438edf0`): Kokoro + Whisper on the RTX 5060 + boot warmups
+  (paragraph TTS 17.6s→1.3s, CPU freed). Boot screen enlarged + status-label alignment/anim fix
+  (`b012299`). Designed the **skins system** (spec+plan `e1b5a5e`): Arc / Ghost / Amethyst —
+  Ghost = mono **centered-focus**, Amethyst = violet rounded-glass **bento** (owner approved the
+  mockup). Installed the **Impeccable** plugin (design QA). Build starts next session.
 - **2026-06-21** — v1.6 local voice: built the Kokoro TTS engine + switched the default to it
   (`d8926bf`, gitignore `5ae0ea0`). Rebuilt the backend venv on Python 3.11, picked `af_heart`,
   verified live `/speak`. Owner still to A/B the 3 voice samples in `backend/tts_samples/`. Then
@@ -77,11 +85,15 @@ daily driver. See `CLAUDE.md`.
   `12069af`. Resolved the front-panel-jack audio issue. Only TODO §4 (TTS backlog) remains.
 
 ## Next up
-- **▶ RESUME HERE — animations review (tomorrow):** the GSAP boot screen + label crossfade shipped
-  (`fba67fc`) but the owner hasn't watched it yet. **First: restart `npm run dev`** (gsap was added
-  while it was running, so the live server can't resolve it) then hard-refresh. Tweaks the owner
-  flagged: boot length (~2.5s right?), once-per-session vs every-load, boot-log wording, label-
-  crossfade intensity. View-to-view transitions not built yet (optional add).
+- **▶ RESUME HERE — build the skins (next session):** spec + plan committed at
+  `docs/superpowers/specs/2026-06-22-zenith-skins-design.md` + `.../plans/2026-06-22-zenith-skins.md`.
+  The **Impeccable plugin is installed** (restart done). Execute the plan **inline**, starting at
+  **Task 1** (token foundation — colors → CSS vars, Tailwind → `rgb(var(--..)/<alpha>)`; **Arc must
+  stay pixel-identical** = the regression gate), then SkinProvider (2), orb tokens (3), Ghost
+  colors+treatment+layout (4-5), Settings picker + blur-mask switch (6), Amethyst rounded-glass +
+  **bento** (7-8), cross-skin QA (9). Screenshot each skin via the chrome-devtools MCP. Apply
+  **impeccable + taste + minimalist + emil**. Amethyst layout reference: `mock_amethyst_C2.html`.
+  (The v1.7 GSAP boot/status animations are done + owner-approved — that prior resume item is closed.)
 - **Voice polish:** owner to pick a default voice from `backend/tts_samples/` (currently `af_heart`).
 - **TODO §4 (backlog):** Kokoro offline TTS now **done**; remaining bit is TTS pre-fetch/stream to
   cut reply lag (Kokoro at ~0.5× realtime makes streaming-first-chunk a clean win).

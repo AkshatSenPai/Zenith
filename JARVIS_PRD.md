@@ -1,6 +1,12 @@
 # ZENITH — Product Requirements Document (PRD)
-## Version 1.5 | June 2026
+## Version 1.8 | June 2026
 ### Product: Zenith  ·  Wake word: "Zenith"  ·  Repo codename: JARVIS
+
+> **What changed in v1.8 (skins / themes — designed, build next):** A switchable **skin system**. The whole palette is tokenized into **CSS variables** selected by a `data-skin` attribute on `<html>` (Tailwind colors become `rgb(var(--..)/<alpha>)` so every utility class auto-themes; the WebGL orb reads its colors / bloom / particle-count from the same vars). Three skins: **Arc** (today's cyan — default, unchanged), **Ghost** (mono silver-white on pure black; glow/bloom killed, square corners, calmer motion, a **centered-focus layout** that hides the dashboard side-columns; one muted amber kept for alerts), **Amethyst** (violet `#B26BFF`; **rounded-glass** cards + a **bento layout** with the orb as a hero tile — owner-approved mockup). A skin = colors + treatment knobs (`--glow-strength`, `--panel-tint`, `--notch`/`--radius`, `--motion-scale`, `--bloom`, `--particle-count`). Picked from the **Settings** view; switching uses a brief **blur-mask crossfade** (emil-design-eng). Built with the **Impeccable** plugin (design QA) + taste / minimalist / emil. Spec + 9-task plan: `docs/superpowers/{specs,plans}/2026-06-22-zenith-skins*.md`. **Not yet implemented.**
+
+> **What changed in v1.7 (voice → GPU + HUD motion):** Both heavy voice models moved off the CPU onto the **RTX 5060**: torch reinstalled as the **cu128** (Blackwell sm_120) build, **Kokoro TTS on `cuda`**, and **Whisper STT on `cuda`** (`medium`/`float16` via `nvidia-cudnn-cu12` / `nvidia-cublas-cu12`). A paragraph's TTS dropped **~17.6s → ~1.3s** and STT to ~1.1s, freeing the CPU — fixing both the reply-lag and the "PC lags when speaking" (CPU synthesis had been pegging the cores). Both engines now get a **boot-time inference warmup** so the first call of a session isn't a one-time ~17-30s cuDNN cold-start. Device is `.env`-driven (the code default stays CPU; `.env` is gitignored). The 8GB card is shared with the orb's WebGL, so **`medium` was chosen over `large-v3`**; verify on `/health` (`device==cuda`, `fallback==false`). Also: a **GSAP** HUD pass (cinematic boot screen + animated status-label transitions).
+
+> **What changed in v1.6 (local voice — Kokoro default):** **Kokoro** (hexgrad/Kokoro-82M) became the **local/offline TTS engine** (`ZENITH_TTS_ENGINE=kokoro`, default voice `af_heart`, English), with **edge-tts kept as a one-flag fallback**. `synthesize()` dispatches by engine and returns `(bytes, media_type)` — edge→MP3, Kokoro→WAV — so `/speak` and the frontend serve either unchanged. Required moving the backend venv to **Python 3.11** (Kokoro's spacy/blis ship no 3.14 wheels).
 
 > **What changed in v1.5 (orb direction + voice fix):** The orb is being rebuilt as a **glowing particle sphere** (react-three-fiber / WebGL + Bloom, ~40-60k cyan particles, audio-reactive core) — this **supersedes the reactive-mesh orb and the queued mesh-refinement**; the 4 connection nodes stay as labelled anchors around the sphere. STT now **defaults to English** (`WHISPER_LANGUAGE=en`) for speed + accuracy, with the **Hinglish / romanisation path kept dormant behind the flag** (not deleted — still the Phase-2 differentiator). Recommended desktop config: **`large-v3` on `cuda`/`float16`**, and the **silent CUDA->CPU fallback is now made visible** (startup log + active device/model on `/usage` or a new `/health`) — that silent fallback was the real cause of the ~20s latency. TTS stays **edge-tts** (English voices Neerja/Prabhat); **Kokoro** logged as a future offline-TTS option.
 
@@ -88,7 +94,7 @@ Built for freelancers and agency owners who want to automate daily tasks via voi
 - Rate limiting: 5 req/min, 150 msg/day, warn at 120 — enforce a **hard daily kill-switch**, not just a warning
 
 ### 4.2 Voice Interface
-- Input (STT): **faster-whisper**, local/offline (replaces Web Speech API, which breaks inside the desktop shell). **Defaults to English (`WHISPER_LANGUAGE=en`)** for speed + accuracy — with `en` it skips transliteration entirely. The **Hinglish path is kept but dormant**: set `WHISPER_LANGUAGE=hi`/blank to re-enable auto-detect + **romanise Hindi to Latin** (real words, not translated; re-force off Urdu drift). VAD + `beam_size=5` curb mishears. **Run `large-v3` on `cuda`/`float16` on the GPU desktop** (~2-3s for a 12s clip vs ~20s on `small`/CPU). The CUDA→CPU fallback is safe but must be **logged loudly** — it silently ran on CPU before, which was the real cause of the lag. Configurable via `.env` (`WHISPER_MODEL`, `WHISPER_DEVICE`, `WHISPER_COMPUTE`, `WHISPER_LANGUAGE`).
+- Input (STT): **faster-whisper**, local/offline (replaces Web Speech API, which breaks inside the desktop shell). **Defaults to English (`WHISPER_LANGUAGE=en`)** for speed + accuracy — with `en` it skips transliteration entirely. The **Hinglish path is kept but dormant**: set `WHISPER_LANGUAGE=hi`/blank to re-enable auto-detect + **romanise Hindi to Latin** (real words, not translated; re-force off Urdu drift). VAD + `beam_size=5` curb mishears. **Now live on the GPU (v1.7): `medium`/`cuda`/`float16` on the RTX 5060** (~1.1s; `large-v3` skipped for VRAM headroom on the 8GB shared card — drop to `small`/`int8_float16` if it OOMs), with a **boot-time inference warmup** so the first call isn't a ~17s cuDNN cold-start. The CUDA→CPU fallback is safe but must be **logged loudly** — it silently ran on CPU before, which was the real cause of the lag. Configurable via `.env` (`WHISPER_MODEL`, `WHISPER_DEVICE`, `WHISPER_COMPUTE`, `WHISPER_LANGUAGE`); `.env` is gitignored so a fresh clone is CPU until the cu128 torch + nvidia-cudnn/cublas install is re-applied.
 - Output (TTS): **edge-tts** neural voices (Microsoft, free / no key), rendered by the backend at `POST /speak` and returned as MP3 the frontend plays — browser-independent. Replaced browser SpeechSynthesis (robotic in some Chromium builds, silent in others). Voice via `ZENITH_TTS_VOICE` (default `en-IN-NeerjaNeural`). Piper (local) remains an option if a fully-offline voice is needed.
 - Replies: rendered as markdown (bold/lists/code), with **emojis stripped** before display and before TTS.
 - Activation: push-to-talk (hold space). Wake word "Zenith" via a detection engine is a later add.
@@ -248,6 +254,14 @@ Modeled on **app-style HUD dashboards** (the dashboard mockups), NOT the dense f
 +----------------------------------------------------------------+
 ```
 
+### Skins / themes  *(v1.8 — designed, build next)*
+The palette is tokenized into **CSS variables** keyed by `data-skin` on `<html>` (Tailwind colors → `rgb(var(--..)/<alpha>)`, so utility classes auto-theme; the orb reads its colors / bloom / particle-count from the same vars). Three skins, each = colors **+ treatment knobs** (`--glow-strength`, `--panel-tint`, `--notch`/`--radius`, `--motion-scale`, `--bloom`, `--particle-count`):
+- **Arc** — today's cyan HUD. Default, unchanged. Notched corners, dense 3-column dashboard.
+- **Ghost** — mono silver-white on pure black. Glow/bloom killed, square corners, calmer ambient motion, **centered-focus layout** (side dashboard columns hidden), one muted amber kept for alerts.
+- **Amethyst** — violet `#B26BFF`. **Rounded-glass** cards + deeper glow + a **bento layout** (orb as a 2×2 hero tile, calendar as a horizontal strip, slim full-width command bar) — owner-approved mockup.
+
+Picked from the **Settings** view; switching plays a brief **blur-mask crossfade** (<300ms, reduced-motion safe). Built with the **Impeccable** plugin + taste / minimalist / emil. Spec + 9-task plan under `docs/superpowers/`.
+
 ### Orb — glowing particle sphere  *(redesign — supersedes the reactive-mesh orb)*
 The orb is being rebuilt as a **glowing particle sphere**: ~40-60k cyan particles distributed over/within a sphere (Fibonacci + radial jitter), **AdditiveBlending + Bloom** for the premium glow, slow rotation, a brighter dense **core**. It is **audio-reactive** (mic + Zenith's voice): the **core breathes/brightens** and particles **displace outward while brightness flows inward** toward the core — **no per-node ballooning** (the old mesh "bleeding dots" is rejected). Built with **react-three-fiber / WebGL** (this look genuinely needs GPU particles — the 2D-vector approach doesn't apply here). The **4 connection nodes** (Gmail / Calendar / WhatsApp / Discord) stay as **labelled anchors around the sphere**, lit cyan when connected and dim when not — they keep it recognizably Zenith vs a generic AI sphere. Four states, **all cyan**: idle (slow shimmer) / listening / thinking (cooler tone + slow pulse or a small arc, **not a ring**) / speaking (brighter, **never orange**). Perf: one `<Points>` draw call, particle count in a tunable `const`, modest Bloom; test on the 8GB MacBook.
 
@@ -274,8 +288,8 @@ The orb is being rebuilt as a **glowing particle sphere**: ~40-60k cyan particle
 | Desktop shell | Tauri (Phase 1) | Real app window, no browser tab; lighter than Electron |
 | Backend | Python FastAPI | Fast, async; orchestrates Claude tool-use |
 | AI Brain | Claude Sonnet 4.6 API (tool use) | Best quality/cost ratio; tools = clean routing |
-| Voice In | faster-whisper (local/offline; **English default**, Hinglish optional) | Free, private; `large-v3`/CUDA on the GPU box, no Chrome/Google dependency |
-| Voice Out | edge-tts neural (backend `/speak` → MP3); **Kokoro** = future local/offline option | Free, no key, natural Indian-English voice, browser-independent |
+| Voice In | faster-whisper (local/offline; **English default**, Hinglish optional) | Free, private; **`medium`/CUDA on the RTX 5060** (v1.7), no Chrome/Google dependency |
+| Voice Out | **Kokoro** (local/offline, **default**, on GPU) → WAV; edge-tts neural → MP3 (one-flag fallback); backend `/speak` | Free, no key, private, browser-independent; ~0.7s/paragraph on GPU |
 | Wake word (later) | Porcupine / openWakeWord | Detects "Zenith" for always-listening mode |
 | Calendar | Google Calendar API (direct client lib) | Multi-account, robust |
 | Email | Gmail API (direct, multi-account) | Multi-account |
@@ -434,16 +448,19 @@ DISCORD_BOT_TOKEN=
 WEATHER_API_KEY=
 
 # Speech-to-text — faster-whisper is local (no key).
-# DEFAULT = English. On the NVIDIA GPU desktop use the cuda/large-v3 settings below.
+# DEFAULT = English. On the RTX 5060 (8GB, shared with the orb) use cuda + medium (large-v3 is tight on VRAM).
 WHISPER_LANGUAGE=en              # en (default) | hi | blank = auto-detect + romanise Hindi (Phase-2 Hinglish)
-WHISPER_MODEL=large-v3           # GPU: large-v3 · 8GB MacBook/CPU: small or medium
+WHISPER_MODEL=medium             # RTX 5060: medium (large-v3 = OOM-risk) · CPU/8GB MacBook: small
 WHISPER_DEVICE=cuda              # cuda (NVIDIA GPU) | cpu — fallback is safe but is now LOGGED loudly
-WHISPER_COMPUTE=float16          # float16 (cuda) | int8 (cpu)
+WHISPER_COMPUTE=float16          # float16 (cuda) | int8_float16 (tight VRAM) | int8 (cpu)
 # Optional cloud STT for Phase 2:
 # DEEPGRAM_API_KEY=
 
-# Text-to-speech — edge-tts neural voice (local, no key)
-ZENITH_TTS_VOICE=en-IN-NeerjaNeural   # or hi-IN-SwaraNeural / en-IN-PrabhatNeural / hi-IN-MadhurNeural
+# Text-to-speech — Kokoro local/offline (default, v1.6) or edge-tts (one-flag fallback)
+ZENITH_TTS_ENGINE=kokoro              # kokoro (local, default) | edge (cloud neural, fallback)
+ZENITH_KOKORO_VOICE=af_heart          # Kokoro English voice
+ZENITH_KOKORO_DEVICE=cuda             # cuda (RTX 5060; needs cu128 torch) | cpu
+ZENITH_TTS_VOICE=en-IN-NeerjaNeural   # edge-tts voice (used only when ENGINE=edge)
 
 # Database
 DATABASE_URL=postgresql://user:password@localhost:5432/zenith

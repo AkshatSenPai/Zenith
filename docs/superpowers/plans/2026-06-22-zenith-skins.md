@@ -1,5 +1,13 @@
 # Zenith Skins — Implementation Plan
 
+> ## ⏯️ STATUS — 2026-06-24: Tasks 1–8 DONE, on `main` (range `9302683..b8556dd`)
+> Arc / Ghost / Amethyst all built + working Settings picker, each task an atomic commit
+> (`9e3b7b7` T1 · `9e75018` T2 · `88266f2` T3 · `7c5d6e7` T4 · `bf8b30d` T5 · `f7412ba` T6 ·
+> `590e530` T7 · `b8556dd` T8), tsc-clean + browser-verified. **RESUME AT TASK 9** (Amethyst
+> bento layout), then **Task 10** (cross-skin QA). Task-10 tune candidate: Ghost ink-web is
+> still a touch dense in the centre. See memory `skins-build-resume`. (Per-step `- [ ]` boxes
+> below are left unticked — git history + this banner are the source of truth for progress.)
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans (inline) or
 > superpowers:subagent-driven-development to implement this task-by-task. Frontend visual work
 > has **no JS test runner** in this repo, so each task is verified by (a) `npx tsc --noEmit` /

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-export function TopBar() {
+export function TopBar({ minimal = false }: { minimal?: boolean }) {
   const [now, setNow] = useState<Date | null>(null);
 
   useEffect(() => {
@@ -19,7 +19,7 @@ export function TopBar() {
   const todayDate = now ? now.getDate() : -1;
 
   return (
-    <header className="relative z-10 border-b border-zenith-cyan/15 bg-[#05070d]/70 px-4 pb-2 pt-2.5">
+    <header className="relative z-10 border-b border-zenith-cyan/15 bg-zenith-bg/70 px-4 pb-2 pt-2.5">
       <div className="flex items-center justify-between gap-4">
         {/* lockup */}
         <div className="flex items-center gap-2.5">
@@ -59,8 +59,8 @@ export function TopBar() {
         </div>
       </div>
 
-      {/* recessed day-ruler */}
-      {now && (
+      {/* recessed day-ruler — hidden in Ghost's minimal focus chrome */}
+      {!minimal && now && (
         <div className="mt-2 flex items-end gap-[3px] rounded border border-zenith-cyan/10 bg-black/40 px-2 py-1 shadow-[inset_0_1px_4px_rgba(0,0,0,0.6)]">
           {Array.from({ length: daysInMonth }).map((_, i) => {
             const d = i + 1;

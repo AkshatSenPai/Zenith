@@ -19,6 +19,7 @@ import { StatusCard } from "../components/StatusCard";
 import { HexCorners } from "../components/hud/primitives";
 import { BootScreen } from "../components/BootScreen";
 import { StatusLabel } from "../components/StatusLabel";
+import { useSkin } from "../components/SkinProvider";
 
 type PendingAction = { id: string; tool: string; input: Record<string, unknown> };
 type Usage = {
@@ -47,6 +48,8 @@ export default function Home() {
   const [ccMinimized, setCcMinimized] = useState(false);
   const recordingRef = useRef<RecordingHandle | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const { skin } = useSkin();
+  const ghost = skin === "ghost"; // light/ink centered-focus skin: hide dashboard columns + chrome
 
   // Live voice state wins; otherwise "thinking" while a request is in flight.
   const orbState: OrbState = voiceState !== "idle" ? voiceState : loading ? "thinking" : "idle";
@@ -263,15 +266,21 @@ export default function Home() {
       {/* ambient depth layers (behind content) */}
       <div className="bg-aura" />
       <div className="bg-grain" />
-      <HexCorners />
+      {!ghost && <HexCorners />}
 
-      <TopBar />
+      <TopBar minimal={ghost} />
 
-      {/* main row: rail · calendar+actions+usage · center · connections+focus+log */}
-      <div className="stagger grid min-h-0 grid-cols-[64px_264px_1fr_320px]">
+      {/* main row: rail · calendar+actions+usage · center · connections+focus+log.
+          Ghost = centered focus: only the rail + center (side columns hidden). */}
+      <div
+        className={`stagger grid min-h-0 ${
+          ghost ? "grid-cols-[64px_1fr]" : "grid-cols-[64px_264px_1fr_320px]"
+        }`}
+      >
         <ContextRail view={view} onChange={setView} />
 
         {/* left — full-height divider; content fills down to a pinned footer */}
+        {!ghost && (
         <div className="hud-scroll flex min-h-0 flex-col overflow-y-auto border-r border-zenith-cyan/12">
           <CalendarPanel />
           <QuickActions />
@@ -291,6 +300,7 @@ export default function Home() {
           </section>
           <LeftRailExtras />
         </div>
+        )}
 
         {/* center */}
         <div className="relative z-10 flex min-h-0 flex-col">
@@ -298,7 +308,11 @@ export default function Home() {
             <div className="flex min-h-0 flex-1 flex-col items-center px-4 pb-4 pt-2">
               <div
                 className={`aspect-square shrink-0 transition-[width] duration-500 ease-out ${
-                  orbBig ? "w-[min(58vw,62vh)] max-w-[640px]" : "w-[min(34vw,34vh)] max-w-[360px]"
+                  orbBig
+                    ? ghost
+                      ? "w-[min(56vw,74vh)] max-w-[760px]" // Ghost focus: a larger hero orb
+                      : "w-[min(58vw,62vh)] max-w-[640px]"
+                    : "w-[min(34vw,34vh)] max-w-[360px]"
                 }`}
               >
                 <ZenithOrb state={orbState} connections={connections} bars={bars} />
@@ -341,14 +355,22 @@ export default function Home() {
           )}
         </div>
 
-        {/* right */}
+        {/* right (hidden in Ghost focus) */}
+        {!ghost && (
         <div className="hud-scroll flex min-h-0 flex-col overflow-y-auto border-l border-zenith-cyan/12">
           <ConnectionsPanel connections={connections} />
           <FocusCard />
           <ActivityLog />
         </div>
+        )}
       </div>
 
+      {/* Ghost focus: a single one-line usage readout in the corner (replaces the gauges) */}
+      {ghost && usage && (
+        <div className="pointer-events-none absolute bottom-3 left-[80px] z-20 font-mono text-[10px] uppercase tracking-[0.2em] text-zenith-text/45">
+          {usage.requests_today}/{usage.daily_request_cap} req · {Math.round(usage.tokens_today / 1000)}k tok
+        </div>
+      )}
     </div>
   );
 }

@@ -110,7 +110,7 @@ export function BootScreen({ onDone }: { onDone: () => void }) {
     <div
       ref={root}
       onClick={() => { tl.current?.kill(); if (!done.current) gsap.to(root.current, { opacity: 0, duration: 0.25, onComplete: finish }); }}
-      className="fixed inset-0 z-[60] flex cursor-pointer flex-col items-center justify-center bg-[#000008]"
+      className="fixed inset-0 z-[60] flex cursor-pointer flex-col items-center justify-center bg-zenith-bg"
       role="status"
       aria-label="Zenith is starting up"
     >
@@ -146,16 +146,16 @@ export function BootScreen({ onDone }: { onDone: () => void }) {
 
 function BootOrb() {
   return (
-    <svg viewBox="0 0 160 160" className="h-48 w-48 glow-cyan" fill="none">
-      <circle cx="80" cy="80" r="58" stroke="#00FFE5" strokeOpacity="0.12" />
-      <circle cx="80" cy="80" r="44" stroke="#00FFE5" strokeOpacity="0.18" strokeDasharray="3 7" className="spin-vslow" />
-      <circle cx="80" cy="80" r="30" stroke="#00FFE5" strokeOpacity="0.3" />
-      <circle cx="80" cy="80" r="9" fill="#00FFE5" className="core-bloom" />
+    <svg viewBox="0 0 160 160" className="h-48 w-48 glow-cyan text-zenith-cyan" fill="none">
+      <circle cx="80" cy="80" r="58" stroke="currentColor" strokeOpacity="0.12" />
+      <circle cx="80" cy="80" r="44" stroke="currentColor" strokeOpacity="0.18" strokeDasharray="3 7" className="spin-vslow" />
+      <circle cx="80" cy="80" r="30" stroke="currentColor" strokeOpacity="0.3" />
+      <circle cx="80" cy="80" r="9" fill="currentColor" className="core-bloom" />
       {/* scattered points for the particle-sphere hint */}
       {[
         [80, 22], [128, 56], [120, 116], [58, 134], [26, 92], [34, 40], [110, 30], [136, 88],
       ].map(([x, y], i) => (
-        <circle key={i} cx={x} cy={y} r="1.6" fill="#00FFE5" className="twinkle" style={{ animationDelay: `${i * 0.4}s` }} />
+        <circle key={i} cx={x} cy={y} r="1.6" fill="currentColor" className="twinkle" style={{ animationDelay: `${i * 0.4}s` }} />
       ))}
     </svg>
   );

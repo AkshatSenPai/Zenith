@@ -27,7 +27,7 @@ function OrbFallback() {
       className="h-full w-full"
       style={{
         background:
-          "radial-gradient(circle at 50% 50%, rgba(0,255,229,0.16), rgba(0,255,229,0.04) 38%, transparent 66%)",
+          "radial-gradient(circle at 50% 50%, rgb(var(--zenith-cyan) / 0.16), rgb(var(--zenith-cyan) / 0.04) 38%, transparent 66%)",
       }}
     />
   );

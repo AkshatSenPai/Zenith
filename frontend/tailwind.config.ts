@@ -9,13 +9,16 @@ const config: Config = {
     extend: {
       colors: {
         zenith: {
-          bg: "#000008",
-          cyan: "#00FFE5",
-          blue: "#0066FF",
-          text: "#E0F7F7",
-          alert: "#FF6B00",
-          red: "#FF2020",
-          scan: "#2EE6A6",
+          // Themed via CSS vars (space-separated RGB channels) keyed by data-skin, so every
+          // text-zenith-*/bg-zenith-*/border-zenith-* utility auto-themes and /opacity works.
+          // See app/globals.css for the per-skin var blocks. Arc keeps today's exact values.
+          bg: "rgb(var(--zenith-bg) / <alpha-value>)",
+          cyan: "rgb(var(--zenith-cyan) / <alpha-value>)",
+          blue: "rgb(var(--zenith-blue) / <alpha-value>)",
+          text: "rgb(var(--zenith-text) / <alpha-value>)",
+          alert: "rgb(var(--zenith-alert) / <alpha-value>)",
+          red: "rgb(var(--zenith-red) / <alpha-value>)",
+          scan: "#2EE6A6", // unchanged (not themed)
         },
       },
       fontFamily: {

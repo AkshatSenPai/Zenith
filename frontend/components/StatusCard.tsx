@@ -29,7 +29,7 @@ export function StatusCard({
   const t = tones[tone];
   return (
     <div
-      className={`relative border ${t.border} bg-[#080b14] px-4 py-3 shadow-[0_4px_16px_rgba(0,0,0,0.55),inset_0_0_24px_rgba(0,255,229,0.03)]`}
+      className={`status-surface relative border ${t.border} px-4 py-3`}
     >
       <Corner pos="tl" cls={t.corner} />
       <Corner pos="tr" cls={t.corner} />

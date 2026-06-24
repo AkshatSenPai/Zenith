@@ -18,10 +18,41 @@
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
+/* ---------- Skin tokens (data-skin on <html>) ----------
+   Arc = the default cyan look. Colors are space-separated RGB *channels* so Tailwind's
+   rgb(var(--..)/<alpha>) + /opacity modifiers work. Treatment knobs let other skins
+   restyle without touching components. Ghost/Amethyst blocks land in later tasks. */
+:root,
+[data-skin="arc"] {
+  --zenith-bg: 0 0 8;
+  --zenith-cyan: 0 255 229;
+  --zenith-blue: 0 102 255;
+  --zenith-text: 224 247 247;
+  --zenith-alert: 255 107 0;
+  --zenith-red: 255 32 32;
+  --zenith-panel: 6 8 15; /* raised card/panel surface */
+
+  --orb-color: #00ffe5;
+  --orb-cool: #39d6ff;
+  --orb-core: 190 255 250;
+
+  --glow-strength: 1;
+  --panel-tint: 1;
+  --border-strength: 1;
+  --notch: 14px;
+  --radius: 0px;
+  --motion-scale: 1;
+  --bloom: 0.7;
+  --particle-count: 28000;
+  --orb-mode: sphere;
+  --orb-link-dist: 0;
+  --orb-link-alpha: 0;
+}
+
 html,
 body {
-  background-color: #000008;
-  color: #e0f7f7;
+  background-color: rgb(var(--zenith-bg));
+  color: rgb(var(--zenith-text));
 }
 
 /* Orb: feather the WebGL canvas's rectangular edges to transparent so the additive/bloom
@@ -97,7 +128,9 @@ body {
   }
 }
 
-/* spin/scale utilities — rotate or scale about each element's own centre */
+/* spin/scale utilities — rotate or scale about each element's own centre.
+   Ambient (infinite) loops are scaled by --motion-scale so a skin can slow the
+   resting motion (Ghost) WITHOUT touching one-shot/interaction timing. */
 .spin-slow,
 .spin-rev-slow,
 .spin-mid,
@@ -111,50 +144,50 @@ body {
   transform-origin: center;
 }
 .node-pulse {
-  animation: node-pulse 2.8s ease-in-out infinite;
+  animation: node-pulse calc(2.8s * var(--motion-scale)) ease-in-out infinite;
 }
 .spin-slow {
-  animation: spin-cw 26s linear infinite;
+  animation: spin-cw calc(26s * var(--motion-scale)) linear infinite;
 }
 .spin-rev-slow {
-  animation: spin-ccw 34s linear infinite;
+  animation: spin-ccw calc(34s * var(--motion-scale)) linear infinite;
 }
 .spin-mid {
-  animation: spin-cw 13s linear infinite;
+  animation: spin-cw calc(13s * var(--motion-scale)) linear infinite;
 }
 .spin-fast {
-  animation: spin-cw 6s linear infinite;
+  animation: spin-cw calc(6s * var(--motion-scale)) linear infinite;
 }
 .orbit {
-  animation: spin-cw 4.5s linear infinite;
+  animation: spin-cw calc(4.5s * var(--motion-scale)) linear infinite;
 }
 .ripple {
-  animation: ripple 2.6s ease-out infinite;
+  animation: ripple calc(2.6s * var(--motion-scale)) ease-out infinite;
 }
 .wave-pulse {
-  animation: wave-pulse 1.8s ease-in-out infinite;
+  animation: wave-pulse calc(1.8s * var(--motion-scale)) ease-in-out infinite;
 }
 .orb-idle-pulse {
-  animation: orb-pulse 3.4s ease-in-out infinite;
+  animation: orb-pulse calc(3.4s * var(--motion-scale)) ease-in-out infinite;
 }
 .wave-scroll {
   transform-box: fill-box;
   transform-origin: left center;
-  animation: wave-scroll 7s linear infinite;
+  animation: wave-scroll calc(7s * var(--motion-scale)) linear infinite;
 }
 .blink {
-  animation: blink 2s ease-in-out infinite;
+  animation: blink calc(2s * var(--motion-scale)) ease-in-out infinite;
 }
 
-/* glow */
+/* glow — alpha scaled by --glow-strength so Ghost (0) goes matte */
 .glow-cyan {
-  filter: drop-shadow(0 0 2px rgba(0, 255, 229, 0.5));
+  filter: drop-shadow(0 0 2px rgb(var(--zenith-cyan) / calc(0.5 * var(--glow-strength))));
 }
 .glow-blue {
-  filter: drop-shadow(0 0 3px rgba(0, 102, 255, 0.55));
+  filter: drop-shadow(0 0 3px rgb(var(--zenith-blue) / calc(0.55 * var(--glow-strength))));
 }
 .glow-orange {
-  filter: drop-shadow(0 0 3px rgba(255, 107, 0, 0.55));
+  filter: drop-shadow(0 0 3px rgb(var(--zenith-alert) / calc(0.55 * var(--glow-strength))));
 }
 
 /* angled list-card corner */
@@ -164,17 +197,17 @@ body {
 
 /* notched-corner HUD card — chamfer the top-right + bottom-left (app-style refs).
    Pair with a border via .hud-card-border (drawn as an inset pseudo so the clip
-   doesn't shave the stroke). */
+   doesn't shave the stroke). --notch lets a skin square (0) or keep the chamfer. */
 .hud-card {
   position: relative;
-  background: rgba(0, 255, 229, 0.025);
+  background: rgb(var(--zenith-cyan) / calc(0.025 * var(--panel-tint)));
   clip-path: polygon(
     0 0,
-    calc(100% - 14px) 0,
-    100% 14px,
+    calc(100% - var(--notch)) 0,
+    100% var(--notch),
     100% 100%,
-    14px 100%,
-    0 calc(100% - 14px)
+    var(--notch) 100%,
+    0 calc(100% - var(--notch))
   );
 }
 .hud-card-border::before {
@@ -182,17 +215,26 @@ body {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  border: 1px solid rgba(0, 255, 229, 0.18);
+  border: 1px solid rgb(var(--zenith-cyan) / calc(0.18 * var(--border-strength)));
   clip-path: inherit;
 }
 
-/* slim scrollbar */
+/* confirm/status card surface — opaque raised tone + tinted inner glow.
+   Surface follows --zenith-panel; inner glow follows --panel-tint (Ghost overrides). */
+.status-surface {
+  background-color: rgb(var(--zenith-panel));
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.55),
+    inset 0 0 24px rgb(var(--zenith-cyan) / calc(0.03 * var(--panel-tint)));
+}
+
+/* slim scrollbar — thumb follows the accent (visible in every skin) */
 .hud-scroll::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 .hud-scroll::-webkit-scrollbar-thumb {
-  background: rgba(0, 255, 229, 0.22);
+  background: rgb(var(--zenith-cyan) / 0.22);
   border-radius: 3px;
 }
 .hud-scroll::-webkit-scrollbar-track {
@@ -217,15 +259,16 @@ body {
 
 /* ---------- premium depth (redesign-skill) ---------- */
 
-/* ambient pool of light + faint grain — placed behind content (z-0) */
+/* ambient pool of light + faint grain — placed behind content (z-0).
+   Pools scale by --panel-tint so Ghost (0) reads as flat paper. */
 .bg-aura {
   position: fixed;
   inset: 0;
   z-index: 0;
   pointer-events: none;
   background:
-    radial-gradient(58% 48% at 50% 33%, rgba(0, 255, 229, 0.08), transparent 70%),
-    radial-gradient(95% 85% at 50% 55%, rgba(0, 102, 255, 0.04), transparent 78%);
+    radial-gradient(58% 48% at 50% 33%, rgb(var(--zenith-cyan) / calc(0.08 * var(--panel-tint))), transparent 70%),
+    radial-gradient(95% 85% at 50% 55%, rgb(var(--zenith-blue) / calc(0.04 * var(--panel-tint))), transparent 78%);
 }
 .bg-grain {
   position: fixed;
@@ -238,11 +281,11 @@ body {
 
 /* elevated glass panel: raised tone, hairline cyan border, inner glow, tinted shadow */
 .panel {
-  background-color: #06080f;
-  border: 1px solid rgba(0, 255, 229, 0.1);
+  background-color: rgb(var(--zenith-panel));
+  border: 1px solid rgb(var(--zenith-cyan) / calc(0.1 * var(--border-strength)));
   box-shadow:
-    inset 0 1px 0 rgba(0, 255, 229, 0.06),
-    inset 0 0 24px rgba(0, 255, 229, 0.03),
+    inset 0 1px 0 rgb(var(--zenith-cyan) / calc(0.06 * var(--panel-tint))),
+    inset 0 0 24px rgb(var(--zenith-cyan) / calc(0.03 * var(--panel-tint))),
     0 2px 10px rgba(0, 0, 0, 0.5);
 }
 .panel-hover {
@@ -252,12 +295,12 @@ body {
 @media (hover: hover) and (pointer: fine) {
   .panel-hover:hover {
     transform: translateY(-1px);
-    border-color: rgba(0, 255, 229, 0.22);
+    border-color: rgb(var(--zenith-cyan) / calc(0.22 * var(--border-strength)));
     box-shadow:
-      inset 0 1px 0 rgba(0, 255, 229, 0.08),
-      inset 0 0 24px rgba(0, 255, 229, 0.05),
+      inset 0 1px 0 rgb(var(--zenith-cyan) / calc(0.08 * var(--panel-tint))),
+      inset 0 0 24px rgb(var(--zenith-cyan) / calc(0.05 * var(--panel-tint))),
       0 8px 20px rgba(0, 0, 0, 0.55),
-      0 0 18px rgba(0, 255, 229, 0.06);
+      0 0 18px rgb(var(--zenith-cyan) / calc(0.06 * var(--glow-strength)));
   }
 }
 
@@ -286,7 +329,7 @@ body {
   50% { opacity: 0.28; }
 }
 .twinkle {
-  animation: twinkle 4s ease-in-out infinite;
+  animation: twinkle calc(4s * var(--motion-scale)) ease-in-out infinite;
 }
 /* core "voice" emanation — gentle expanding rings so idle reads as a live entity */
 @keyframes emanate {
@@ -297,7 +340,7 @@ body {
 .emanate {
   transform-box: fill-box;
   transform-origin: center;
-  animation: emanate 5s ease-out infinite;
+  animation: emanate calc(5s * var(--motion-scale)) ease-out infinite;
 }
 @keyframes rise-in {
   from { opacity: 0; transform: translateY(8px); }
@@ -307,17 +350,18 @@ body {
 .core-bloom {
   transform-box: fill-box;
   transform-origin: center;
-  animation: core-bloom 4s ease-in-out infinite;
+  animation: core-bloom calc(4s * var(--motion-scale)) ease-in-out infinite;
 }
 .flow-dash {
-  animation: flow-dash 1.1s linear infinite;
+  animation: flow-dash calc(1.1s * var(--motion-scale)) linear infinite;
 }
 .spin-vslow {
   transform-box: fill-box;
   transform-origin: center;
-  animation: spin-cw 80s linear infinite;
+  animation: spin-cw calc(80s * var(--motion-scale)) linear infinite;
 }
-/* staggered load-in for major regions; `backwards` so hover transforms still work after */
+/* staggered load-in for major regions; `backwards` so hover transforms still work after.
+   One-shot entrance (not ambient) → intentionally NOT scaled by --motion-scale. */
 .rise-in {
   animation: rise-in 420ms var(--ease-out) backwards;
 }

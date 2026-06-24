@@ -1,24 +1,25 @@
 "use client";
 
-// Zenith orb — a glowing CYAN particle sphere (WebGL / react-three-fiber).
-// ~46k additive points on a Fibonacci shell + an inner haze for a bright dense core,
+// Zenith orb — a glowing particle sphere (WebGL / react-three-fiber).
+// ~28k additive points on a Fibonacci shell + an inner haze for a bright dense core,
 // Bloom for the glow, slow rotation. Audio-reactive via the `bars` feed: the core
 // breathes/brightens and particles displace OUTWARD while brightness flows INWARD
-// (energy gathering to the core) — NO per-node ballooning. 4 states, all cyan, no rings.
+// (energy gathering to the core) — NO per-node ballooning. 4 states, no rings.
+//
+// Colors / bloom / particle-count come from CSS vars (--orb-* / --bloom / --particle-count)
+// keyed by data-skin, so Arc stays identical and Amethyst recolors for free (Task 3). A
+// second `--orb-mode: network` render mode (Ghost ink web) lands in Task 4.
 // Loaded client-only by ZenithOrb.tsx (ssr:false). See TODO.md §2 / PRD §6.
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
 import { EffectComposer, Bloom } from "@react-three/postprocessing";
 import * as THREE from "three";
 import type { Connection } from "../lib/mock";
 import type { OrbState, ZenithOrbProps } from "./ZenithOrb";
+import { useSkin } from "./SkinProvider";
 
-// One <points> draw call. Lower this on weak GPUs (the 8GB MacBook) if it stutters.
-// Kept modest on purpose: the sphere must read as a SEE-THROUGH cloud of distinct points
-// (like the reference), not a solid glowing ball — count/size are the levers for that.
-const PARTICLE_COUNT = 28000;
 const SHELL_RATIO = 0.6; // mostly a soft surface shell; the rest concentrate toward the centre
 
 type Anchor = { channel: Connection["channel"]; pos: [number, number, number] };
@@ -46,22 +47,121 @@ function ampFromBars(bars: number[]): number {
   return Math.min(1, (avg * 0.6 + max * 0.4) * 1.5);
 }
 
-/** Soft radial sprite for the bright central core (additive). */
-function makeGlowTexture(): THREE.Texture {
+export type OrbTokens = {
+  mode: "sphere" | "network";
+  color: string;
+  cool: string;
+  core: string;
+  bloom: number;
+  count: number;
+  linkDist: number;
+  linkAlpha: number;
+};
+
+/** Read the orb's colors + knobs from the active skin's CSS vars on <html>. */
+export function readOrbTokens(): OrbTokens {
+  const cs = getComputedStyle(document.documentElement);
+  const num = (k: string, d: number) => {
+    const v = parseFloat(cs.getPropertyValue(k));
+    return Number.isFinite(v) ? v : d;
+  };
+  const str = (k: string, d: string) => cs.getPropertyValue(k).trim() || d;
+  const rgb = (k: string, d: string) => {
+    const v = cs.getPropertyValue(k).trim();
+    return v ? `rgb(${v.split(/\s+/).join(",")})` : d;
+  };
+  return {
+    mode: str("--orb-mode", "sphere") as "sphere" | "network",
+    color: str("--orb-color", "#00ffe5"),
+    cool: str("--orb-cool", "#39d6ff"),
+    core: rgb("--orb-core", "rgb(190,255,250)"),
+    bloom: num("--bloom", 0.7),
+    count: Math.round(num("--particle-count", 28000)),
+    linkDist: num("--orb-link-dist", 0.34),
+    linkAlpha: num("--orb-link-alpha", 0.5),
+  };
+}
+
+/** Parse a hex or rgb()/space-channel CSS color into an `rgba(r,g,b,a)` string WITHOUT any
+ *  colorspace conversion — so the canvas gradient matches the literal sRGB values exactly
+ *  (THREE.Color would linearize and shift Arc's look). */
+function toRGBA(css: string, a: number): string {
+  const s = css.trim();
+  if (s[0] === "#") {
+    let h = s.slice(1);
+    if (h.length === 3) h = h.split("").map((c) => c + c).join("");
+    const n = parseInt(h, 16);
+    return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+  }
+  const m = s.match(/[\d.]+/g) || ["0", "0", "0"];
+  return `rgba(${m[0]},${m[1]},${m[2]},${a})`;
+}
+
+/** Soft radial sprite for the bright central core (additive). `core` = densest inner tint,
+ *  `color` = the accent the glow fades out through. */
+function makeGlowTexture(color: string, core: string): THREE.Texture {
   const s = 128;
   const c = document.createElement("canvas");
   c.width = c.height = s;
   const ctx = c.getContext("2d")!;
   const g = ctx.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
   g.addColorStop(0, "rgba(255,255,255,1)");
-  g.addColorStop(0.18, "rgba(190,255,250,0.9)");
-  g.addColorStop(0.5, "rgba(0,255,229,0.35)");
-  g.addColorStop(1, "rgba(0,255,229,0)");
+  g.addColorStop(0.18, toRGBA(core, 0.9));
+  g.addColorStop(0.5, toRGBA(color, 0.35));
+  g.addColorStop(1, toRGBA(color, 0));
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, s, s);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
+}
+
+/** Build the Fibonacci-shell + inner-haze sphere geometry for `count` points. */
+function buildSphereGeometry(count: number): THREE.BufferGeometry {
+  const positions = new Float32Array(count * 3);
+  const scales = new Float32Array(count);
+  const phases = new Float32Array(count);
+  const radii = new Float32Array(count);
+  const GA = Math.PI * (3 - Math.sqrt(5)); // golden angle
+  for (let i = 0; i < count; i++) {
+    const shell = Math.random() < SHELL_RATIO;
+    let x: number;
+    let y: number;
+    let z: number;
+    if (shell) {
+      const t = i / count;
+      const inc = Math.acos(1 - 2 * t); // even latitude
+      const az = GA * i; // golden-angle longitude
+      const sinc = Math.sin(inc);
+      x = sinc * Math.cos(az);
+      y = sinc * Math.sin(az);
+      z = Math.cos(inc);
+    } else {
+      const u = Math.random() * 2 - 1; // random direction for the inner haze
+      const az = Math.random() * Math.PI * 2;
+      const sx = Math.sqrt(1 - u * u);
+      x = sx * Math.cos(az);
+      y = sx * Math.sin(az);
+      z = u;
+    }
+    // shell = a soft band near the surface (defines the sphere, stays see-through);
+    // interior = concentrated toward the centre (^1.8) so the core reads dense + bright
+    // while the edges stay sparse — that's the reference look, not a filled disc.
+    const r = shell ? 0.84 + Math.random() * 0.16 : Math.pow(Math.random(), 1.8) * 0.82;
+    const j = shell ? 0.02 : 0.0; // tiny jitter so the shell isn't a perfect surface
+    positions[i * 3] = (x + (Math.random() - 0.5) * j) * r;
+    positions[i * 3 + 1] = (y + (Math.random() - 0.5) * j) * r;
+    positions[i * 3 + 2] = (z + (Math.random() - 0.5) * j) * r;
+    radii[i] = r;
+    scales[i] = shell ? 0.35 + Math.random() * 0.5 : 0.55 + Math.random() * 0.7;
+    phases[i] = Math.random() * Math.PI * 2;
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  g.setAttribute("aScale", new THREE.BufferAttribute(scales, 1));
+  g.setAttribute("aPhase", new THREE.BufferAttribute(phases, 1));
+  g.setAttribute("aRadius", new THREE.BufferAttribute(radii, 1));
+  return g;
 }
 
 const VERTEX = /* glsl */ `
@@ -112,8 +212,8 @@ const FRAGMENT = /* glsl */ `
   }
 `;
 
-/** Faint cyan spoke from the sphere surface out to a connected anchor (connection map). */
-function Spoke({ anchor }: { anchor: Anchor }) {
+/** Faint spoke from the sphere surface out to a connected anchor (connection map). */
+function Spoke({ anchor, color }: { anchor: Anchor; color: string }) {
   const obj = useMemo(() => {
     const v = new THREE.Vector3(...anchor.pos);
     const dir = v.clone().normalize();
@@ -122,14 +222,14 @@ function Spoke({ anchor }: { anchor: Anchor }) {
       dir.clone().multiplyScalar(v.length() - 0.3),
     ]);
     const mat = new THREE.LineBasicMaterial({
-      color: 0x00ffe5,
+      color: new THREE.Color(color),
       transparent: true,
       opacity: 0.22,
       depthWrite: false,
       depthTest: false,
     });
     return new THREE.Line(geo, mat);
-  }, [anchor]);
+  }, [anchor, color]);
   useEffect(() => () => {
     obj.geometry.dispose();
     (obj.material as THREE.Material).dispose();
@@ -137,15 +237,17 @@ function Spoke({ anchor }: { anchor: Anchor }) {
   return <primitive object={obj} />;
 }
 
-/** Labelled connection anchors around the sphere — lit cyan when connected, dim when not. */
-function Anchors({ connections }: { connections: Connection[] }) {
+/** Labelled connection anchors around the sphere — lit when connected, dim when not.
+ *  Label/dot colors theme via Tailwind `*-zenith-cyan`; the inline glows + spoke use the
+ *  accent CSS var / token so Amethyst recolors automatically. */
+function Anchors({ connections, color }: { connections: Connection[]; color: string }) {
   return (
     <>
       {ANCHORS.map((a) => {
         const on = !!connections.find((c) => c.channel === a.channel)?.connected;
         return (
           <group key={a.channel}>
-            {on && <Spoke anchor={a} />}
+            {on && <Spoke anchor={a} color={color} />}
             <Html position={a.pos} center style={{ pointerEvents: "none" }}>
               <div
                 className={`flex select-none items-center gap-1.5 whitespace-nowrap rounded-sm border px-2 py-1 font-mono text-[9px] uppercase tracking-[0.18em] transition-colors duration-500 ${
@@ -153,13 +255,13 @@ function Anchors({ connections }: { connections: Connection[] }) {
                     ? "border-zenith-cyan/40 bg-black/55 text-zenith-cyan"
                     : "border-zenith-text/15 bg-black/40 text-zenith-text/40"
                 }`}
-                style={on ? { boxShadow: "0 0 12px rgba(0,255,229,0.18)" } : undefined}
+                style={on ? { boxShadow: "0 0 12px rgb(var(--zenith-cyan) / 0.18)" } : undefined}
               >
                 <span
                   className={`inline-block h-1.5 w-1.5 rounded-full ${
                     on ? "bg-zenith-cyan" : "bg-transparent ring-1 ring-zenith-text/30"
                   }`}
-                  style={on ? { boxShadow: "0 0 6px rgba(0,255,229,0.9)" } : undefined}
+                  style={on ? { boxShadow: "0 0 6px rgb(var(--zenith-cyan) / 0.9)" } : undefined}
                 />
                 {a.channel}
               </div>
@@ -173,54 +275,22 @@ function Anchors({ connections }: { connections: Connection[] }) {
 
 function SceneContents({ state = "idle", connections = [], bars = [] }: ZenithOrbProps) {
   const { gl } = useThree();
+  const { skin } = useSkin();
 
-  // Geometry: a Fibonacci shell + an inner haze. Built once.
-  const geometry = useMemo(() => {
-    const positions = new Float32Array(PARTICLE_COUNT * 3);
-    const scales = new Float32Array(PARTICLE_COUNT);
-    const phases = new Float32Array(PARTICLE_COUNT);
-    const radii = new Float32Array(PARTICLE_COUNT);
-    const GA = Math.PI * (3 - Math.sqrt(5)); // golden angle
-    for (let i = 0; i < PARTICLE_COUNT; i++) {
-      const shell = Math.random() < SHELL_RATIO;
-      let x: number;
-      let y: number;
-      let z: number;
-      if (shell) {
-        const t = i / PARTICLE_COUNT;
-        const inc = Math.acos(1 - 2 * t); // even latitude
-        const az = GA * i; // golden-angle longitude
-        const sinc = Math.sin(inc);
-        x = sinc * Math.cos(az);
-        y = sinc * Math.sin(az);
-        z = Math.cos(inc);
-      } else {
-        const u = Math.random() * 2 - 1; // random direction for the inner haze
-        const az = Math.random() * Math.PI * 2;
-        const s = Math.sqrt(1 - u * u);
-        x = s * Math.cos(az);
-        y = s * Math.sin(az);
-        z = u;
-      }
-      // shell = a soft band near the surface (defines the sphere, stays see-through);
-      // interior = concentrated toward the centre (^1.8) so the core reads dense + bright
-      // while the edges stay sparse — that's the reference look, not a filled disc.
-      const r = shell ? 0.84 + Math.random() * 0.16 : Math.pow(Math.random(), 1.8) * 0.82;
-      const j = shell ? 0.02 : 0.0; // tiny jitter so the shell isn't a perfect surface
-      positions[i * 3] = (x + (Math.random() - 0.5) * j) * r;
-      positions[i * 3 + 1] = (y + (Math.random() - 0.5) * j) * r;
-      positions[i * 3 + 2] = (z + (Math.random() - 0.5) * j) * r;
-      radii[i] = r;
-      scales[i] = shell ? 0.35 + Math.random() * 0.5 : 0.55 + Math.random() * 0.7;
-      phases[i] = Math.random() * Math.PI * 2;
-    }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-    g.setAttribute("aScale", new THREE.BufferAttribute(scales, 1));
-    g.setAttribute("aPhase", new THREE.BufferAttribute(phases, 1));
-    g.setAttribute("aRadius", new THREE.BufferAttribute(radii, 1));
-    return g;
-  }, []);
+  // Skin tokens drive colors/bloom/particle-count. Re-read on skin change; the no-flash
+  // script has already set data-skin before paint so the first read is correct.
+  const [tokens, setTokens] = useState<OrbTokens>(readOrbTokens);
+  useEffect(() => {
+    setTokens(readOrbTokens());
+  }, [skin]);
+
+  // Geometry rebuilds only when the particle count changes (rare — a skin switch).
+  const geometry = useMemo(() => buildSphereGeometry(tokens.count), [tokens.count]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+
+  // Core sprite texture follows the accent + core tint; swap + dispose on change.
+  const coreTex = useMemo(() => makeGlowTexture(tokens.color, tokens.core), [tokens.color, tokens.core]);
+  useEffect(() => () => coreTex.dispose(), [coreTex]);
 
   const material = useMemo(
     () =>
@@ -231,7 +301,7 @@ function SceneContents({ state = "idle", connections = [], bars = [] }: ZenithOr
           uSize: { value: 9 },
           uPixelRatio: { value: 1 },
           uColor: { value: new THREE.Color("#00ffe5") },
-          uCool: { value: new THREE.Color("#39d6ff") }, // cooler cyan for "thinking"
+          uCool: { value: new THREE.Color("#39d6ff") }, // cooler accent for "thinking"
           uCoolMix: { value: 0 },
           uBright: { value: 1 },
         },
@@ -244,8 +314,14 @@ function SceneContents({ state = "idle", connections = [], bars = [] }: ZenithOr
       }),
     [],
   );
+  useEffect(() => () => material.dispose(), [material]);
 
-  const coreTex = useMemo(makeGlowTexture, []);
+  // Recolor the point material when the skin's accent/cool changes.
+  useEffect(() => {
+    material.uniforms.uColor.value.set(tokens.color);
+    material.uniforms.uCool.value.set(tokens.cool);
+  }, [material, tokens.color, tokens.cool]);
+
   const points = useRef<THREE.Points>(null);
   const core = useRef<THREE.Sprite>(null);
   const coreMat = useRef<THREE.SpriteMaterial>(null);
@@ -267,15 +343,6 @@ function SceneContents({ state = "idle", connections = [], bars = [] }: ZenithOr
   useEffect(() => {
     material.uniforms.uPixelRatio.value = Math.min(gl.getPixelRatio(), 2);
   }, [gl, material]);
-
-  useEffect(
-    () => () => {
-      geometry.dispose();
-      material.dispose();
-      coreTex.dispose();
-    },
-    [geometry, material, coreTex],
-  );
 
   useFrame((_, dtRaw) => {
     const dt = Math.min(dtRaw, 0.05);
@@ -317,6 +384,9 @@ function SceneContents({ state = "idle", connections = [], bars = [] }: ZenithOr
     }
   });
 
+  // network mode (Ghost ink web): see Task 4 — renders nothing here for now.
+  if (tokens.mode !== "sphere") return null;
+
   return (
     <>
       <points ref={points} geometry={geometry} material={material} />
@@ -331,11 +401,11 @@ function SceneContents({ state = "idle", connections = [], bars = [] }: ZenithOr
           opacity={0.55}
         />
       </sprite>
-      <Anchors connections={connections} />
+      <Anchors connections={connections} color={tokens.color} />
       <EffectComposer>
         {/* threshold > 0 so ONLY the bright core blooms — the dim shell stays crisp points
             (this is what stops the whole ball glowing and the glow clipping to a square). */}
-        <Bloom intensity={0.7} luminanceThreshold={0.32} luminanceSmoothing={0.2} mipmapBlur />
+        <Bloom intensity={tokens.bloom} luminanceThreshold={0.32} luminanceSmoothing={0.2} mipmapBlur />
       </EffectComposer>
     </>
   );

@@ -49,6 +49,47 @@
   --orb-link-alpha: 0;
 }
 
+/* ---------- Ghost: light / ink-network focus skin ----------
+   Near-white paper + graphite ink. Glow/bloom killed (depth comes from a hairline +
+   whisper shadow, not light). Orb flips to the `network` ink-web mode (no nodes/bloom).
+   Calmer ambient motion (--motion-scale 1.35). Muted amber/red survive for real alerts. */
+[data-skin="ghost"] {
+  --zenith-bg: 247 247 245;
+  --zenith-cyan: 24 24 27; /* "accent" resolves to ink */
+  --zenith-blue: 90 96 104; /* graphite */
+  --zenith-text: 30 30 34;
+  --zenith-alert: 180 83 9; /* darkened amber, reads on white */
+  --zenith-red: 200 30 46;
+  --zenith-panel: 255 255 255; /* white card surface */
+
+  --orb-color: #1a1a1c;
+  --orb-cool: #4a4f57;
+  --orb-core: 18 18 20;
+
+  --glow-strength: 0;
+  --panel-tint: 0;
+  --border-strength: 0.16;
+  --notch: 0px;
+  --radius: 0px;
+  --motion-scale: 1.35;
+  --bloom: 0;
+  --particle-count: 1100;
+  --orb-mode: network;
+  --orb-link-dist: 0.34;
+  --orb-link-alpha: 0.42;
+}
+
+/* Ghost light surfaces — with --panel-tint 0 the cyan fills vanish, so give cards a white
+   surface, a hairline ink border, and a whisper of soft shadow (depth without glow). */
+[data-skin="ghost"] .hud-card,
+[data-skin="ghost"] .panel {
+  background: #ffffff;
+  border: 1px solid rgb(var(--zenith-cyan) / 0.12);
+  box-shadow:
+    0 1px 2px rgb(var(--zenith-cyan) / 0.05),
+    0 8px 24px rgb(var(--zenith-cyan) / 0.04);
+}
+
 html,
 body {
   background-color: rgb(var(--zenith-bg));

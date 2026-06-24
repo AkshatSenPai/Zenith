@@ -23,6 +23,10 @@ export function SkinProvider({ children }: { children: React.ReactNode }) {
     setSkinState(id);
     localStorage.setItem(SKIN_STORAGE_KEY, id);
     document.documentElement.dataset.skin = id;
+    // emil blur-mask crossfade: a brief blur+dip over the dark<->light swap (see globals.css).
+    const body = document.body;
+    body.classList.add("skin-swapping");
+    window.setTimeout(() => body.classList.remove("skin-swapping"), 220);
   }, []);
 
   // Keep the attribute in sync whenever state changes (covers the mount sync above).

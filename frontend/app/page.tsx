@@ -20,6 +20,7 @@ import { HexCorners } from "../components/hud/primitives";
 import { BootScreen } from "../components/BootScreen";
 import { StatusLabel } from "../components/StatusLabel";
 import { useSkin } from "../components/SkinProvider";
+import { SkinPicker } from "../components/SkinPicker";
 
 type PendingAction = { id: string; tool: string; input: Record<string, unknown> };
 type Usage = {
@@ -350,6 +351,8 @@ export default function Home() {
                 />
               </div>
             </div>
+          ) : view === "settings" ? (
+            <SkinPicker />
           ) : (
             <PlaceholderView view={view} />
           )}

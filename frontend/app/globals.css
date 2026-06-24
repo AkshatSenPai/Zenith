@@ -96,6 +96,28 @@ body {
   color: rgb(var(--zenith-text));
 }
 
+/* ---------- skin-switch crossfade (emil blur-mask) ----------
+   Switching skin is occasional + user-triggered → a brief blur+opacity dip (<300ms) masks
+   the dark<->light jump (Arc<->Ghost most of all). Transition lives on body so the class
+   eases IN then OUT; SkinProvider toggles `.skin-swapping` for ~220ms on each switch. */
+body {
+  transition:
+    filter 0.2s var(--ease-out),
+    opacity 0.2s var(--ease-out);
+}
+.skin-swapping {
+  filter: blur(2px);
+  opacity: 0.85;
+}
+@media (prefers-reduced-motion: reduce) {
+  body {
+    transition: opacity 0.15s linear;
+  }
+  .skin-swapping {
+    filter: none;
+  }
+}
+
 /* Orb: feather the WebGL canvas's rectangular edges to transparent so the additive/bloom
    pass can't clip into a visible "square" around the sphere. Masks ONLY the <canvas>, so
    the connection-node labels (separate DOM siblings) stay crisp and un-faded. */

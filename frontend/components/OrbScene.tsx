@@ -164,6 +164,55 @@ function buildSphereGeometry(count: number): THREE.BufferGeometry {
   return g;
 }
 
+/** Build the Ghost ink-web: centre-dense node positions + a capped neighbour line set.
+ *  Lines are computed once at build; their endpoints coincide with node positions so the
+ *  shared wobble shader keeps them attached. */
+function buildNetwork(count: number, linkDist: number): {
+  nodeGeo: THREE.BufferGeometry;
+  lineGeo: THREE.BufferGeometry;
+} {
+  const pos = new Float32Array(count * 3);
+  const scale = new Float32Array(count);
+  const GA = Math.PI * (3 - Math.sqrt(5));
+  for (let i = 0; i < count; i++) {
+    const t = i / count;
+    const inc = Math.acos(1 - 2 * t);
+    const az = GA * i;
+    const s = Math.sin(inc);
+    // radius: a hollow-ish centre (min 0.14) so the web reads as an airy sphere of links,
+    // mildly denser toward the middle — NOT a solid black core.
+    const r = Math.pow(Math.random(), 1.3) * 0.66 + 0.14;
+    pos[i * 3] = s * Math.cos(az) * r + (Math.random() - 0.5) * 0.04;
+    pos[i * 3 + 1] = s * Math.sin(az) * r + (Math.random() - 0.5) * 0.04;
+    pos[i * 3 + 2] = Math.cos(inc) * r + (Math.random() - 0.5) * 0.04;
+    scale[i] = 0.5 + Math.random() * 0.9;
+  }
+  // neighbour lines: O(n^2) once at build; cap links/node + total segments. Kept modest so
+  // overlapping lines don't sum to an opaque black mass (the web must stay see-through).
+  const MAX_PER = 3;
+  const MAX_SEG = 2200;
+  const d2 = linkDist * linkDist;
+  const seg: number[] = [];
+  for (let i = 0; i < count && seg.length / 6 < MAX_SEG; i++) {
+    let made = 0;
+    for (let j = i + 1; j < count && made < MAX_PER; j++) {
+      const dx = pos[i * 3] - pos[j * 3];
+      const dy = pos[i * 3 + 1] - pos[j * 3 + 1];
+      const dz = pos[i * 3 + 2] - pos[j * 3 + 2];
+      if (dx * dx + dy * dy + dz * dz < d2) {
+        seg.push(pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2], pos[j * 3], pos[j * 3 + 1], pos[j * 3 + 2]);
+        made++;
+      }
+    }
+  }
+  const nodeGeo = new THREE.BufferGeometry();
+  nodeGeo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  nodeGeo.setAttribute("aScale", new THREE.BufferAttribute(scale, 1));
+  const lineGeo = new THREE.BufferGeometry();
+  lineGeo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(seg), 3));
+  return { nodeGeo, lineGeo };
+}
+
 const VERTEX = /* glsl */ `
   uniform float uTime;
   uniform float uAmp;
@@ -211,6 +260,42 @@ const FRAGMENT = /* glsl */ `
     gl_FragColor = vec4(col, a);
   }
 `;
+
+// ---- Ghost network-orb shaders (ink web) ----
+// The wobble depends ONLY on position, so a line endpoint coincident with a node moves
+// identically → nodes and their lines never separate. Audio drives a uniform amp, not
+// per-node jitter, so the whole web breathes/expands rather than scattering.
+const NET_WOBBLE = /* glsl */ `
+  uniform float uTime; uniform float uAmp;
+  vec3 orgPos(vec3 p){
+    vec3 o = vec3(
+      sin(uTime*0.6 + p.y*4.0 + p.z*3.1),
+      sin(uTime*0.5 + p.z*4.0 + p.x*3.1),
+      sin(uTime*0.7 + p.x*4.0 + p.y*3.1));
+    vec3 dir = normalize(p + 1e-5);
+    return p + o*0.014 + dir*(uAmp*0.10);
+  }`;
+const NET_NODE_VERT = NET_WOBBLE + /* glsl */ `
+  uniform float uSize; uniform float uPixelRatio; attribute float aScale;
+  void main(){
+    vec3 pos = orgPos(position);
+    vec4 mv = modelViewMatrix * vec4(pos,1.0);
+    gl_Position = projectionMatrix * mv;
+    gl_PointSize = uSize * uPixelRatio * aScale * (1.0 + uAmp*0.4) / -mv.z;
+  }`;
+const NET_NODE_FRAG = /* glsl */ `
+  precision mediump float; uniform vec3 uColor; uniform float uOpacity;
+  void main(){
+    float d = length(gl_PointCoord - 0.5);
+    if(d > 0.5) discard;
+    float a = smoothstep(0.5, 0.30, d);
+    gl_FragColor = vec4(uColor, a * uOpacity);
+  }`;
+const NET_LINE_VERT = NET_WOBBLE + /* glsl */ `
+  void main(){ gl_Position = projectionMatrix * modelViewMatrix * vec4(orgPos(position),1.0); }`;
+const NET_LINE_FRAG = /* glsl */ `
+  precision mediump float; uniform vec3 uColor; uniform float uOpacity;
+  void main(){ gl_FragColor = vec4(uColor, uOpacity); }`;
 
 /** Faint spoke from the sphere surface out to a connected anchor (connection map). */
 function Spoke({ anchor, color }: { anchor: Anchor; color: string }) {
@@ -270,6 +355,112 @@ function Anchors({ connections, color }: { connections: Connection[]; color: str
         );
       })}
     </>
+  );
+}
+
+/** Ghost ink web: dark nodes + neighbour lines, normal blending, no bloom, no anchors.
+ *  "Brighter" on speech/listen = a touch more opacity (it's ink, never a colour/glow). */
+function NetworkOrb({ state, bars }: { state: OrbState; bars: number[] }) {
+  const { gl } = useThree();
+  const tk = useMemo(readOrbTokens, []);
+  const { nodeGeo, lineGeo } = useMemo(
+    () => buildNetwork(tk.count, tk.linkDist),
+    [tk.count, tk.linkDist],
+  );
+  const uniforms = useMemo(
+    () => ({
+      uTime: { value: 0 },
+      uAmp: { value: 0 },
+      uSize: { value: 7 },
+      uPixelRatio: { value: 1 },
+      uColor: { value: new THREE.Color(tk.color) },
+      uOpacity: { value: tk.linkAlpha },
+    }),
+    [tk],
+  );
+  const nodeMat = useMemo(
+    () =>
+      new THREE.ShaderMaterial({
+        uniforms: { ...uniforms, uOpacity: { value: 0.85 } },
+        vertexShader: NET_NODE_VERT,
+        fragmentShader: NET_NODE_FRAG,
+        transparent: true,
+        depthWrite: false,
+        depthTest: false,
+        blending: THREE.NormalBlending,
+      }),
+    [uniforms],
+  );
+  const lineMat = useMemo(
+    () =>
+      new THREE.ShaderMaterial({
+        uniforms: { ...uniforms, uOpacity: { value: tk.linkAlpha } },
+        vertexShader: NET_LINE_VERT,
+        fragmentShader: NET_LINE_FRAG,
+        transparent: true,
+        depthWrite: false,
+        depthTest: false,
+        blending: THREE.NormalBlending,
+      }),
+    [uniforms, tk.linkAlpha],
+  );
+  const group = useRef<THREE.Group>(null);
+  const extAmp = useRef(0);
+  extAmp.current = ampFromBars(bars);
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const reduceMotion = useMemo(
+    () =>
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+    [],
+  );
+  useEffect(() => {
+    const pr = Math.min(gl.getPixelRatio(), 2);
+    nodeMat.uniforms.uPixelRatio.value = pr;
+    lineMat.uniforms.uPixelRatio.value = pr;
+  }, [gl, nodeMat, lineMat]);
+  useEffect(
+    () => () => {
+      nodeGeo.dispose();
+      lineGeo.dispose();
+      nodeMat.dispose();
+      lineMat.dispose();
+    },
+    [nodeGeo, lineGeo, nodeMat, lineMat],
+  );
+  useFrame((_, dtRaw) => {
+    const dt = Math.min(dtRaw, 0.05);
+    const t = performance.now() / 1000;
+    const st = stateRef.current;
+    let target = extAmp.current;
+    if (!reduceMotion) {
+      if (st === "idle") target = Math.max(target, 0.05 + 0.04 * Math.sin(t * 1.0));
+      else if (st === "thinking") target = Math.max(target, 0.1 + 0.08 * Math.sin(t * 2.2));
+    }
+    const nu = nodeMat.uniforms;
+    const lu = lineMat.uniforms;
+    nu.uTime.value = t;
+    lu.uTime.value = t;
+    nu.uAmp.value += (target - nu.uAmp.value) * Math.min(1, dt * 6);
+    lu.uAmp.value = nu.uAmp.value;
+    // ink "brighter" = a touch more opacity when speaking/listening
+    const nodeOp = st === "speaking" ? 0.95 : st === "listening" ? 0.9 : 0.82;
+    const lineOp = tk.linkAlpha * (st === "speaking" ? 1.25 : st === "listening" ? 1.12 : 1.0);
+    nu.uOpacity.value += (nodeOp - nu.uOpacity.value) * Math.min(1, dt * 4);
+    lu.uOpacity.value += (lineOp - lu.uOpacity.value) * Math.min(1, dt * 4);
+    if (group.current && !reduceMotion) {
+      group.current.rotation.y += dt * 0.04;
+      group.current.rotation.x = Math.sin(t * 0.1) * 0.1;
+      const s = 1 + nu.uAmp.value * 0.06;
+      group.current.scale.setScalar(s);
+    }
+  });
+  return (
+    <group ref={group}>
+      <lineSegments geometry={lineGeo} material={lineMat} />
+      <points geometry={nodeGeo} material={nodeMat} />
+    </group>
   );
 }
 
@@ -384,8 +575,11 @@ function SceneContents({ state = "idle", connections = [], bars = [] }: ZenithOr
     }
   });
 
-  // network mode (Ghost ink web): see Task 4 — renders nothing here for now.
-  if (tokens.mode !== "sphere") return null;
+  // network mode (Ghost ink web): a separate component with its own geometry/shaders/loop.
+  // No EffectComposer/Bloom here — bloom must be OFF (not just 0) so it can't lift the ink.
+  if (tokens.mode === "network") {
+    return <NetworkOrb state={state} bars={bars} />;
+  }
 
   return (
     <>

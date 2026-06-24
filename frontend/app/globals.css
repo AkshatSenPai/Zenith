@@ -90,6 +90,50 @@
     0 8px 24px rgb(var(--zenith-cyan) / 0.04);
 }
 
+/* ---------- Amethyst: violet rounded-glass skin ----------
+   Deep violet field, violet accent + orb (sphere). Cards become rounded frosted glass
+   (notch -> radius, semi-transparent surface + backdrop-blur) instead of notched HUD cards.
+   Must be declared AFTER :root/Arc so it wins when data-skin=amethyst. */
+[data-skin="amethyst"] {
+  --zenith-bg: 7 5 15;
+  --zenith-cyan: 178 107 255; /* "accent" resolves to violet */
+  --zenith-blue: 106 91 255;
+  --zenith-text: 238 230 251;
+  --zenith-alert: 255 107 0;
+  --zenith-red: 255 48 80;
+  --zenith-panel: 20 14 38; /* violet-dark glass surface */
+
+  --orb-color: #b26bff;
+  --orb-cool: #8a6bff;
+  --orb-core: 230 215 255;
+
+  --glow-strength: 1;
+  --panel-tint: 1;
+  --border-strength: 1;
+  --notch: 0px;
+  --radius: 18px;
+  --motion-scale: 1;
+  --bloom: 0.7;
+  --particle-count: 28000;
+  --orb-mode: sphere;
+  --orb-link-dist: 0;
+  --orb-link-alpha: 0;
+}
+
+/* Amethyst rounded-glass: drop the notch clip, round the corners, frost the surface. */
+[data-skin="amethyst"] .hud-card,
+[data-skin="amethyst"] .panel {
+  clip-path: none;
+  border-radius: var(--radius);
+  background: rgb(var(--zenith-panel) / 0.55);
+  backdrop-filter: blur(8px);
+}
+/* keep the hairline border following the rounded corner (inset pseudo can't inherit a clip). */
+[data-skin="amethyst"] .hud-card-border::before {
+  clip-path: none;
+  border-radius: var(--radius);
+}
+
 html,
 body {
   background-color: rgb(var(--zenith-bg));

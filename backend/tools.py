@@ -9,6 +9,7 @@ flow through the EXISTING confirm gate — they're just listed in ACTION_TOOLS.
 
 import datetime as dt
 
+import activity_log
 import google_service
 import weather_service
 
@@ -353,18 +354,42 @@ _EXECUTORS = {
 }
 
 
+def _activity_target(name: str, i: dict) -> str:
+    """A short detail for the activity log entry (event title, recipient, query…)."""
+    if name in ("create_event", "update_event"):
+        return i.get("summary", "")
+    if name == "delete_event":
+        return "event"
+    if name in ("send_email", "send_message"):
+        return i.get("to", "")
+    if name == "get_calendar_events":
+        return i.get("when", "today")
+    if name == "get_emails":
+        return i.get("filter", "recent")
+    if name in ("search_calendar", "search_emails"):
+        return i.get("query", "")
+    return ""
+
+
 def run_tool(name: str, tool_input: dict) -> str:
+    tool_input = tool_input or {}
     executor = _EXECUTORS.get(name)
+    failed = False
     if executor is None:
-        result = f"Error: unknown tool {name!r}."
+        result, failed = f"Error: unknown tool {name!r}.", True
     else:
         try:
-            result = executor(tool_input or {})
+            result = executor(tool_input)
+            # disconnected / validation results are plain strings — don't log them as real work
+            if result.lstrip().startswith(("Not connected", "Weather unavailable")) or " needs " in result:
+                failed = True
         except google_service.NotConnected as exc:
-            result = str(exc)
+            result, failed = str(exc), True
         except weather_service.WeatherUnavailable as exc:
-            result = str(exc)
+            result, failed = str(exc), True
         except Exception as exc:  # noqa: BLE001 — a tool error must never 500 the chat route
-            result = f"Sorry, the {name} call failed: {exc}"
+            result, failed = f"Sorry, the {name} call failed: {exc}", True
+    if not failed:
+        activity_log.record(name, _activity_target(name, tool_input))
     print(f"[tool] {name}({tool_input}) -> {str(result)[:200]}")   # the log line (DONE WHEN evidence)
     return result

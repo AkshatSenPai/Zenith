@@ -54,7 +54,7 @@ export const connections: Connection[] = [
   { channel: "Discord", account: "Not linked", connected: false },
 ];
 
-// --- Activity log (the audit trail that pairs with the confirm gate) ---
+// --- Activity log types (entries now come live from the backend /activity endpoint) ---
 export type ActivityTone = "ok" | "warn" | "info";
 export type ActivityType = "calendar" | "email" | "message" | "draft" | "note" | "warn";
 export type ActivityEntry = {
@@ -64,14 +64,3 @@ export type ActivityEntry = {
   tone: ActivityTone;
   type: ActivityType;
 };
-
-export const activityLog: ActivityEntry[] = [
-  { time: "14:02", action: "create_event", target: "confirmed", tone: "ok", type: "calendar" },
-  { time: "13:48", action: "email sent", target: "Nivaan Realty", tone: "ok", type: "email" },
-  { time: "13:30", action: "rate-limit warning", target: "120 / 150", tone: "warn", type: "warn" },
-  { time: "13:05", action: "draft_sequence", target: "5-step welcome", tone: "ok", type: "draft" },
-  { time: "12:15", action: "search_calendar", target: "3 events", tone: "info", type: "calendar" },
-  { time: "11:50", action: "send_message", target: "cancelled by user", tone: "warn", type: "message" },
-  { time: "11:32", action: "save_note", target: "Shadnagar call", tone: "ok", type: "note" },
-  { time: "10:58", action: "search_mail", target: "5 unread", tone: "info", type: "email" },
-];

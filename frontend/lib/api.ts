@@ -1,6 +1,8 @@
-// Typed fetch helpers for the Milestone 3 Google integration (status / connect / disconnect)
-// and live calendar events. All fail soft (return null / {ok:false}) so the HUD degrades to a
-// "Connect Google" / offline state instead of throwing.
+// Typed fetch helpers for the Milestone 3 Google integration (status / connect / disconnect),
+// live calendar events, and the real activity log. All fail soft (return null / {ok:false}) so
+// the HUD degrades to a "Connect Google" / offline state instead of throwing.
+
+import type { ActivityEntry } from "./mock";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -65,6 +67,18 @@ export async function getCalendarEvents(when = "today"): Promise<CalendarRespons
   try {
     const res = await fetch(`${API_URL}/calendar/events?when=${encodeURIComponent(when)}`);
     return res.ok ? ((await res.json()) as CalendarResponse) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Recent tool activity (newest first). null = backend unreachable; [] = nothing logged yet. */
+export async function getActivity(): Promise<ActivityEntry[] | null> {
+  try {
+    const res = await fetch(`${API_URL}/activity`);
+    if (!res.ok) return null;
+    const d = (await res.json()) as { entries?: ActivityEntry[] };
+    return d.entries ?? [];
   } catch {
     return null;
   }

@@ -4,6 +4,7 @@ runs with no credentials and no network."""
 
 from unittest import mock
 
+import activity_log
 import google_service
 import tools
 import weather_service
@@ -82,3 +83,24 @@ def test_briefing_degrades_per_section():
     assert "Calendar: not connected." in out
     assert "Email: not connected." in out
     assert "set key" in out
+
+
+def test_activity_records_success_skips_disconnected():
+    before = len(activity_log.entries())
+    with mock.patch.object(google_service, "create_event",
+                           return_value={"id": "x", "title": "Demo call", "start": "s", "end": "e"}):
+        tools.run_tool("create_event", {"summary": "Demo call", "start": "2026-06-26T16:00:00"})
+    after = activity_log.entries()
+    assert len(after) == before + 1
+    assert after[0]["action"] == "create_event" and after[0]["target"] == "Demo call" and after[0]["tone"] == "ok"
+    # a disconnected tool returns a string but must NOT be logged as work
+    with mock.patch.object(google_service, "get_emails", side_effect=google_service.NotConnected("nope")):
+        tools.run_tool("get_emails", {"filter": "unread"})
+    assert len(activity_log.entries()) == before + 1
+
+
+def test_activity_records_read_as_info():
+    with mock.patch.object(google_service, "get_events", return_value=[]):
+        tools.run_tool("get_calendar_events", {"when": "today"})
+    top = activity_log.entries()[0]
+    assert top["type"] == "calendar" and top["tone"] == "info" and top["target"] == "today"

@@ -5,6 +5,7 @@ from fastapi import FastAPI, File, HTTPException, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+import activity_log
 import google_auth
 import google_service
 import memory_service
@@ -87,6 +88,12 @@ def health_detail() -> dict:
 def usage() -> dict:
     """Live usage snapshot for the HUD gauges (does not consume a request slot)."""
     return limiter.stats()
+
+
+@app.get("/activity")
+def activity() -> dict:
+    """Recent tool activity for the HUD Activity Log (newest first; in-memory, resets on restart)."""
+    return {"entries": activity_log.entries()}
 
 
 @app.post("/transcribe")
@@ -198,6 +205,7 @@ def confirm(req: ConfirmRequest) -> ChatResponse:
         result = run_tool(block.name, block.input)
     else:
         result = "The user cancelled this action. Do not retry it; acknowledge briefly."
+        activity_log.record(block.name, "by user", ok=False)
 
     working.append({"role": "user", "content": [
         {"type": "tool_result", "tool_use_id": block.id, "content": result}

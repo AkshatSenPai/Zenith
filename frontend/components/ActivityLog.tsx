@@ -1,6 +1,8 @@
 "use client";
 
-import { activityLog, type ActivityTone, type ActivityType } from "../lib/mock";
+import { useEffect, useState } from "react";
+import { getActivity } from "../lib/api";
+import type { ActivityEntry, ActivityTone, ActivityType } from "../lib/mock";
 
 const toneColor: Record<ActivityTone, string> = {
   ok: "text-zenith-cyan",
@@ -28,23 +30,46 @@ function ActIcon({ type }: { type: ActivityType }) {
 }
 
 export function ActivityLog() {
+  // null = not loaded / backend unreachable; [] = connected but nothing logged yet.
+  const [entries, setEntries] = useState<ActivityEntry[] | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    async function load() {
+      const e = await getActivity();
+      if (alive) setEntries(e);
+    }
+    load();
+    const id = setInterval(load, 5000);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, []);
+
   return (
     <section className="relative z-10 border-t border-zenith-cyan/12 p-4">
       <div className="mb-3 font-mono text-[10px] uppercase tracking-widest text-zenith-cyan/70">Activity Log</div>
-      <ul className="space-y-2.5">
-        {activityLog.map((e, i) => (
-          <li key={i} className="flex items-start gap-2.5 font-mono text-[11px] leading-tight">
-            <span className={`mt-px shrink-0 ${toneColor[e.tone]}`}>
-              <ActIcon type={e.type} />
-            </span>
-            <span className="shrink-0 tabular-nums text-zenith-text/35">{e.time}</span>
-            <span className="min-w-0">
-              <span className={toneColor[e.tone]}>{e.action}</span>
-              {e.target && <span className="text-zenith-text/45"> {e.target}</span>}
-            </span>
-          </li>
-        ))}
-      </ul>
+      {entries === null ? (
+        <div className="font-mono text-[10px] text-zenith-text/35">loading…</div>
+      ) : entries.length === 0 ? (
+        <div className="font-mono text-[10px] text-zenith-text/35">No activity yet — your actions will show here.</div>
+      ) : (
+        <ul className="space-y-2.5">
+          {entries.map((e, i) => (
+            <li key={i} className="flex items-start gap-2.5 font-mono text-[11px] leading-tight">
+              <span className={`mt-px shrink-0 ${toneColor[e.tone]}`}>
+                <ActIcon type={e.type} />
+              </span>
+              <span className="shrink-0 tabular-nums text-zenith-text/35">{e.time}</span>
+              <span className="min-w-0">
+                <span className={toneColor[e.tone]}>{e.action}</span>
+                {e.target && <span className="text-zenith-text/45"> {e.target}</span>}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }

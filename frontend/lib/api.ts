@@ -83,3 +83,23 @@ export async function getActivity(): Promise<ActivityEntry[] | null> {
     return null;
   }
 }
+
+export type DiscordGuild = { id: string; name: string; channels: number };
+export type DiscordStatus = {
+  connected: boolean;
+  configured: boolean;
+  bot_user: string | null;
+  guilds: DiscordGuild[];
+  connecting: boolean;
+  last_error: string | null;
+};
+
+/** Discord bot status (server channels only; token-based, auto-connects). null = backend unreachable. */
+export async function getDiscordStatus(): Promise<DiscordStatus | null> {
+  try {
+    const res = await fetch(`${API_URL}/discord/status`);
+    return res.ok ? ((await res.json()) as DiscordStatus) : null;
+  } catch {
+    return null;
+  }
+}

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { startRecording, transcribe, speak, cancelSpeech, getSpeechBars, type RecordingHandle } from "../lib/voice";
 import { connections as mockConnections, type Connection } from "../lib/mock";
-import { getGoogleStatus, connectGoogle, disconnectGoogle, type GoogleStatus } from "../lib/api";
+import { getGoogleStatus, connectGoogle, disconnectGoogle, getDiscordStatus, type GoogleStatus, type DiscordStatus } from "../lib/api";
 import { TopBar } from "../components/TopBar";
 import { ContextRail, type View } from "../components/ContextRail";
 import { ZenithOrb, type OrbState } from "../components/ZenithOrb";
@@ -37,14 +37,24 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 // Gmail + Calendar reflect the live Google status; WhatsApp + Discord stay mock (M4).
 // Order is preserved — the orb places its nodes in this sequence.
-function buildConnections(status: GoogleStatus | null): Connection[] {
-  const email = status?.accounts?.[0]?.email;
+function buildConnections(g: GoogleStatus | null, d: DiscordStatus | null): Connection[] {
+  const email = g?.accounts?.[0]?.email;
+  const guilds = d?.guilds?.length ?? 0;
+  const discordAccount = d?.connected
+    ? d.bot_user ?? `${guilds} server${guilds === 1 ? "" : "s"}`
+    : d?.connecting
+    ? "Connecting…"
+    : d?.configured
+    ? "Bot offline"
+    : "Not linked";
   return mockConnections.map((c) => {
     if (c.channel === "Gmail")
-      return { ...c, connected: !!status?.gmail_connected, account: status?.gmail_connected ? email ?? c.account : "Not linked" };
+      return { ...c, connected: !!g?.gmail_connected, account: g?.gmail_connected ? email ?? c.account : "Not linked" };
     if (c.channel === "Calendar")
-      return { ...c, connected: !!status?.calendar_connected, account: status?.calendar_connected ? "Primary" : "Not linked" };
-    return c;
+      return { ...c, connected: !!g?.calendar_connected, account: g?.calendar_connected ? "Primary" : "Not linked" };
+    if (c.channel === "Discord")
+      return { ...c, connected: !!d?.connected, account: discordAccount };
+    return c; // WhatsApp stays mock (next step)
   });
 }
 
@@ -62,6 +72,7 @@ export default function Home() {
   const [usage, setUsage] = useState<Usage | null>(null);
   const [ccMinimized, setCcMinimized] = useState(false);
   const [gstatus, setGstatus] = useState<GoogleStatus | null>(null);
+  const [dstatus, setDstatus] = useState<DiscordStatus | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
   const recordingRef = useRef<RecordingHandle | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -79,7 +90,7 @@ export default function Home() {
   // Minimizing the CC (§3) also hands the space back to the orb.
   const orbBig = voiceCycle || !convo || ccMinimized;
   const ccExpanded = convo && !voiceCycle && !ccMinimized;
-  const connections = useMemo(() => buildConnections(gstatus), [gstatus]);
+  const connections = useMemo(() => buildConnections(gstatus, dstatus), [gstatus, dstatus]);
 
   async function refreshUsage() {
     try {
@@ -122,6 +133,21 @@ export default function Home() {
     await disconnectGoogle(email);
     await refreshGoogle();
   }, [refreshGoogle]);
+
+  // Discord bot status (token-based, auto-connects on backend boot) → orb Discord node + row.
+  const refreshDiscord = useCallback(async () => {
+    setDstatus(await getDiscordStatus());
+  }, []);
+  useEffect(() => {
+    refreshDiscord();
+  }, [refreshDiscord]);
+  // Keep polling while the bot is still coming online (or the backend is unreachable); stop once
+  // it's connected or known-unconfigured.
+  useEffect(() => {
+    if (dstatus && (dstatus.connected || !dstatus.configured)) return;
+    const id = setInterval(refreshDiscord, 4000);
+    return () => clearInterval(id);
+  }, [dstatus, refreshDiscord]);
 
   // One rAF loop drives the waveform from whichever source is active (mic or TTS).
   useEffect(() => {

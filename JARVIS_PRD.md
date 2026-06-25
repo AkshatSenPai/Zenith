@@ -224,7 +224,7 @@ Modeled on **app-style HUD dashboards** (the dashboard mockups), NOT the dense f
 - Critical: Red #FF2020
 - Text: Cool white #E0F7F7
 
-**Fonts:**
+**Fonts:** *(live for the **Arc** skin only — self-hosted at build via `next/font`, no runtime fetch. Ghost + Amethyst use the **system stack**; a skin opts in by remapping `--font-display`/`--font-body`/`--font-mono` under its `[data-skin]` block.)*
 - Display: Space Grotesk
 - Body: Inter
 - Terminal/Code: JetBrains Mono
@@ -306,7 +306,7 @@ The orb is being rebuilt as a **glowing particle sphere**: ~40-60k cyan particle
 
 ## 8. FOLDER STRUCTURE
 
-> **Note (v1.4):** this is the **target** structure. The current backend is **flat** — `main.py`, `claude_service.py`, `memory_service.py`, `rate_limiter.py`, `stt_service.py`, `tts_service.py`, `tools.py`, plus tests (`test_stt.py`, `test_transcribe_route.py`, `test_speak_route.py`) live directly under `backend/` (no `routes/`/`services/`/`integrations/`/`database/` subdirs yet). Routes in `main.py`: `GET /`, `GET /usage`, `POST /transcribe`, `POST /speak`, `POST /chat`, `POST /chat/confirm` (no `/briefing` route yet). The frontend has `app/` (`page.tsx`, `layout.tsx`, `globals.css`) + `components/`: `ZenithOrb`, `CommandCenter` (chat input + mic + send merged), `ContextRail`, `LeftRailExtras`, `QuickActions`, `FocusCard`, `CalendarPanel`, `ConnectionsPanel`, `ActivityLog`, `PlaceholderView`, `GaugeIndicator`, `StatusCard`, `TopBar`, `Markdown`, `hud/primitives.tsx` + `lib/` (`voice.ts`, `format.ts`, `mock.ts`). Since v1.2, `CommsPanel` was split into `ConnectionsPanel` + `ActivityLog` and the standalone `WaveformBar` was removed (the orb is now the voice visualizer). No `calendar/`/`inbox/`/`settings/` pages and **no `src-tauri/` yet**. Refactor toward the tree below as integrations land.
+> **Note (current — through M3):** this is the **target** structure; the real backend is still **flat** — `main.py`, `claude_service.py`, `memory_service.py`, `rate_limiter.py`, `stt_service.py`, `tts_service.py`, `tools.py`, plus M3's `google_auth.py`, `google_service.py`, `weather_service.py`, `activity_log.py`, and tests (`test_stt.py`, `test_transcribe_route.py`, `test_speak_route.py`, `test_tts_service.py`, `test_health_route.py`, `test_google_tools.py`) directly under `backend/` (no `routes/`/`services/`/`integrations/`/`database/` subdirs yet). Routes in `main.py`: `GET /`, `GET /health`, `GET /usage`, `GET /activity`, `POST /transcribe`, `POST /speak`, `POST /chat`, `POST /chat/confirm`, `GET /google/status`, `POST /google/connect`, `POST /google/disconnect`, `GET /calendar/events` (the **briefing is a tool**, not a route). Frontend: `app/` (`page.tsx`, `layout.tsx`, `globals.css`) + `components/` (`ZenithOrb`, `OrbScene`, `CommandCenter`, `ContextRail`, `LeftRailExtras`, `QuickActions`, `FocusCard`, `CalendarPanel`, `ConnectionsPanel`, `ActivityLog`, `PlaceholderView`, `GaugeIndicator`, `StatusCard`, `TopBar`, `StatusLabel`, `BootScreen`, `SkinProvider`, `SkinPicker`, `Markdown`, `hud/primitives.tsx`) + `lib/` (`voice.ts`, `format.ts`, `mock.ts`, `skins.ts`, `api.ts`). **No `src-tauri/` yet.** Refactor toward the tree below as integrations land.
 
 ```
 jarvis/                             # repo codename; brand = Zenith
@@ -528,11 +528,11 @@ SECRET_KEY=
 - Confirm gate, built once and reused
 - **Do this BEFORE integrations** — every integration then plugs in as a tool
 
-### Milestone 2 — HUD UI 🔄 IN PROGRESS
-- App-style HUD **built** per the v1.3 direction: reactive connection-mesh orb (4 states), merged **Command Center** (chat + mic + send), `ContextRail` + `LeftRailExtras`, `QuickActions`, `FocusCard`, `CalendarPanel`, `ConnectionsPanel`, `ActivityLog`, gauges, status cards, top bar — still rendering `lib/mock.ts` placeholder data
+### Milestone 2 — HUD UI 🔄 IN PROGRESS (only the Tauri shell left)
+- App-style HUD **built**: **WebGL particle-sphere orb** (react-three-fiber, audio-reactive; per-skin sphere/ink-network mode), merged **Command Center** (chat + mic + send), `ContextRail` + `LeftRailExtras`, `QuickActions`, `FocusCard`, `CalendarPanel`, `ConnectionsPanel`, `ActivityLog`, gauges, status cards, top bar. Panels are **live** now — Calendar/Connections/Activity via M3 + `/activity`; **only WhatsApp/Discord connection status is still mock** (M4). Three **skins** (Arc/Ghost/Amethyst) shipped.
 - Voice in (faster-whisper `/transcribe`) ✅ + out (edge-tts `/speak`) ✅; empty/undecodable mic clips handled as no-speech (no 500) ✅
 - Markdown reply rendering + emoji-strip ✅
-- **Remaining:** orb redesign → **WebGL particle sphere** (`TODO.md` §2 — react-three-fiber, audio-reactive core, no rings, cyan-only) + Command-Center minimize/restore (`TODO.md` §3); the **voice English-default + GPU/`large-v3` + visible-fallback** fix (`TODO.md` §1); wire panels off `lib/mock.ts` to live data; scaffold the Tauri desktop shell (`src-tauri/`) + grant mic permission there
+- **Remaining:** scaffold the **Tauri desktop shell** (`src-tauri/`) + grant mic permission there. *(Done: orb → WebGL particle sphere ✅ v1.5; Command-Center minimize/restore ✅; voice English-default + GPU + visible CPU-fallback ✅ v1.7; panels wired off `lib/mock.ts` to live data ✅ M3; skins ✅ v1.8.)*
 
 ### Milestone 3 — Google ✅ SHIPPED (live-verified 2026-06-25)
 > Owner-verified end to end: connect → "what's on my calendar today?" → "any unread emails?" → "schedule a call tomorrow 4pm" (confirm → created) → "email Rahul I'm running late" (confirm → sent) → "good morning" (spoken briefing). Plus a **real Activity Log** (`/activity`, in-memory, records each successful tool run — replaces the mock) and the Connections connected-row polish.

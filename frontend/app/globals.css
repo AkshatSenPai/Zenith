@@ -49,6 +49,15 @@
   --orb-link-alpha: 0;
 }
 
+/* Arc opts into the real font trio — Space Grotesk (display) / Inter (body) / JetBrains Mono —
+   self-hosted via next/font in layout.tsx. Scoped to [data-skin="arc"] ONLY (not :root) so
+   Ghost/Amethyst keep the system stack defined in :root above; higher source order wins for Arc. */
+[data-skin="arc"] {
+  --font-display: var(--font-space-grotesk), ui-sans-serif, system-ui, "SF Pro Display", sans-serif;
+  --font-body: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, "SF Mono", Menlo, monospace;
+}
+
 /* ---------- Ghost: light / ink-network focus skin ----------
    Near-white paper + graphite ink. Glow/bloom killed (depth comes from a hairline +
    whisper shadow, not light). Orb flips to the `network` ink-web mode (no nodes/bloom).

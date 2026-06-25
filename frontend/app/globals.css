@@ -134,6 +134,31 @@
   border-radius: var(--radius);
 }
 
+/* ---------- Amethyst bento layout ----------
+   Amethyst trades the column dashboard for a bento: the orb is a 2x2 hero tile, with
+   Connections / Usage / Calendar(strip) / Activity as tiles and the Command Center as a
+   slim full-width bar. Scoped to amethyst so Arc/Ghost layouts stay untouched. The cc row
+   is minmax(88px,auto) — a slim bar at rest that grows only while a conversation is on
+   screen (mirrors Arc's orb-recedes / CC-grows behaviour) rather than a hard 88px. */
+[data-skin="amethyst"] .bento {
+  display: grid;
+  gap: 14px;
+  height: 100%;
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: 1fr 1fr 0.86fr minmax(88px, auto);
+  grid-template-areas:
+    "orb orb conn"
+    "orb orb usage"
+    "cal cal activity"
+    "cc  cc   cc";
+}
+[data-skin="amethyst"] .bento-orb { grid-area: orb; }
+[data-skin="amethyst"] .bento-conn { grid-area: conn; }
+[data-skin="amethyst"] .bento-usage { grid-area: usage; }
+[data-skin="amethyst"] .bento-cal { grid-area: cal; }
+[data-skin="amethyst"] .bento-activity { grid-area: activity; }
+[data-skin="amethyst"] .bento-cc { grid-area: cc; }
+
 html,
 body {
   background-color: rgb(var(--zenith-bg));

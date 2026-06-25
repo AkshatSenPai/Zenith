@@ -51,6 +51,8 @@ export default function Home() {
   const inputRef = useRef<HTMLInputElement>(null);
   const { skin } = useSkin();
   const ghost = skin === "ghost"; // light/ink centered-focus skin: hide dashboard columns + chrome
+  const amethyst = skin === "amethyst"; // violet bento dashboard
+  const sideless = ghost || amethyst; // both drop the L/R dashboard columns (Ghost=focus, Amethyst=bento)
 
   // Live voice state wins; otherwise "thinking" while a request is in flight.
   const orbState: OrbState = voiceState !== "idle" ? voiceState : loading ? "thinking" : "idle";
@@ -272,16 +274,16 @@ export default function Home() {
       <TopBar minimal={ghost} />
 
       {/* main row: rail · calendar+actions+usage · center · connections+focus+log.
-          Ghost = centered focus: only the rail + center (side columns hidden). */}
+          Ghost = centered focus, Amethyst = bento: both keep only rail + center (side columns hidden). */}
       <div
         className={`stagger grid min-h-0 ${
-          ghost ? "grid-cols-[64px_1fr]" : "grid-cols-[64px_264px_1fr_320px]"
+          sideless ? "grid-cols-[64px_1fr]" : "grid-cols-[64px_264px_1fr_320px]"
         }`}
       >
         <ContextRail view={view} onChange={setView} />
 
         {/* left — full-height divider; content fills down to a pinned footer */}
-        {!ghost && (
+        {!sideless && (
         <div className="hud-scroll flex min-h-0 flex-col overflow-y-auto border-r border-zenith-cyan/12">
           <CalendarPanel />
           <QuickActions />
@@ -306,6 +308,78 @@ export default function Home() {
         {/* center */}
         <div className="relative z-10 flex min-h-0 flex-col">
           {view === "chat" ? (
+            amethyst ? (
+            /* Amethyst bento: orb hero + Connections/Usage/Calendar/Activity tiles + slim CC bar */
+            <div className="bento stagger min-h-0 flex-1 p-4">
+              {/* orb hero (2x2) */}
+              <div className="bento-orb panel relative flex flex-col items-center justify-center overflow-hidden p-4">
+                <div className="aspect-square w-[min(40vh,440px)] max-w-full">
+                  <ZenithOrb state={orbState} connections={connections} bars={bars} />
+                </div>
+                <div className="mt-1 font-mono text-[10px] uppercase tracking-[0.35em] text-zenith-text/50">
+                  Status: <StatusLabel state={orbState} />
+                </div>
+                {pending && (
+                  <div className="rise-in absolute inset-x-4 bottom-4 z-20">
+                    <StatusCard tone="alert" title="Action — confirm before it runs" busy={loading} onConfirm={() => resolvePending(true)} onCancel={() => resolvePending(false)}>
+                      {pendingBody}
+                    </StatusCard>
+                  </div>
+                )}
+              </div>
+
+              {/* connections */}
+              <div className="bento-conn panel hud-scroll min-h-0 overflow-y-auto">
+                <ConnectionsPanel connections={connections} />
+              </div>
+
+              {/* usage — tightened to a single centered gauge row */}
+              <div className="bento-usage panel flex min-h-0 flex-col overflow-hidden p-4">
+                <div className="mb-2 font-mono text-[10px] uppercase tracking-widest text-zenith-cyan/70">Usage</div>
+                {usage ? (
+                  <div className="flex flex-1 items-center justify-around">
+                    <GaugeIndicator label="Req/min" value={usage.requests_last_minute} max={usage.per_minute_cap} />
+                    <GaugeIndicator label="Daily" value={usage.requests_today} max={usage.daily_request_cap} />
+                    <GaugeIndicator label="Tokens" value={usage.tokens_today} max={usage.daily_token_budget} />
+                  </div>
+                ) : (
+                  <div className="flex flex-1 items-center justify-center font-mono text-[10px] text-zenith-text/35">loading usage…</div>
+                )}
+              </div>
+
+              {/* calendar — wide event strip */}
+              <div className="bento-cal panel hud-scroll min-h-0 overflow-y-auto">
+                <CalendarPanel />
+              </div>
+
+              {/* activity */}
+              <div className="bento-activity panel hud-scroll min-h-0 overflow-y-auto">
+                <ActivityLog />
+              </div>
+
+              {/* command center — slim full-width bar (grows when a conversation is open) */}
+              <div className="bento-cc flex min-h-0 items-stretch justify-center">
+                <CommandCenter
+                  messages={messages}
+                  loading={loading}
+                  error={error}
+                  warning={warning}
+                  expanded={ccExpanded}
+                  input={input}
+                  onInput={setInput}
+                  onSend={() => void sendMessage()}
+                  onKeyDown={handleKeyDown}
+                  inputRef={inputRef}
+                  voiceState={orbState}
+                  onMicDown={() => void startListening()}
+                  onMicUp={() => void stopListening()}
+                  minimized={ccMinimized}
+                  onMinimize={() => setCcMinimized(true)}
+                  onRestore={() => setCcMinimized(false)}
+                />
+              </div>
+            </div>
+            ) : (
             <div className="flex min-h-0 flex-1 flex-col items-center px-4 pb-4 pt-2">
               <div
                 className={`aspect-square shrink-0 transition-[width] duration-500 ease-out ${
@@ -351,6 +425,7 @@ export default function Home() {
                 />
               </div>
             </div>
+            )
           ) : view === "settings" ? (
             <SkinPicker />
           ) : (
@@ -358,8 +433,8 @@ export default function Home() {
           )}
         </div>
 
-        {/* right (hidden in Ghost focus) */}
-        {!ghost && (
+        {/* right (hidden in Ghost focus + Amethyst bento) */}
+        {!sideless && (
         <div className="hud-scroll flex min-h-0 flex-col overflow-y-auto border-l border-zenith-cyan/12">
           <ConnectionsPanel connections={connections} />
           <FocusCard />

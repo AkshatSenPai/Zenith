@@ -1,11 +1,13 @@
 # Zenith Skins — Implementation Plan
 
-> ## ⏯️ STATUS — 2026-06-24: Tasks 1–8 DONE, on `main` (range `9302683..b8556dd`)
+> ## ⏯️ STATUS — 2026-06-25: Tasks 1–9 DONE
 > Arc / Ghost / Amethyst all built + working Settings picker, each task an atomic commit
 > (`9e3b7b7` T1 · `9e75018` T2 · `88266f2` T3 · `7c5d6e7` T4 · `bf8b30d` T5 · `f7412ba` T6 ·
-> `590e530` T7 · `b8556dd` T8), tsc-clean + browser-verified. **RESUME AT TASK 9** (Amethyst
-> bento layout), then **Task 10** (cross-skin QA). Task-10 tune candidate: Ghost ink-web is
-> still a touch dense in the centre. See memory `skins-build-resume`. (Per-step `- [ ]` boxes
+> `590e530` T7 · `b8556dd` T8 · **T9 Amethyst bento layout**), tsc-clean + browser-verified
+> (all three skins screenshotted 2026-06-25; Arc/Ghost layouts confirmed unregressed).
+> **RESUME AT TASK 10** (cross-skin QA + design critique). Task-10 tune candidates: Ghost
+> ink-web is still a touch dense in the centre; consider widening the Amethyst command-center
+> bar (currently centered max-w-2xl). See memory `skins-build-resume`. (Per-step `- [ ]` boxes
 > below are left unticked — git history + this banner are the source of truth for progress.)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans (inline) or

@@ -7,6 +7,15 @@ python-multipart>=0.0.9
 indic-transliteration>=2.3.0
 edge-tts>=6.1.0
 
+# --- Google integrations (Milestone 3): Calendar + Gmail as Claude tools -----
+# Desktop-app OAuth (InstalledAppFlow) + the Calendar/Gmail API clients. Direct
+# Google client libs, NOT MCP. Client id/secret live in .env (gitignored).
+google-api-python-client>=2.100.0
+google-auth-oauthlib>=1.2.0
+google-auth-httplib2>=0.2.0
+# Morning-briefing weather (OpenWeatherMap over plain HTTP).
+requests>=2.31.0
+
 # --- Local offline TTS (Kokoro) — ZENITH_TTS_ENGINE=kokoro -------------------
 # Needs Python 3.11 (spacy/blis ship no wheels for 3.14). torch drives Kokoro;
 # faster-whisper (CTranslate2) drives STT. Pick ONE torch build:

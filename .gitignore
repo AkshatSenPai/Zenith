@@ -17,6 +17,7 @@ frontend/next-env.d.ts
 .env.local
 backend/.env
 frontend/.env.local
+backend/tokens/          # per-account Google OAuth tokens (created at runtime by the connect flow)
 
 # OS
 .DS_Store

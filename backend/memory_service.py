@@ -1,19 +1,21 @@
-"""Zenith — in-memory conversation history (last 20 messages, tool turns included)."""
+"""Zenith — in-memory conversation history (last 20 messages, tool turns included), PER CHANNEL.
+
+Each front-end gets its own thread so they don't bleed together: the HUD uses channel "hud", the
+Telegram remote uses "telegram". Same trim rules; same in-memory model (resets on restart)."""
 
 MAX_HISTORY_MESSAGES = 20
 
-_history: list = []
+_history: dict[str, list] = {}
 
 
-def snapshot() -> list:
-    """Shallow copy of committed history to start a working turn from."""
-    return list(_history)
+def snapshot(channel: str = "hud") -> list:
+    """Shallow copy of a channel's committed history to start a working turn from."""
+    return list(_history.get(channel, []))
 
 
-def commit(working: list) -> None:
-    """Replace history with the resolved working turn, trimmed to the last 20 messages."""
-    global _history
-    _history = _trim(working)
+def commit(channel: str, working: list) -> None:
+    """Replace a channel's history with the resolved working turn, trimmed to the last 20 messages."""
+    _history[channel] = _trim(working)
 
 
 def _is_user_text(message: dict) -> bool:
@@ -21,9 +23,9 @@ def _is_user_text(message: dict) -> bool:
 
 
 def _trim(messages: list) -> list:
-    """Keep the last 20 messages, then drop leading partial-tool turns so the window
-    always begins on a real user-text message (a dangling assistant / tool_result at
-    the front would be rejected by the API)."""
+    """Keep the last 20 messages, then drop leading partial-tool turns so the window always begins
+    on a real user-text message (a dangling assistant / tool_result at the front would be rejected
+    by the API)."""
     trimmed = messages[-MAX_HISTORY_MESSAGES:]
     while trimmed and not _is_user_text(trimmed[0]):
         trimmed = trimmed[1:]

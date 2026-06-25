@@ -2,24 +2,18 @@
 
 import asyncio
 
-import anthropic
 from fastapi import FastAPI, File, HTTPException, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 import activity_log
+import chat_core
 import discord_service
 import google_auth
 import google_service
-import memory_service
-from claude_service import run_loop, BudgetExceeded
-from rate_limiter import RateLimiter
+import telegram_service
 from stt_service import active_config, transcribe_audio, warm as warm_stt
-from tools import run_tool
 from tts_service import active_tts_config, synthesize
-
-limiter = RateLimiter()
-PENDING: dict[str, list] = {}   # block.id -> in-progress working history awaiting confirm
 
 app = FastAPI(title="Zenith — Milestone 1 (The Brain)")
 app.add_middleware(
@@ -59,6 +53,17 @@ async def _start_discord() -> None:
 @app.on_event("shutdown")
 async def _stop_discord() -> None:
     await discord_service.close()
+
+
+@app.on_event("startup")
+async def _start_telegram() -> None:
+    """Launch the Telegram remote bot (long-polling) on THIS event loop (no-op without a token)."""
+    await telegram_service.start()
+
+
+@app.on_event("shutdown")
+async def _stop_telegram() -> None:
+    await telegram_service.close()
 
 
 class ChatRequest(BaseModel):
@@ -102,7 +107,7 @@ def health_detail() -> dict:
 @app.get("/usage")
 def usage() -> dict:
     """Live usage snapshot for the HUD gauges (does not consume a request slot)."""
-    return limiter.stats()
+    return chat_core.limiter.stats()
 
 
 @app.get("/activity")
@@ -178,65 +183,35 @@ async def discord_status() -> dict:
     return discord_service.status()
 
 
-def _finish(working: list, outcome: dict, warning: str | None = None) -> ChatResponse:
-    """Commit history on a final reply, or stash the working history and surface pending."""
-    if "reply" in outcome:
-        memory_service.commit(working)
-        return ChatResponse(reply=outcome["reply"], warning=warning)
-    PENDING[outcome["id"]] = working
-    return ChatResponse(pending=outcome["pending"], tool=outcome["tool"], id=outcome["id"], warning=warning)
+@app.get("/telegram/status")
+def telegram_status() -> dict:
+    """Telegram remote bot status for the orb Telegram node + Connections row."""
+    return telegram_service.status()
 
+
+# ---------- chat: the HUD route. The same chat_core is shared with the Telegram remote. ----------
 
 @app.post("/chat", response_model=ChatResponse, response_model_exclude_none=True)
 def chat(req: ChatRequest) -> ChatResponse:
-    message = req.message.strip()
-    if not message:
-        raise HTTPException(status_code=400, detail="Message is empty.")
-
-    allowed, reason, warning = limiter.check_request()
-    if not allowed:
-        raise HTTPException(status_code=429, detail=reason)
-
-    working = memory_service.snapshot() + [{"role": "user", "content": message}]
     try:
-        outcome = run_loop(working, limiter)
-    except BudgetExceeded as exc:
+        return ChatResponse(**chat_core.process_chat(req.message, "hud"))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except chat_core.RateLimited as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from exc
-    except anthropic.APIError as exc:
-        raise HTTPException(status_code=502, detail=f"Claude API error: {exc}") from exc
-
-    return _finish(working, outcome, warning)
+    except chat_core.ClaudeUnavailable as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 @app.post("/chat/confirm", response_model=ChatResponse, response_model_exclude_none=True)
 def confirm(req: ConfirmRequest) -> ChatResponse:
-    working = PENDING.pop(req.id, None)
-    if working is None:
-        raise HTTPException(status_code=404, detail="No pending action with that id.")
-
-    block = next((b for b in working[-1]["content"] if getattr(b, "type", None) == "tool_use"), None)
-    if block is None:
-        raise HTTPException(status_code=500, detail="Pending action is malformed.")
-
-    ok, reason = limiter.ensure_budget()
-    if not ok:
-        raise HTTPException(status_code=429, detail=reason)
-
-    if req.approved:
-        result = run_tool(block.name, block.input)
-    else:
-        result = "The user cancelled this action. Do not retry it; acknowledge briefly."
-        activity_log.record(block.name, "by user", ok=False)
-
-    working.append({"role": "user", "content": [
-        {"type": "tool_result", "tool_use_id": block.id, "content": result}
-    ]})
-
     try:
-        outcome = run_loop(working, limiter)
-    except BudgetExceeded as exc:
+        return ChatResponse(**chat_core.process_confirm(req.id, req.approved))
+    except KeyError:
+        raise HTTPException(status_code=404, detail="No pending action with that id.")
+    except ValueError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    except chat_core.RateLimited as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from exc
-    except anthropic.APIError as exc:
-        raise HTTPException(status_code=502, detail=f"Claude API error: {exc}") from exc
-
-    return _finish(working, outcome)
+    except chat_core.ClaudeUnavailable as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc

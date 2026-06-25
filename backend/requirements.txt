@@ -21,6 +21,11 @@ requests>=2.31.0
 # Message Content privileged intent + DISCORD_BOT_TOKEN in .env (see SETUP-DISCORD.md).
 discord.py>=2.3
 
+# --- Telegram (Milestone 4): phone remote into the existing brain (official Bot API) ---
+# Async long-polling bot on the FastAPI event loop; LOCKED to TELEGRAM_ALLOWED_USER_IDS.
+# Token + allow-list in .env (see SETUP-TELEGRAM.md). Not a tool — a new chat ingress.
+python-telegram-bot>=20
+
 # --- Local offline TTS (Kokoro) — ZENITH_TTS_ENGINE=kokoro -------------------
 # Needs Python 3.11 (spacy/blis ship no wheels for 3.14). torch drives Kokoro;
 # faster-whisper (CTranslate2) drives STT. Pick ONE torch build:

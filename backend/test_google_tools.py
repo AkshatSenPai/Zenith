@@ -22,7 +22,8 @@ def test_registry_complete():
 
 
 def test_action_tools_set():
-    assert tools.ACTION_TOOLS == {"send_message", "create_event", "update_event", "delete_event", "send_email"}
+    # M3's actions are gated; later milestones add more (e.g. send_discord_message), so subset-check.
+    assert {"send_message", "create_event", "update_event", "delete_event", "send_email"} <= tools.ACTION_TOOLS
 
 
 def test_get_calendar_events_formats():

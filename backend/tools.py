@@ -10,6 +10,7 @@ flow through the EXISTING confirm gate — they're just listed in ACTION_TOOLS.
 import datetime as dt
 
 import activity_log
+import discord_service
 import google_service
 import weather_service
 
@@ -179,6 +180,51 @@ def _get_briefing(i: dict) -> str:
     return build_briefing(i.get("location"))
 
 
+# ---------- discord executors ----------
+
+def _list_discord_channels(_i: dict) -> str:
+    servers = discord_service.list_channels()
+    if not servers:
+        return "The bot isn't in any servers yet — invite it (see SETUP-DISCORD.md)."
+    lines = []
+    for s in servers:
+        chans = ", ".join("#" + c["name"] for c in s["channels"]) or "(no readable channels)"
+        lines.append(f"{s['guild']}: {chans}")
+    return "Discord servers / channels:\n" + "\n".join(lines)
+
+
+def _discord_line(m: dict) -> str:
+    return f"- [{_fmt_time(m['time'])}] {m['author']}: {m['text']} [id:{m['id']}]"
+
+
+def _get_discord_messages(i: dict) -> str:
+    if not i.get("channel"):
+        return "get_discord_messages needs a channel (e.g. #general)."
+    msgs = discord_service.get_messages(i["channel"], int(i.get("limit", 15)))
+    chan = str(i["channel"]).lstrip("#")
+    if not msgs:
+        return f"No recent messages in #{chan}."
+    return f"#{chan} (recent):\n" + "\n".join(_discord_line(m) for m in msgs)
+
+
+def _search_discord_messages(i: dict) -> str:
+    if not i.get("query"):
+        return "search_discord_messages needs a query."
+    hits = discord_service.search_messages(i["query"], i.get("channel"))
+    if not hits:
+        return "No matching Discord messages."
+    return "Matching Discord messages:\n" + "\n".join(
+        f"- #{m['channel']} {m['author']}: {m['text']} [id:{m['id']}]" for m in hits
+    )
+
+
+def _send_discord_message(i: dict) -> str:
+    if not i.get("channel") or not i.get("text"):
+        return "send_discord_message needs a channel and text."
+    s = discord_service.send_message(i["channel"], i["text"])
+    return f"Posted to #{s['channel']} in {s['guild']}."
+
+
 # ---------- registry ----------
 
 _ISO_HINT = "ISO 8601 local datetime, e.g. 2026-06-26T16:00:00"
@@ -332,10 +378,52 @@ TOOLS = [
             "required": [],
         },
     },
+    {
+        "name": "list_discord_channels",
+        "description": "List the Discord servers + text channels the bot can see (server channels only, never DMs). "
+        "Use to discover channel names.",
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "get_discord_messages",
+        "description": "Read recent messages from a Discord server channel the bot is in (not DMs).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "channel": {"type": "string", "description": "Channel name, e.g. #general or general"},
+                "limit": {"type": "integer", "description": "How many recent messages (default 15, max 50)"},
+            },
+            "required": ["channel"],
+        },
+    },
+    {
+        "name": "search_discord_messages",
+        "description": "Search recent Discord messages for text, optionally within one channel.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string"},
+                "channel": {"type": "string", "description": "Optional channel to limit the search"},
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "send_discord_message",
+        "description": "Post a message to a Discord server channel. The user confirms before it sends.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "channel": {"type": "string", "description": "Channel name, e.g. #team"},
+                "text": {"type": "string"},
+            },
+            "required": ["channel", "text"],
+        },
+    },
 ]
 
 # Action tools require user confirmation before running (the existing confirm gate).
-ACTION_TOOLS = {"send_message", "create_event", "update_event", "delete_event", "send_email"}
+ACTION_TOOLS = {"send_message", "create_event", "update_event", "delete_event", "send_email", "send_discord_message"}
 
 _EXECUTORS = {
     "get_current_time": _get_current_time,
@@ -351,6 +439,10 @@ _EXECUTORS = {
     "send_email": _send_email,
     "get_weather": _get_weather,
     "get_briefing": _get_briefing,
+    "list_discord_channels": _list_discord_channels,
+    "get_discord_messages": _get_discord_messages,
+    "search_discord_messages": _search_discord_messages,
+    "send_discord_message": _send_discord_message,
 }
 
 
@@ -367,6 +459,10 @@ def _activity_target(name: str, i: dict) -> str:
     if name == "get_emails":
         return i.get("filter", "recent")
     if name in ("search_calendar", "search_emails"):
+        return i.get("query", "")
+    if name in ("send_discord_message", "get_discord_messages"):
+        return "#" + str(i.get("channel", "")).lstrip("#")
+    if name == "search_discord_messages":
         return i.get("query", "")
     return ""
 
@@ -386,6 +482,8 @@ def run_tool(name: str, tool_input: dict) -> str:
         except google_service.NotConnected as exc:
             result, failed = str(exc), True
         except weather_service.WeatherUnavailable as exc:
+            result, failed = str(exc), True
+        except (discord_service.DiscordNotConnected, discord_service.DiscordChannelNotFound) as exc:
             result, failed = str(exc), True
         except Exception as exc:  # noqa: BLE001 — a tool error must never 500 the chat route
             result, failed = f"Sorry, the {name} call failed: {exc}", True

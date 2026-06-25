@@ -28,6 +28,10 @@ _MAP: dict[str, tuple[str, str, str]] = {
     "send_message": ("message", "ok", "message sent"),
     "get_weather": ("note", "info", "weather"),
     "get_briefing": ("note", "info", "briefing"),
+    "list_discord_channels": ("message", "info", "list Discord channels"),
+    "get_discord_messages": ("message", "info", "read Discord"),
+    "search_discord_messages": ("message", "info", "searched Discord"),
+    "send_discord_message": ("message", "ok", "Discord message sent"),
 }
 
 

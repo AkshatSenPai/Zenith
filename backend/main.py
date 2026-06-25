@@ -1,11 +1,14 @@
 """Zenith — Milestone 1 backend wiring (thin routes; logic in the service modules)."""
 
+import asyncio
+
 import anthropic
 from fastapi import FastAPI, File, HTTPException, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 import activity_log
+import discord_service
 import google_auth
 import google_service
 import memory_service
@@ -44,6 +47,18 @@ async def _warm_tts() -> None:
         print("[tts] warmup complete", flush=True)
     except Exception as exc:  # noqa: BLE001 — warmup is best-effort, never block boot
         print(f"[tts] warmup skipped: {exc}", flush=True)
+
+
+@app.on_event("startup")
+async def _start_discord() -> None:
+    """Launch the Discord bot as a background task on THIS event loop (no-op without a token).
+    The sync tool executors reach it via run_coroutine_threadsafe — see discord_service."""
+    discord_service.start(asyncio.get_running_loop())
+
+
+@app.on_event("shutdown")
+async def _stop_discord() -> None:
+    await discord_service.close()
 
 
 class ChatRequest(BaseModel):
@@ -155,6 +170,12 @@ def calendar_events(when: str = "today") -> dict:
         return {"connected": True, "events": google_service.get_events(when=when)}
     except google_service.NotConnected:
         return {"connected": False, "events": []}
+
+
+@app.get("/discord/status")
+async def discord_status() -> dict:
+    """Discord bot connection status for the orb node + Connections row (read on the event loop)."""
+    return discord_service.status()
 
 
 def _finish(working: list, outcome: dict, warning: str | None = None) -> ChatResponse:

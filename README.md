@@ -29,8 +29,10 @@ particle-sphere orb and three switchable **skins**.
 - **She runs your Google** *(M3)* — "what's on my calendar today?", "any unread email?", "schedule a
   call tomorrow 4pm" (confirm), "email Rahul I'm running late" (confirm), and "good morning" for a
   spoken briefing (events + unread + weather). One-time [setup](SETUP-GOOGLE.md).
+- **She's on Discord** *(M4, part 1)* — "latest messages in #general?", "send 'on my way' to #team"
+  (confirm). Server channels only — never your DMs. One-time [setup](SETUP-DISCORD.md).
 
-**Coming next**: Discord + WhatsApp (personal + business), a local Markdown **memory vault**, and a
+**Coming next**: WhatsApp (personal + business), a local Markdown **memory vault**, and a
 **Copy Factory** that drafts email sequences / ad copy / proposals in your own voice. See `JARVIS_PRD.md`.
 
 ---
@@ -181,6 +183,7 @@ connected" and the panels show a Connect button — nothing breaks.
 | `GET /google/status` | Connected Google accounts (drives the Connections panel + orb nodes) |
 | `POST /google/connect` · `/google/disconnect` | Start / clear the Google OAuth flow |
 | `GET /calendar/events?when=` | Live events for the calendar panel (today / tomorrow / date / range) |
+| `GET /discord/status` | Discord bot connection (lights the orb Discord node + Connections row) |
 
 **Rate limits / budget** (in-memory, reset on restart): **5 req/min** (6th → HTTP 429),
 **150 req/day**, a warning in the reply from **120/day**, and a hard **300k-token/day** kill-switch.
@@ -197,6 +200,7 @@ backend/                FastAPI app
   google_auth.py        Google OAuth + per-account token storage (M3)
   google_service.py     Calendar + Gmail wrappers (M3)
   weather_service.py    OpenWeatherMap for the briefing (M3)
+  discord_service.py    discord.py bot on the event loop + sync bridge (M4)
   memory_service.py     last-20 conversation history
   rate_limiter.py       per-minute / per-day / token caps
   stt_service.py        faster-whisper (speech in)
@@ -207,6 +211,7 @@ frontend/               Next.js HUD
   lib/skins.ts          skin registry · lib/api.ts  Google/calendar fetch helpers (M3)
 docs/                   design specs + implementation plans (incl. the skin system)
 SETUP-GOOGLE.md         one-time Google Cloud OAuth walkthrough (M3)
+SETUP-DISCORD.md        one-time Discord bot walkthrough (M4)
 JARVIS_PRD.md           full product requirements & roadmap
 CLAUDE.md               engineering context / decisions log
 ```
@@ -221,7 +226,7 @@ acts) its name in `ACTION_TOOLS`. The chat route and confirm gate handle the res
 - [x] **Slice 0 / Milestone 1 — The Brain:** Claude tool-use loop, history, rate-limit kill-switch, confirm gate.
 - [~] **Milestone 2 — HUD + Voice:** WebGL particle-sphere orb, Command Center, panels, voice in/out, **skins (Arc / Ghost / Amethyst) shipped**. *Remaining: wire panels to live data, Tauri desktop shell.*
 - [x] **Milestone 3 — Google:** Calendar + Gmail as tools (OAuth, least-privilege), weather + spoken morning briefing, live Connections/Calendar/Activity panels. *Shipped + live-verified. One-time [Google setup](SETUP-GOOGLE.md).*
-- [ ] **Milestone 4 — Messaging:** WhatsApp (personal → business) + Discord.
+- [~] **Milestone 4 — Messaging:** **Discord** (part 1/2) — 4 tools (list / read / search / send-gated) via a discord.py bot, **server channels only (no DMs)**; orb node + Connections + Activity Log go live. *Built; awaiting your one-time [Discord setup](SETUP-DISCORD.md) + live verification.* WhatsApp = part 2.
 - [ ] **Milestone 5 — Hardening:** settings, usage dashboard, tests, README/.env polish.
 - [ ] **Milestone 6 — Memory vault + Copy Factory.**
 - [ ] **Milestone 7 — Proactivity + message triage.**

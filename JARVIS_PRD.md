@@ -542,9 +542,9 @@ SECRET_KEY=
 - **Live panels:** Connections + orb Gmail/Calendar nodes and the Calendar panel read `/google/status` + `/calendar/events` (share the service layer, no API tokens spent). WhatsApp/Discord stay mock (M4).
 - **Setup + the 5 acceptance tests:** `SETUP-GOOGLE.md`. Backend unit tests + the disconnected HUD are verified; the live Google path needs the owner's OAuth client + `WEATHER_API_KEY` in `.env`, then **Connect Google**.
 
-### Milestone 4 — Messaging
-- WhatsApp personal (bridge) → Discord → WhatsApp Business (last; most onboarding friction)
-- Polling-based alerts for v1
+### Milestone 4 — Messaging  *(part 1/2 — Discord — 🔨 BUILT, awaiting live verification)*
+- **Part 1 — Discord (built 2026-06-25):** 4 tools on the EXISTING loop + confirm gate (no route/gate changes) — `list_discord_channels`, `get_discord_messages`, `search_discord_messages` (read-only) + `send_discord_message` (gated). Direct **discord.py** gateway bot runs as a background task on FastAPI's event loop; the sync `run_tool` reaches it via `asyncio.run_coroutine_threadsafe` (`backend/discord_service.py`). **Server channels only — the bot never reads the owner's DMs (a user-token would violate Discord ToS / risk a ban).** Needs the **Message Content** privileged intent + `DISCORD_BOT_TOKEN` (`SETUP-DISCORD.md`). `/discord/status` lights the orb Discord node + Connections row (token-based — no connect button); tool runs appear in the live Activity Log. WhatsApp stays mock.
+- **Part 2 — WhatsApp (next):** WhatsApp personal (bridge) → WhatsApp Business (most onboarding friction). Polling-based alerts for v1.
 
 ### Milestone 5 — Hardening
 - Settings page, usage/cost dashboard, kill-switch cap

@@ -37,10 +37,11 @@ export function ConnectionsPanel({
             Connecting… finish sign-in in your browser
           </div>
         ) : connected ? (
-          <div className="panel flex items-center justify-between px-3 py-2">
-            <span className="min-w-0 truncate font-mono text-[10px] text-zenith-text/75">
-              Google · <span className="text-zenith-cyan">{account}</span>
-            </span>
+          <div className="panel flex items-center justify-between gap-3 px-3 py-2">
+            <div className="min-w-0">
+              <div className="font-mono text-[10px] uppercase tracking-widest text-zenith-cyan/80">Google</div>
+              <div className="truncate font-mono text-[9px] text-zenith-text/55">{account}</div>
+            </div>
             <button
               onClick={() => onDisconnect?.(account)}
               className="press shrink-0 font-mono text-[9px] uppercase tracking-widest text-zenith-text/45 transition hover:text-zenith-red"

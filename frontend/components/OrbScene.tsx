@@ -30,7 +30,7 @@ const ANCHOR_R = 1.45;
 const ANCHORS: Anchor[] = [
   { channel: "Gmail", pos: [0, ANCHOR_R, 0] },
   { channel: "Calendar", pos: [ANCHOR_R, 0, 0] },
-  { channel: "WhatsApp", pos: [0, -ANCHOR_R, 0] },
+  { channel: "Telegram", pos: [0, -ANCHOR_R, 0] }, // WhatsApp parked — Telegram takes the bottom slot
   { channel: "Discord", pos: [-ANCHOR_R, 0, 0] },
 ];
 

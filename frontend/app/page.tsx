@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { startRecording, transcribe, speak, cancelSpeech, getSpeechBars, type RecordingHandle } from "../lib/voice";
 import { connections as mockConnections, type Connection } from "../lib/mock";
-import { getGoogleStatus, connectGoogle, disconnectGoogle, getDiscordStatus, type GoogleStatus, type DiscordStatus } from "../lib/api";
+import { getGoogleStatus, connectGoogle, disconnectGoogle, getDiscordStatus, getTelegramStatus, type GoogleStatus, type DiscordStatus, type TelegramStatus } from "../lib/api";
 import { TopBar } from "../components/TopBar";
 import { ContextRail, type View } from "../components/ContextRail";
 import { ZenithOrb, type OrbState } from "../components/ZenithOrb";
@@ -37,7 +37,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 // Gmail + Calendar reflect the live Google status; WhatsApp + Discord stay mock (M4).
 // Order is preserved — the orb places its nodes in this sequence.
-function buildConnections(g: GoogleStatus | null, d: DiscordStatus | null): Connection[] {
+function buildConnections(g: GoogleStatus | null, d: DiscordStatus | null, t: TelegramStatus | null): Connection[] {
   const email = g?.accounts?.[0]?.email;
   const guilds = d?.guilds?.length ?? 0;
   const discordAccount = d?.connected
@@ -47,14 +47,17 @@ function buildConnections(g: GoogleStatus | null, d: DiscordStatus | null): Conn
     : d?.configured
     ? "Bot offline"
     : "Not linked";
+  const telegramAccount = t?.connected ? (t.bot_user ? `@${t.bot_user}` : "Online") : t?.configured ? "Bot offline" : "Not linked";
   return mockConnections.map((c) => {
     if (c.channel === "Gmail")
       return { ...c, connected: !!g?.gmail_connected, account: g?.gmail_connected ? email ?? c.account : "Not linked" };
     if (c.channel === "Calendar")
       return { ...c, connected: !!g?.calendar_connected, account: g?.calendar_connected ? "Primary" : "Not linked" };
+    if (c.channel === "Telegram") // takes WhatsApp's slot (WhatsApp parked)
+      return { ...c, connected: !!t?.connected, account: telegramAccount };
     if (c.channel === "Discord")
       return { ...c, connected: !!d?.connected, account: discordAccount };
-    return c; // WhatsApp stays mock (next step)
+    return c;
   });
 }
 
@@ -73,6 +76,7 @@ export default function Home() {
   const [ccMinimized, setCcMinimized] = useState(false);
   const [gstatus, setGstatus] = useState<GoogleStatus | null>(null);
   const [dstatus, setDstatus] = useState<DiscordStatus | null>(null);
+  const [tstatus, setTstatus] = useState<TelegramStatus | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
   const recordingRef = useRef<RecordingHandle | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -90,7 +94,7 @@ export default function Home() {
   // Minimizing the CC (§3) also hands the space back to the orb.
   const orbBig = voiceCycle || !convo || ccMinimized;
   const ccExpanded = convo && !voiceCycle && !ccMinimized;
-  const connections = useMemo(() => buildConnections(gstatus, dstatus), [gstatus, dstatus]);
+  const connections = useMemo(() => buildConnections(gstatus, dstatus, tstatus), [gstatus, dstatus, tstatus]);
 
   async function refreshUsage() {
     try {
@@ -148,6 +152,19 @@ export default function Home() {
     const id = setInterval(refreshDiscord, 4000);
     return () => clearInterval(id);
   }, [dstatus, refreshDiscord]);
+
+  // Telegram remote status (token-based, long-polling) → orb Telegram node + Connections row.
+  const refreshTelegram = useCallback(async () => {
+    setTstatus(await getTelegramStatus());
+  }, []);
+  useEffect(() => {
+    refreshTelegram();
+  }, [refreshTelegram]);
+  useEffect(() => {
+    if (tstatus && (tstatus.connected || !tstatus.configured)) return;
+    const id = setInterval(refreshTelegram, 4000);
+    return () => clearInterval(id);
+  }, [tstatus, refreshTelegram]);
 
   // One rAF loop drives the waveform from whichever source is active (mic or TTS).
   useEffect(() => {

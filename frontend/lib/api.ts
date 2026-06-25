@@ -103,3 +103,21 @@ export async function getDiscordStatus(): Promise<DiscordStatus | null> {
     return null;
   }
 }
+
+export type TelegramStatus = {
+  connected: boolean;
+  configured: boolean;
+  bot_user: string | null;
+  allowed_count: number;
+  last_error: string | null;
+};
+
+/** Telegram remote bot status (locked to an allow-list). null = backend unreachable. */
+export async function getTelegramStatus(): Promise<TelegramStatus | null> {
+  try {
+    const res = await fetch(`${API_URL}/telegram/status`);
+    return res.ok ? ((await res.json()) as TelegramStatus) : null;
+  } catch {
+    return null;
+  }
+}

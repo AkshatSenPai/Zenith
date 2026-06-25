@@ -43,14 +43,16 @@ export const quickActions: QuickAction[] = [
 ];
 
 // --- Connections (drives the orb nodes AND the Connections panel) ---
-export type Channel = "Gmail" | "Calendar" | "WhatsApp" | "Discord";
+// "WhatsApp" is PARKED (unofficial bridge = account-ban risk) — Telegram took its slot. Not deleted:
+// to bring WhatsApp back, restore "WhatsApp" here + the ANCHORS slot in OrbScene + /whatsapp status.
+export type Channel = "Gmail" | "Calendar" | "Telegram" | "Discord";
 export type Connection = { channel: Channel; account: string; connected: boolean };
 
 // Order matters: the orb places nodes in this sequence around the core.
 export const connections: Connection[] = [
   { channel: "Gmail", account: "lalpaarth1210@gmail.com", connected: true },
   { channel: "Calendar", account: "Primary", connected: true },
-  { channel: "WhatsApp", account: "Not linked", connected: false },
+  { channel: "Telegram", account: "Not linked", connected: false }, // takes WhatsApp's slot (parked)
   { channel: "Discord", account: "Not linked", connected: false },
 ];
 

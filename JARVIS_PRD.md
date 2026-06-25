@@ -534,10 +534,12 @@ SECRET_KEY=
 - Markdown reply rendering + emoji-strip ✅
 - **Remaining:** orb redesign → **WebGL particle sphere** (`TODO.md` §2 — react-three-fiber, audio-reactive core, no rings, cyan-only) + Command-Center minimize/restore (`TODO.md` §3); the **voice English-default + GPU/`large-v3` + visible-fallback** fix (`TODO.md` §1); wire panels off `lib/mock.ts` to live data; scaffold the Tauri desktop shell (`src-tauri/`) + grant mic permission there
 
-### Milestone 3 — Google ⬜ NEXT
-- OAuth (single account first → then multi-account)
-- Calendar + Gmail as tools
-- Morning briefing (+ weather)
+### Milestone 3 — Google 🔨 BUILT (awaiting live verification)
+- **Desktop-app OAuth** (google-auth-oauthlib `InstalledAppFlow`; client id/secret from `.env`, no `client_secret.json`). Single account now; per-email tokens in gitignored `backend/tokens/` so multi-account is a drop-in. **Least-privilege scopes:** `calendar.events`, `gmail.readonly`, `gmail.send`. Connect runs in a background thread → the frontend polls `/google/status`. **Consent screen must be set to Production** (Testing expires refresh tokens in 7 days).
+- **11 tools on the EXISTING loop + confirm gate (no route/gate changes):** Calendar `get_calendar_events`/`search_calendar`/`create_event`/`update_event`/`delete_event`, Gmail `get_emails`/`search_emails`/`read_email`/`send_email`, plus `get_weather` + `get_briefing`. Action tools (`create_event`/`update_event`/`delete_event`/`send_email`) are gated. Direct Google client libs, NOT MCP.
+- **Morning briefing:** one `get_briefing` tool assembles today's events + unread + weather (each section degrades alone) for Claude to narrate; a "Good morning" button sends it through the loop and speaks the reply.
+- **Live panels:** Connections + orb Gmail/Calendar nodes and the Calendar panel read `/google/status` + `/calendar/events` (share the service layer, no API tokens spent). WhatsApp/Discord stay mock (M4).
+- **Setup + the 5 acceptance tests:** `SETUP-GOOGLE.md`. Backend unit tests + the disconnected HUD are verified; the live Google path needs the owner's OAuth client + `WEATHER_API_KEY` in `.env`, then **Connect Google**.
 
 ### Milestone 4 — Messaging
 - WhatsApp personal (bridge) → Discord → WhatsApp Business (last; most onboarding friction)

@@ -10,10 +10,10 @@ through a **confirm gate** you can see. The interface is a custom WebGL HUD with
 particle-sphere orb and three switchable **skins**.
 
 > **Status — Phase 1 (personal use).** The brain, the voice loop (speech in + out), and the full
-> HUD with skins are **live and working locally**. The real integrations — Gmail, Calendar,
-> WhatsApp, Discord — are **next**: the tool-use architecture is already in place, so they drop in
-> as new tools **without touching the chat route**. Right now she ships with two demo tools
-> (`get_current_time`, `send_message`) that prove the whole loop end-to-end.
+> HUD with skins are **live and working locally**. **Google Calendar + Gmail are now wired as real
+> tools** (Milestone 3): read/create/update/delete events, read/send mail, weather, and a spoken
+> morning briefing — after a one-time [Google setup](SETUP-GOOGLE.md). WhatsApp + Discord are next
+> (M4) and drop in the same way — new entries in the tool list, **no chat-route changes**.
 
 ---
 
@@ -26,10 +26,12 @@ particle-sphere orb and three switchable **skins**.
   tools (send a message, create/delete an event) **pause and ask you to confirm first**.
 - **You can see what she did** — a first-class confirm card + an activity log are the trust layer.
 - **She stays within budget** — a hard rate-limit / token kill-switch protects your API spend.
+- **She runs your Google** *(M3)* — "what's on my calendar today?", "any unread email?", "schedule a
+  call tomorrow 4pm" (confirm), "email Rahul I'm running late" (confirm), and "good morning" for a
+  spoken briefing (events + unread + weather). One-time [setup](SETUP-GOOGLE.md).
 
-**Coming next** (architecture already supports it): Google Calendar + Gmail (multi-account),
-Discord, WhatsApp (personal + business), a local Markdown **memory vault**, and a **Copy Factory**
-that drafts email sequences / ad copy / proposals in your own voice. See `JARVIS_PRD.md`.
+**Coming next**: Discord + WhatsApp (personal + business), a local Markdown **memory vault**, and a
+**Copy Factory** that drafts email sequences / ad copy / proposals in your own voice. See `JARVIS_PRD.md`.
 
 ---
 
@@ -135,6 +137,13 @@ npm run dev
 Open <http://localhost:3000>. (The backend's CORS allows `:3000` by default.) Press **Space** to
 talk, or type in the Command Center. Switch skins from **Settings**.
 
+### 3. Connect Google *(optional, Milestone 3)*
+
+Calendar + Gmail tools need a one-time Google Cloud OAuth client. Follow
+**[SETUP-GOOGLE.md](SETUP-GOOGLE.md)** (~10 min), paste the keys into `backend/.env`, then click
+**Connect Google** in the HUD's Connections panel. Until you do, those tools just report "not
+connected" and the panels show a Connect button — nothing breaks.
+
 ---
 
 ## Configuration (`backend/.env`)
@@ -149,6 +158,8 @@ talk, or type in the Command Center. Switch skins from **Settings**.
 | `ZENITH_TTS_ENGINE` | `kokoro` (local) or `edge` (online fallback) | `kokoro` |
 | `ZENITH_TTS_VOICE` | edge-tts voice (e.g. `en-IN-NeerjaNeural`) | `en-IN-NeerjaNeural` |
 | `ZENITH_KOKORO_DEVICE` | `cpu` or `cuda` for local TTS | `cpu` |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth (Calendar + Gmail) — see [SETUP-GOOGLE.md](SETUP-GOOGLE.md) | — |
+| `WEATHER_API_KEY` / `WEATHER_DEFAULT_LOCATION` | OpenWeatherMap key + default city for the briefing | — |
 
 > **GPU note:** the code defaults to CPU so a fresh clone just works. On an NVIDIA box, set
 > `WHISPER_DEVICE=cuda` + `ZENITH_KOKORO_DEVICE=cuda` (with a CUDA-matched torch build) to cut a
@@ -167,6 +178,9 @@ talk, or type in the Command Center. Switch skins from **Settings**.
 | `POST /speak` | Text → spoken audio (Kokoro WAV / edge-tts MP3) |
 | `POST /chat` `{message}` | → `{reply, warning}` **or** `{pending, tool, id}` (action needs confirming) |
 | `POST /chat/confirm` `{id, approved}` | Resume a pending action → `{reply}` |
+| `GET /google/status` | Connected Google accounts (drives the Connections panel + orb nodes) |
+| `POST /google/connect` · `/google/disconnect` | Start / clear the Google OAuth flow |
+| `GET /calendar/events?when=` | Live events for the calendar panel (today / tomorrow / date / range) |
 
 **Rate limits / budget** (in-memory, reset on restart): **5 req/min** (6th → HTTP 429),
 **150 req/day**, a warning in the reply from **120/day**, and a hard **300k-token/day** kill-switch.
@@ -180,6 +194,9 @@ backend/                FastAPI app
   main.py               routes (/chat, /transcribe, /speak, /usage, /health, …)
   claude_service.py     the tool-use loop + Zenith's system prompt
   tools.py              TOOLS, ACTION_TOOLS, run_tool  ← add real integrations here
+  google_auth.py        Google OAuth + per-account token storage (M3)
+  google_service.py     Calendar + Gmail wrappers (M3)
+  weather_service.py    OpenWeatherMap for the briefing (M3)
   memory_service.py     last-20 conversation history
   rate_limiter.py       per-minute / per-day / token caps
   stt_service.py        faster-whisper (speech in)
@@ -187,8 +204,9 @@ backend/                FastAPI app
 frontend/               Next.js HUD
   app/                  page.tsx (layout per skin), globals.css (skin tokens)
   components/           ZenithOrb, CommandCenter, SkinPicker, panels…
-  lib/skins.ts          skin registry
+  lib/skins.ts          skin registry · lib/api.ts  Google/calendar fetch helpers (M3)
 docs/                   design specs + implementation plans (incl. the skin system)
+SETUP-GOOGLE.md         one-time Google Cloud OAuth walkthrough (M3)
 JARVIS_PRD.md           full product requirements & roadmap
 CLAUDE.md               engineering context / decisions log
 ```
@@ -202,7 +220,7 @@ acts) its name in `ACTION_TOOLS`. The chat route and confirm gate handle the res
 
 - [x] **Slice 0 / Milestone 1 — The Brain:** Claude tool-use loop, history, rate-limit kill-switch, confirm gate.
 - [~] **Milestone 2 — HUD + Voice:** WebGL particle-sphere orb, Command Center, panels, voice in/out, **skins (Arc / Ghost / Amethyst) shipped**. *Remaining: wire panels to live data, Tauri desktop shell.*
-- [ ] **Milestone 3 — Google:** Calendar + Gmail as tools (OAuth), morning briefing.
+- [~] **Milestone 3 — Google:** Calendar + Gmail as tools (OAuth, least-privilege), weather + spoken morning briefing, live Connections/Calendar panels. *Built; awaiting your one-time [Google setup](SETUP-GOOGLE.md) + live verification.*
 - [ ] **Milestone 4 — Messaging:** WhatsApp (personal → business) + Discord.
 - [ ] **Milestone 5 — Hardening:** settings, usage dashboard, tests, README/.env polish.
 - [ ] **Milestone 6 — Memory vault + Copy Factory.**

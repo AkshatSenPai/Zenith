@@ -13,7 +13,9 @@ const noFlashSkin = `(function(){try{var s=localStorage.getItem('zenith-skin');d
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    // suppressHydrationWarning: the no-flash script sets <html data-skin> before hydration, so the
+    // server markup (no attribute) intentionally differs from the client — silence that one warning.
+    <html lang="en" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: noFlashSkin }} />
       </head>

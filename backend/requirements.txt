@@ -16,6 +16,11 @@ google-auth-httplib2>=0.2.0
 # Morning-briefing weather (OpenWeatherMap over plain HTTP).
 requests>=2.31.0
 
+# --- Discord (Milestone 4): server channels as Claude tools (direct discord.py) ---
+# Async gateway bot; runs as a background task on FastAPI's event loop. Needs the
+# Message Content privileged intent + DISCORD_BOT_TOKEN in .env (see SETUP-DISCORD.md).
+discord.py>=2.3
+
 # --- Local offline TTS (Kokoro) — ZENITH_TTS_ENGINE=kokoro -------------------
 # Needs Python 3.11 (spacy/blis ship no wheels for 3.14). torch drives Kokoro;
 # faster-whisper (CTranslate2) drives STT. Pick ONE torch build:

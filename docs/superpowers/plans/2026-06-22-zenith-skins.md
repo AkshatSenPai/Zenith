@@ -1,14 +1,17 @@
 # Zenith Skins — Implementation Plan
 
-> ## ⏯️ STATUS — 2026-06-25: Tasks 1–9 DONE
+> ## ✅ STATUS — 2026-06-25: SHIPPED (Tasks 1–10 DONE)
 > Arc / Ghost / Amethyst all built + working Settings picker, each task an atomic commit
 > (`9e3b7b7` T1 · `9e75018` T2 · `88266f2` T3 · `7c5d6e7` T4 · `bf8b30d` T5 · `f7412ba` T6 ·
-> `590e530` T7 · `b8556dd` T8 · **T9 Amethyst bento layout**), tsc-clean + browser-verified
-> (all three skins screenshotted 2026-06-25; Arc/Ghost layouts confirmed unregressed).
-> **RESUME AT TASK 10** (cross-skin QA + design critique). Task-10 tune candidates: Ghost
-> ink-web is still a touch dense in the centre; consider widening the Amethyst command-center
-> bar (currently centered max-w-2xl). See memory `skins-build-resume`. (Per-step `- [ ]` boxes
-> below are left unticked — git history + this banner are the source of truth for progress.)
+> `590e530` T7 · `b8556dd` T8 · `76455fc` T9 Amethyst bento · `bc2a3f2` hydration-warning fix).
+> **T10 cross-skin QA done 2026-06-25:** HUD + boot screenshotted for all three skins (Arc
+> unregressed 4-col, Ghost light/ink centered focus, Amethyst violet rounded-glass bento);
+> crossfade 200ms (<300ms); `--motion-scale` slows Ghost ambient only; reduced-motion calms CSS
+> + both orb modes; orb sphere↔network switches with **zero WebGL errors / no context leak**
+> across ~20 mounts; `/opacity` utilities + persistence verified; the `data-skin` hydration
+> warning was found + fixed. Remaining polish (non-blocking, deferred): Ghost ink-web is a touch
+> dense in the centre; Amethyst command-center bar is centered `max-w-2xl` (could go full-width).
+> (Per-step `- [ ]` boxes below are left unticked — git history + this banner are the source of truth.)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans (inline) or
 > superpowers:subagent-driven-development to implement this task-by-task. Frontend visual work

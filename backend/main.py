@@ -5,6 +5,8 @@ from fastapi import FastAPI, File, HTTPException, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+import google_auth
+import google_service
 import memory_service
 from claude_service import run_loop, BudgetExceeded
 from rate_limiter import RateLimiter
@@ -54,6 +56,10 @@ class ConfirmRequest(BaseModel):
 
 class SpeakRequest(BaseModel):
     text: str
+
+
+class DisconnectRequest(BaseModel):
+    email: str | None = None
 
 
 class ChatResponse(BaseModel):
@@ -106,6 +112,42 @@ async def speak(req: SpeakRequest) -> Response:
     except Exception as exc:  # noqa: BLE001 — surface TTS/network errors
         raise HTTPException(status_code=502, detail=f"TTS failed: {exc}") from exc
     return Response(content=audio, media_type=media_type)
+
+
+# ---------- Google connect + live panel data (NOT Claude tools; share the service layer) ----------
+
+@app.get("/google/status")
+def google_status() -> dict:
+    """Connected-account snapshot for the Connections panel + orb nodes. Never rate-limited."""
+    return google_auth.status()
+
+
+@app.post("/google/connect")
+def google_connect() -> dict:
+    """Start the OAuth flow in a background thread (opens the system browser). Returns at once;
+    the frontend polls /google/status until the account appears."""
+    if not google_auth.status()["configured"]:
+        raise HTTPException(
+            status_code=400,
+            detail="Google OAuth not configured — set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET "
+            "in backend/.env (see SETUP-GOOGLE.md).",
+        )
+    return google_auth.connect()
+
+
+@app.post("/google/disconnect")
+def google_disconnect(req: DisconnectRequest) -> dict:
+    return google_auth.disconnect(req.email)
+
+
+@app.get("/calendar/events")
+def calendar_events(when: str = "today") -> dict:
+    """Real events for the CalendarPanel (same service the get_calendar_events tool uses).
+    Returns connected:false instead of erroring when Google isn't linked."""
+    try:
+        return {"connected": True, "events": google_service.get_events(when=when)}
+    except google_service.NotConnected:
+        return {"connected": False, "events": []}
 
 
 def _finish(working: list, outcome: dict, warning: str | None = None) -> ChatResponse:

@@ -220,7 +220,7 @@ acts) its name in `ACTION_TOOLS`. The chat route and confirm gate handle the res
 
 - [x] **Slice 0 / Milestone 1 — The Brain:** Claude tool-use loop, history, rate-limit kill-switch, confirm gate.
 - [~] **Milestone 2 — HUD + Voice:** WebGL particle-sphere orb, Command Center, panels, voice in/out, **skins (Arc / Ghost / Amethyst) shipped**. *Remaining: wire panels to live data, Tauri desktop shell.*
-- [~] **Milestone 3 — Google:** Calendar + Gmail as tools (OAuth, least-privilege), weather + spoken morning briefing, live Connections/Calendar panels. *Built; awaiting your one-time [Google setup](SETUP-GOOGLE.md) + live verification.*
+- [x] **Milestone 3 — Google:** Calendar + Gmail as tools (OAuth, least-privilege), weather + spoken morning briefing, live Connections/Calendar/Activity panels. *Shipped + live-verified. One-time [Google setup](SETUP-GOOGLE.md).*
 - [ ] **Milestone 4 — Messaging:** WhatsApp (personal → business) + Discord.
 - [ ] **Milestone 5 — Hardening:** settings, usage dashboard, tests, README/.env polish.
 - [ ] **Milestone 6 — Memory vault + Copy Factory.**

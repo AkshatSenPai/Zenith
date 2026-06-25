@@ -1,0 +1,71 @@
+// Typed fetch helpers for the Milestone 3 Google integration (status / connect / disconnect)
+// and live calendar events. All fail soft (return null / {ok:false}) so the HUD degrades to a
+// "Connect Google" / offline state instead of throwing.
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+
+export type GoogleAccount = { email: string; needs_reconnect: boolean };
+export type GoogleStatus = {
+  gmail_connected: boolean;
+  calendar_connected: boolean;
+  accounts: GoogleAccount[];
+  connecting: boolean;
+  last_error: string | null;
+  configured: boolean;
+};
+
+export async function getGoogleStatus(): Promise<GoogleStatus | null> {
+  try {
+    const res = await fetch(`${API_URL}/google/status`);
+    return res.ok ? ((await res.json()) as GoogleStatus) : null;
+  } catch {
+    return null; // backend offline → treated as disconnected
+  }
+}
+
+export async function connectGoogle(): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await fetch(`${API_URL}/google/connect`, { method: "POST" });
+    if (!res.ok) {
+      const d = (await res.json().catch(() => ({}))) as { detail?: string };
+      return { ok: false, error: d.detail ?? `Connect failed (${res.status}).` };
+    }
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Can't reach Zenith's backend on :8000." };
+  }
+}
+
+export async function disconnectGoogle(email?: string): Promise<void> {
+  try {
+    await fetch(`${API_URL}/google/disconnect`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email ?? null }),
+    });
+  } catch {
+    /* ignore — the next status poll reflects reality */
+  }
+}
+
+export type ApiCalEvent = {
+  id: string;
+  title: string;
+  start: string | null;
+  end: string | null;
+  all_day: boolean;
+  location: string | null;
+  attendees: string[];
+  html_link: string | null;
+};
+export type CalendarResponse = { connected: boolean; events: ApiCalEvent[] };
+
+/** when = today | tomorrow | YYYY-MM-DD | YYYY-MM-DD..YYYY-MM-DD. null = backend unreachable. */
+export async function getCalendarEvents(when = "today"): Promise<CalendarResponse | null> {
+  try {
+    const res = await fetch(`${API_URL}/calendar/events?when=${encodeURIComponent(when)}`);
+    return res.ok ? ((await res.json()) as CalendarResponse) : null;
+  } catch {
+    return null;
+  }
+}

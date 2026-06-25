@@ -1,19 +1,34 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { todayEvents, tomorrowEvents, categoryColor, type CalEvent } from "../lib/mock";
+import { getCalendarEvents, type ApiCalEvent } from "../lib/api";
+
+type Data = { connected: boolean; today: ApiCalEvent[]; tomorrow: ApiCalEvent[] };
+type Phase = "loading" | "offline" | "ready";
 
 export function CalendarPanel() {
-  const [loading, setLoading] = useState(true);
-  const [data, setData] = useState<{ today: CalEvent[]; tomorrow: CalEvent[] } | null>(null);
   const [now] = useState(() => new Date());
+  const [phase, setPhase] = useState<Phase>("loading");
+  const [data, setData] = useState<Data>({ connected: false, today: [], tomorrow: [] });
 
   useEffect(() => {
-    const id = setTimeout(() => {
-      setData({ today: todayEvents, tomorrow: tomorrowEvents });
-      setLoading(false);
-    }, 500);
-    return () => clearTimeout(id);
+    let alive = true;
+    async function load() {
+      const [t, tm] = await Promise.all([getCalendarEvents("today"), getCalendarEvents("tomorrow")]);
+      if (!alive) return;
+      if (t === null) {
+        setPhase("offline"); // backend unreachable
+        return;
+      }
+      setData({ connected: t.connected, today: t.events, tomorrow: tm?.events ?? [] });
+      setPhase("ready");
+    }
+    load();
+    const id = setInterval(load, 60000); // refresh each minute
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
   }, []);
 
   const day = now.getDate();
@@ -33,14 +48,41 @@ export function CalendarPanel() {
         </div>
       </div>
 
-      <Section title="Today">
-        {loading ? <Skeleton rows={3} /> : data!.today.length ? <EventList events={data!.today} /> : <Empty text="No events today." />}
-      </Section>
-      <Section title="Tomorrow">
-        {loading ? <Skeleton rows={1} /> : data!.tomorrow.length ? <EventList events={data!.tomorrow} /> : <Empty text="Nothing scheduled." />}
-      </Section>
+      {phase === "loading" ? (
+        <Section title="Today">
+          <Skeleton rows={3} />
+        </Section>
+      ) : phase === "offline" ? (
+        <Notice text="Calendar unavailable — backend offline." />
+      ) : !data.connected ? (
+        <Notice text="Connect Google to see your calendar." />
+      ) : (
+        <>
+          <Section title="Today">
+            {data.today.length ? <EventList events={data.today} /> : <Empty text="No events today." />}
+          </Section>
+          <Section title="Tomorrow">
+            {data.tomorrow.length ? <EventList events={data.tomorrow} /> : <Empty text="Nothing scheduled." />}
+          </Section>
+        </>
+      )}
     </aside>
   );
+}
+
+function fmtTime(iso: string | null, allDay: boolean): string {
+  if (allDay || !iso) return "all day";
+  return new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+}
+
+function fmtDuration(start: string | null, end: string | null, allDay: boolean): string {
+  if (allDay || !start || !end) return "";
+  const mins = Math.round((new Date(end).getTime() - new Date(start).getTime()) / 60000);
+  if (mins <= 0) return "";
+  if (mins < 60) return `${mins}m`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return m ? `${h}h${m}` : `${h}h`;
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -52,20 +94,23 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function EventList({ events }: { events: CalEvent[] }) {
+function EventList({ events }: { events: ApiCalEvent[] }) {
   return (
     <ul className="space-y-0.5">
-      {events.map((e, i) => (
-        <li key={i} className="press flex flex-col gap-0.5 rounded px-2 py-1.5 transition-colors hover:bg-zenith-cyan/[0.05]">
-          <div className="flex items-center gap-2">
-            <span className={`h-2 w-2 shrink-0 rounded-full ${categoryColor[e.category]}`} />
-            <span className="font-mono text-[11px] tabular-nums text-zenith-cyan">{e.time}</span>
-            <span className="font-mono text-[9px] text-zenith-text/35">{e.duration}</span>
-            <span className="truncate font-body text-xs text-zenith-text/85">{e.title}</span>
-          </div>
-          <span className="pl-4 font-mono text-[9px] uppercase tracking-wide text-zenith-text/35">{e.client}</span>
-        </li>
-      ))}
+      {events.map((e) => {
+        const secondary = e.location || (e.attendees.length ? `${e.attendees.length} guest${e.attendees.length > 1 ? "s" : ""}` : "");
+        return (
+          <li key={e.id} className="press flex flex-col gap-0.5 rounded px-2 py-1.5 transition-colors hover:bg-zenith-cyan/[0.05]">
+            <div className="flex items-center gap-2">
+              <span className="h-2 w-2 shrink-0 rounded-full bg-zenith-cyan" />
+              <span className="font-mono text-[11px] tabular-nums text-zenith-cyan">{fmtTime(e.start, e.all_day)}</span>
+              <span className="font-mono text-[9px] text-zenith-text/35">{fmtDuration(e.start, e.end, e.all_day)}</span>
+              <span className="truncate font-body text-xs text-zenith-text/85">{e.title}</span>
+            </div>
+            {secondary && <span className="truncate pl-4 font-mono text-[9px] uppercase tracking-wide text-zenith-text/35">{secondary}</span>}
+          </li>
+        );
+      })}
     </ul>
   );
 }
@@ -82,4 +127,8 @@ function Skeleton({ rows }: { rows: number }) {
 
 function Empty({ text }: { text: string }) {
   return <div className="font-body text-xs text-zenith-text/35">{text}</div>;
+}
+
+function Notice({ text }: { text: string }) {
+  return <div className="font-body text-xs text-zenith-text/40">{text}</div>;
 }

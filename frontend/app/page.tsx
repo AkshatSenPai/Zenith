@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { startRecording, transcribe, speak, cancelSpeech, getSpeechBars, type RecordingHandle } from "../lib/voice";
-import { connections } from "../lib/mock";
+import { connections as mockConnections, type Connection } from "../lib/mock";
+import { getGoogleStatus, connectGoogle, disconnectGoogle, type GoogleStatus } from "../lib/api";
 import { TopBar } from "../components/TopBar";
 import { ContextRail, type View } from "../components/ContextRail";
 import { ZenithOrb, type OrbState } from "../components/ZenithOrb";
@@ -34,6 +35,19 @@ type Usage = {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
+// Gmail + Calendar reflect the live Google status; WhatsApp + Discord stay mock (M4).
+// Order is preserved — the orb places its nodes in this sequence.
+function buildConnections(status: GoogleStatus | null): Connection[] {
+  const email = status?.accounts?.[0]?.email;
+  return mockConnections.map((c) => {
+    if (c.channel === "Gmail")
+      return { ...c, connected: !!status?.gmail_connected, account: status?.gmail_connected ? email ?? c.account : "Not linked" };
+    if (c.channel === "Calendar")
+      return { ...c, connected: !!status?.calendar_connected, account: status?.calendar_connected ? "Primary" : "Not linked" };
+    return c;
+  });
+}
+
 export default function Home() {
   const [booting, setBooting] = useState(true);
   const [view, setView] = useState<View>("chat");
@@ -47,6 +61,8 @@ export default function Home() {
   const [bars, setBars] = useState<number[]>([]);
   const [usage, setUsage] = useState<Usage | null>(null);
   const [ccMinimized, setCcMinimized] = useState(false);
+  const [gstatus, setGstatus] = useState<GoogleStatus | null>(null);
+  const [connectError, setConnectError] = useState<string | null>(null);
   const recordingRef = useRef<RecordingHandle | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const { skin } = useSkin();
@@ -63,6 +79,7 @@ export default function Home() {
   // Minimizing the CC (§3) also hands the space back to the orb.
   const orbBig = voiceCycle || !convo || ccMinimized;
   const ccExpanded = convo && !voiceCycle && !ccMinimized;
+  const connections = useMemo(() => buildConnections(gstatus), [gstatus]);
 
   async function refreshUsage() {
     try {
@@ -77,6 +94,34 @@ export default function Home() {
     const id = setInterval(refreshUsage, 5000);
     return () => clearInterval(id);
   }, []);
+
+  // Live Google connection status → drives the Connections panel + orb Gmail/Calendar nodes.
+  const refreshGoogle = useCallback(async () => {
+    setGstatus(await getGoogleStatus());
+  }, []);
+  useEffect(() => {
+    refreshGoogle();
+  }, [refreshGoogle]);
+  // While a connect flow is mid-browser, poll until the account appears.
+  useEffect(() => {
+    if (!gstatus?.connecting) return;
+    const id = setInterval(refreshGoogle, 2500);
+    return () => clearInterval(id);
+  }, [gstatus?.connecting, refreshGoogle]);
+
+  const onConnectGoogle = useCallback(async () => {
+    setConnectError(null);
+    const r = await connectGoogle();
+    if (!r.ok) {
+      setConnectError(r.error ?? "Connect failed.");
+      return;
+    }
+    await refreshGoogle(); // status now shows connecting → polling kicks in
+  }, [refreshGoogle]);
+  const onDisconnectGoogle = useCallback(async (email?: string) => {
+    await disconnectGoogle(email);
+    await refreshGoogle();
+  }, [refreshGoogle]);
 
   // One rAF loop drives the waveform from whichever source is active (mic or TTS).
   useEffect(() => {
@@ -149,6 +194,25 @@ export default function Home() {
       setLoading(false);
       refreshUsage();
     }
+  }
+
+  // "Good morning" → run the briefing prompt through the normal loop, then speak the reply.
+  async function runBriefing() {
+    if (loading) return;
+    const reply = await sendMessage("good morning");
+    if (reply) {
+      setVoiceState("speaking");
+      try {
+        await speak(reply);
+      } finally {
+        setVoiceState("idle");
+      }
+    }
+  }
+
+  function prefillInput(text: string) {
+    setInput(text);
+    inputRef.current?.focus();
   }
 
   const startListening = useCallback(async () => {
@@ -286,7 +350,7 @@ export default function Home() {
         {!sideless && (
         <div className="hud-scroll flex min-h-0 flex-col overflow-y-auto border-r border-zenith-cyan/12">
           <CalendarPanel />
-          <QuickActions />
+          <QuickActions onPrefill={prefillInput} onBriefing={() => void runBriefing()} />
           <section className="relative z-10 p-4">
             <div className="mb-3 font-mono text-[10px] uppercase tracking-widest text-zenith-cyan/70">Usage</div>
             <div className="flex justify-around">
@@ -330,7 +394,7 @@ export default function Home() {
 
               {/* connections */}
               <div className="bento-conn panel hud-scroll min-h-0 overflow-y-auto">
-                <ConnectionsPanel connections={connections} />
+                <ConnectionsPanel connections={connections} status={gstatus} onConnect={onConnectGoogle} onDisconnect={onDisconnectGoogle} connectError={connectError} />
               </div>
 
               {/* usage — tightened to a single centered gauge row */}
@@ -436,7 +500,7 @@ export default function Home() {
         {/* right (hidden in Ghost focus + Amethyst bento) */}
         {!sideless && (
         <div className="hud-scroll flex min-h-0 flex-col overflow-y-auto border-l border-zenith-cyan/12">
-          <ConnectionsPanel connections={connections} />
+          <ConnectionsPanel connections={connections} status={gstatus} onConnect={onConnectGoogle} onDisconnect={onDisconnectGoogle} connectError={connectError} />
           <FocusCard />
           <ActivityLog />
         </div>

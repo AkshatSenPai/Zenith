@@ -5,8 +5,7 @@ import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
 import { connections } from "../lib/mock";
 import { DUR, EASE, prefersReducedMotion } from "../lib/anim";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+import { apiFetch } from "../lib/api";
 
 /** Cinematic boot overlay. The real HUD mounts underneath immediately (so its WebGL orb
  *  warms up hidden), this covers it, plays a GSAP boot sequence, then dissolves to reveal
@@ -44,7 +43,7 @@ export function BootScreen({ onDone }: { onDone: () => void }) {
     const t = setTimeout(() => {
       if (!settled) { settled = true; setHealth("offline"); }
     }, 1200);
-    fetch(`${API_URL}/health`)
+    apiFetch("/health")
       .then((r) => (r.ok ? r : Promise.reject()))
       .then(() => { if (!settled) { settled = true; clearTimeout(t); setHealth("online"); } })
       .catch(() => { if (!settled) { settled = true; clearTimeout(t); setHealth("offline"); } });

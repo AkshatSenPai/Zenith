@@ -2,26 +2,50 @@
 
 import asyncio
 
-from fastapi import FastAPI, File, HTTPException, Response, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 import activity_log
+import auth
 import chat_core
 import discord_service
 import google_auth
 import google_service
+import secure_files
 import telegram_service
 from stt_service import active_config, transcribe_audio, warm as warm_stt
 from tts_service import active_tts_config, synthesize
 
-app = FastAPI(title="Zenith — Milestone 1 (The Brain)")
+app = FastAPI(
+    title="Zenith — Milestone 1 (The Brain)",
+    dependencies=[Depends(auth.require_token)],  # shared-secret gate on every route (see auth.py)
+)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+def _harden_secrets() -> None:
+    """Tighten file permissions on .env + tokens/ at boot (chmod 600 / icacls). Best-effort."""
+    secure_files.harden()
+
+
+@app.on_event("startup")
+def _log_auth() -> None:
+    """Make the API-token posture loud at boot: enforced when set, localhost-only when not."""
+    if auth.enforcement_enabled():
+        print("[auth] X-Zenith-Token enforced on all routes (except GET / and GET /health).", flush=True)
+    else:
+        print(
+            "⚠️  [auth] ZENITH_API_TOKEN not set — backend protected ONLY by localhost binding. "
+            "Set ZENITH_API_TOKEN in backend/.env to require the X-Zenith-Token header.",
+            flush=True,
+        )
 
 
 @app.on_event("startup")
@@ -89,6 +113,7 @@ class ChatResponse(BaseModel):
     pending: dict | None = None
     tool: str | None = None
     id: str | None = None
+    untrusted: bool | None = None  # action may have been triggered by untrusted read-content
 
 
 @app.get("/")

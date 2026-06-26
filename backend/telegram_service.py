@@ -69,6 +69,15 @@ def _action_summary(tool: str, inp: dict) -> str:
     return f"{tool}: {inp}"
 
 
+def _confirm_body(outcome: dict) -> str:
+    """The confirm prompt, with an injection warning when the action followed untrusted read-content."""
+    warn = ""
+    if outcome.get("untrusted"):
+        warn = ("⚠️ This action may have been triggered by content Zenith read "
+                "(email/Discord/calendar). Verify before approving.\n\n")
+    return warn + "Confirm this action?\n\n" + _action_summary(outcome["tool"], outcome["pending"])
+
+
 # ---------- handlers ----------
 
 async def _on_message(update: Update, _ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -95,7 +104,7 @@ async def _on_message(update: Update, _ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if "reply" in outcome:
         await update.message.reply_text(outcome["reply"] or "(no reply)")
     else:
-        body = "Confirm this action?\n\n" + _action_summary(outcome["tool"], outcome["pending"])
+        body = _confirm_body(outcome)
         await update.message.reply_text(body, reply_markup=_keyboard(outcome["id"]))
 
 
@@ -125,7 +134,7 @@ async def _on_callback(update: Update, _ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if "reply" in outcome:
         await q.edit_message_text(outcome["reply"] or "Done.")
     else:
-        body = "Confirm this action?\n\n" + _action_summary(outcome["tool"], outcome["pending"])
+        body = _confirm_body(outcome)
         await q.edit_message_text(body, reply_markup=_keyboard(outcome["id"]))
 
 

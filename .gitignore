@@ -1,7 +1,8 @@
 # Python
 backend/__pycache__/
 backend/.venv/
-backend/.venv*/          # incl. .venv314-bak (old 3.14 venv kept as a backup)
+# incl. .venv314-bak (old 3.14 venv kept as a backup)
+backend/.venv*/
 *.pyc
 
 # Local TTS voice samples (regenerate with the Kokoro verify script)
@@ -17,7 +18,8 @@ frontend/next-env.d.ts
 .env.local
 backend/.env
 frontend/.env.local
-backend/tokens/          # per-account Google OAuth tokens (created at runtime by the connect flow)
+# per-account Google OAuth tokens (created at runtime by the connect flow)
+backend/tokens/
 
 # OS
 .DS_Store

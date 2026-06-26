@@ -4,7 +4,21 @@
 
 import type { ActivityEntry } from "./mock";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+const TOKEN = process.env.NEXT_PUBLIC_ZENITH_API_TOKEN ?? "";
+
+/**
+ * Single backend fetch wrapper. Resolves a path against API_URL and attaches the shared-secret
+ * header (X-Zenith-Token) on every request, so the whole HUD authenticates uniformly. It never sets
+ * Content-Type itself, so FormData (multipart /transcribe) keeps its auto-generated boundary. Pass
+ * an absolute URL to bypass the API_URL prefix. The token is omitted when unset (backend fail-open).
+ */
+export function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(init.headers);
+  if (TOKEN) headers.set("X-Zenith-Token", TOKEN);
+  const url = path.startsWith("http") ? path : `${API_URL}${path}`;
+  return fetch(url, { ...init, headers });
+}
 
 export type GoogleAccount = { email: string; needs_reconnect: boolean };
 export type GoogleStatus = {
@@ -18,7 +32,7 @@ export type GoogleStatus = {
 
 export async function getGoogleStatus(): Promise<GoogleStatus | null> {
   try {
-    const res = await fetch(`${API_URL}/google/status`);
+    const res = await apiFetch("/google/status");
     return res.ok ? ((await res.json()) as GoogleStatus) : null;
   } catch {
     return null; // backend offline → treated as disconnected
@@ -27,7 +41,7 @@ export async function getGoogleStatus(): Promise<GoogleStatus | null> {
 
 export async function connectGoogle(): Promise<{ ok: boolean; error?: string }> {
   try {
-    const res = await fetch(`${API_URL}/google/connect`, { method: "POST" });
+    const res = await apiFetch("/google/connect", { method: "POST" });
     if (!res.ok) {
       const d = (await res.json().catch(() => ({}))) as { detail?: string };
       return { ok: false, error: d.detail ?? `Connect failed (${res.status}).` };
@@ -40,7 +54,7 @@ export async function connectGoogle(): Promise<{ ok: boolean; error?: string }> 
 
 export async function disconnectGoogle(email?: string): Promise<void> {
   try {
-    await fetch(`${API_URL}/google/disconnect`, {
+    await apiFetch("/google/disconnect", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: email ?? null }),
@@ -65,7 +79,7 @@ export type CalendarResponse = { connected: boolean; events: ApiCalEvent[] };
 /** when = today | tomorrow | YYYY-MM-DD | YYYY-MM-DD..YYYY-MM-DD. null = backend unreachable. */
 export async function getCalendarEvents(when = "today"): Promise<CalendarResponse | null> {
   try {
-    const res = await fetch(`${API_URL}/calendar/events?when=${encodeURIComponent(when)}`);
+    const res = await apiFetch(`/calendar/events?when=${encodeURIComponent(when)}`);
     return res.ok ? ((await res.json()) as CalendarResponse) : null;
   } catch {
     return null;
@@ -75,7 +89,7 @@ export async function getCalendarEvents(when = "today"): Promise<CalendarRespons
 /** Recent tool activity (newest first). null = backend unreachable; [] = nothing logged yet. */
 export async function getActivity(): Promise<ActivityEntry[] | null> {
   try {
-    const res = await fetch(`${API_URL}/activity`);
+    const res = await apiFetch("/activity");
     if (!res.ok) return null;
     const d = (await res.json()) as { entries?: ActivityEntry[] };
     return d.entries ?? [];
@@ -97,7 +111,7 @@ export type DiscordStatus = {
 /** Discord bot status (server channels only; token-based, auto-connects). null = backend unreachable. */
 export async function getDiscordStatus(): Promise<DiscordStatus | null> {
   try {
-    const res = await fetch(`${API_URL}/discord/status`);
+    const res = await apiFetch("/discord/status");
     return res.ok ? ((await res.json()) as DiscordStatus) : null;
   } catch {
     return null;
@@ -115,7 +129,7 @@ export type TelegramStatus = {
 /** Telegram remote bot status (locked to an allow-list). null = backend unreachable. */
 export async function getTelegramStatus(): Promise<TelegramStatus | null> {
   try {
-    const res = await fetch(`${API_URL}/telegram/status`);
+    const res = await apiFetch("/telegram/status");
     return res.ok ? ((await res.json()) as TelegramStatus) : null;
   } catch {
     return null;

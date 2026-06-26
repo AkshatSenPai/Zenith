@@ -34,9 +34,13 @@ particle-sphere orb and three switchable **skins**.
   (confirm). Server channels only — never your DMs. One-time [setup](SETUP-DISCORD.md).
 - **She's on your phone via Telegram** *(M4)* — text the *same* brain remotely; the confirm gate
   comes back as inline buttons. Locked to an allow-list of user IDs. One-time [setup](SETUP-TELEGRAM.md).
+- **She keeps a memory vault** *(M6)* — a local Markdown vault she can search, read, and write
+  ("note that I promised Rahul the proposal by Friday" → today's daily log; "what did I note about
+  Rahul?" → finds it). Point `ZENITH_VAULT_PATH` at your **Obsidian vault** to share notes. Local
+  writes run immediately (no confirm); the rail's Drafts/Clients tabs browse it read-only.
 
-**Coming next**: WhatsApp (personal + business), a local Markdown **memory vault**, and a
-**Copy Factory** that drafts email sequences / ad copy / proposals in your own voice. See `JARVIS_PRD.md`.
+**Coming next**: WhatsApp (personal + business) and the **Copy Factory** (M6 Part 2) — email
+sequences / ad copy / proposals drafted in your own voice from one brief. See `JARVIS_PRD.md`.
 
 ---
 
@@ -178,6 +182,7 @@ connected" and the panels show a Connect button — nothing breaks.
 | `TELEGRAM_BOT_TOKEN` / `TELEGRAM_ALLOWED_USER_IDS` | Telegram remote + its numeric allow-list (fail-closed) — see [SETUP-TELEGRAM.md](SETUP-TELEGRAM.md) | — |
 | `ZENITH_DEBUG_LOGS` | `1`/`true` to log full tool inputs + results while debugging (default scrubs bodies) | — |
 | `NEWS_FEEDS` | Comma-separated `Label\|RSS-url` briefing feeds | world + India |
+| `ZENITH_VAULT_PATH` | Local Markdown memory-vault dir (point at an Obsidian vault to share notes) | `backend/vault` |
 
 > **GPU note:** the code defaults to CPU so a fresh clone just works. On an NVIDIA box, set
 > `WHISPER_DEVICE=cuda` + `ZENITH_KOKORO_DEVICE=cuda` (with a CUDA-matched torch build) to cut a

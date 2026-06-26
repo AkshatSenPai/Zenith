@@ -22,6 +22,8 @@ frontend/.env.local
 backend/tokens/
 # persisted conversation history (last-20 per channel; contains message content)
 backend/.zenith/
+# local Markdown memory vault (personal notes + client data — never commit; M6)
+backend/vault/
 
 # OS
 .DS_Store

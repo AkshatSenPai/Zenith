@@ -20,6 +20,8 @@ backend/.env
 frontend/.env.local
 # per-account Google OAuth tokens (created at runtime by the connect flow)
 backend/tokens/
+# persisted conversation history (last-20 per channel; contains message content)
+backend/.zenith/
 
 # OS
 .DS_Store

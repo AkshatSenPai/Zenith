@@ -20,6 +20,7 @@ from pathlib import Path
 _BACKEND = Path(__file__).resolve().parent
 _ENV = _BACKEND / ".env"
 _TOKENS_DIR = _BACKEND / "tokens"
+_ZENITH_DIR = _BACKEND / ".zenith"   # persisted conversation history (message content)
 
 
 def _restrict_windows(path: Path, *, is_dir: bool) -> None:
@@ -59,3 +60,7 @@ def harden() -> None:
     if _TOKENS_DIR.exists():
         for token in _TOKENS_DIR.glob("*.json"):
             _restrict(token, is_dir=False)
+    if _ZENITH_DIR.exists():
+        _restrict(_ZENITH_DIR, is_dir=True)
+        for f in _ZENITH_DIR.glob("*.json"):
+            _restrict(f, is_dir=False)

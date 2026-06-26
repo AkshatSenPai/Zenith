@@ -1,6 +1,5 @@
 import { cleanForSpeech } from "./format";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+import { apiFetch } from "./api";
 
 export type RecordingHandle = {
   stop: () => Promise<Blob>;
@@ -78,7 +77,7 @@ export async function startRecording(): Promise<RecordingHandle> {
 export async function transcribe(blob: Blob): Promise<string> {
   const form = new FormData();
   form.append("audio", blob, "clip.webm");
-  const res = await fetch(`${API_URL}/transcribe`, { method: "POST", body: form });
+  const res = await apiFetch("/transcribe", { method: "POST", body: form });
   if (!res.ok) throw new Error(`transcribe failed (${res.status})`);
   const data = (await res.json()) as { text?: string };
   return (data.text ?? "").trim();
@@ -122,7 +121,7 @@ export async function speak(text: string): Promise<void> {
   if (!clean) return;
   let url: string | null = null;
   try {
-    const res = await fetch(`${API_URL}/speak`, {
+    const res = await apiFetch("/speak", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text: clean }),

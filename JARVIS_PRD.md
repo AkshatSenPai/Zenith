@@ -1,6 +1,8 @@
 # ZENITH — Product Requirements Document (PRD)
-## Version 1.8 | June 2026
+## Version 1.9 | June 2026
 ### Product: Zenith  ·  Wake word: "Zenith"  ·  Repo codename: JARVIS
+
+> **What changed in v1.9 (security hardening — SHIPPED 2026-06-26, live-verified):** Milestone 5, part 1 (`SECURITY.md` priority order). A **backend API token** — every FastAPI route except `GET /` and `GET /health` now requires an `X-Zenith-Token` header (`backend/auth.py`; **fail-open + loud boot warning when unset**, strict **401** when set), and a single frontend **`apiFetch`** wrapper (`lib/api.ts`) attaches it on every call. A **prompt-injection guard** — read-tool results carrying third-party content (email / Discord / calendar / briefing) are fenced as `<external-content>`, the system prompt forbids acting on instructions inside them, and a **same-turn** untrusted flag raises a ⚠️ warning on the HUD confirm card **and** the Telegram confirm buttons (the gate still never auto-approves). **Secrets restricted at rest** (`secure_files.harden()` → `icacls` on Windows / `chmod 600` on POSIX for `.env` + `tokens/` at boot). The **rate limiter was verified thread-safe** (+ concurrency tests). **Logs scrubbed** behind `ZENITH_DEBUG_LOGS` (default: tool name + ok/failed, no bodies/recipients). Fixed a **`.gitignore` inline-comment bug** that had left `backend/tokens/` (live OAuth tokens) un-ignored — verified they were never committed. **+23 tests**; live-verified (auth 401/200, real `/chat`, HUD). The Telegram/Discord bots are unaffected (they call `chat_core` in-process, not over HTTP). Full posture + rotation steps in `SECURITY.md`. **Still open in M5:** settings page + usage/cost dashboard + README.
 
 > **What changed in v1.8 (skins / themes — SHIPPED 2026-06-25):** A switchable **skin system**. The whole palette is tokenized into **CSS variables** selected by a `data-skin` attribute on `<html>` (Tailwind colors become `rgb(var(--..)/<alpha>)` so every utility class auto-themes; the WebGL orb reads its colors / bloom / particle-count / mode from the same vars). Three skins: **Arc** (today's cyan — default, unchanged, pixel-identical), **Ghost** (light **paper `#F7F7F5` + graphite ink** — NOT the old dark-mono; glow/bloom killed so depth comes from a hairline + soft shadow, square corners, calmer motion, a **centered-focus layout** that hides the dashboard side-columns, and the orb flips to an **ink-network web** mode; one muted amber kept for alerts), **Amethyst** (violet `#B26BFF`; **rounded-glass** cards + a **bento layout** — orb as a 2×2 hero tile, panels as tiles, a slim full-width command bar). A skin = colors + treatment knobs (`--glow-strength`, `--panel-tint`, `--border-strength`, `--notch`/`--radius`, `--motion-scale`, `--bloom`, `--particle-count`, `--orb-mode`/`--orb-link-*`). Picked from the **Settings** view (`SkinPicker`); switching uses a brief **blur-mask crossfade** (~200ms, emil-design-eng) + a no-flash `<head>` script so there's no color flash on load. Built with the **Impeccable** plugin (design QA) + taste / minimalist / emil. Spec + 10-task plan: `docs/superpowers/{specs,plans}/2026-06-22-zenith-skins*.md`. **Shipped: Tasks 1–10 as atomic commits on `main` (`9e3b7b7..`); cross-skin QA passed — HUD + boot screenshotted per skin, no WebGL leak on the orb sphere↔network switch, reduced-motion honored.** Deferred polish: Ghost ink-web slightly dense in the centre; Amethyst command bar centered `max-w-2xl`.
 
@@ -430,6 +432,11 @@ DAILY_TOKEN_BUDGET = 300_000       # hard cap — tool results balloon fast
 # Anthropic
 ANTHROPIC_API_KEY=
 
+# Backend API token (M5) — shared secret required on all routes except GET / and GET /health.
+# Blank = disabled (localhost-only, with a loud boot warning). Generate: python -c "import secrets;print(secrets.token_urlsafe(32))"
+ZENITH_API_TOKEN=
+ZENITH_DEBUG_LOGS=                    # 1/true = verbose tool logs (inputs+results); blank = tool name + ok/failed only
+
 # Google (multiple accounts)
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
@@ -467,6 +474,7 @@ DATABASE_URL=postgresql://user:password@localhost:5432/zenith
 
 # App
 NEXT_PUBLIC_API_URL=http://localhost:8000
+NEXT_PUBLIC_ZENITH_API_TOKEN=         # must equal backend ZENITH_API_TOKEN (sent as the X-Zenith-Token header)
 SECRET_KEY=
 ```
 
@@ -547,11 +555,9 @@ SECRET_KEY=
 - **Telegram remote (✅ SHIPPED — live-verified by the owner 2026-06-25:** phone → reply; "email …" → `[Confirm]` button → actually sends; reads mail/calendar): a phone front-end into the EXISTING brain — **NOT a tool**. The chat loop was extracted into **`chat_core.py`** (`process_chat`/`process_confirm`) so the HUD `/chat` and the bot share it (never forked); **`memory_service` is per-channel** (HUD vs telegram separate last-20, shared rate limiter). python-telegram-bot v20 **long-polling** on the FastAPI loop; async handlers bridge to the sync core via `asyncio.to_thread`. **🔒 LOCKED to `TELEGRAM_ALLOWED_USER_IDS`** (fail-closed; others ignored+logged). The confirm gate renders as `[✅ Confirm][✖ Cancel]` **inline buttons** → `process_confirm`. `/telegram/status` lights the orb **Telegram** node (which replaced WhatsApp's slot) + Connections row; tool runs hit the live Activity Log. Setup: `SETUP-TELEGRAM.md`.
 - **WhatsApp — PARKED:** the unofficial *personal* bridge risks an account ban → **parked, not deleted** (Telegram took its orb slot; restore by re-adding the `WhatsApp` channel + a `/whatsapp` status). **WhatsApp Business stays Phase-2.**
 
-### Milestone 5 — Hardening
-- Settings page, usage/cost dashboard, kill-switch cap
-- README + .env.example
-- Tests: rate limiter, tool router, confirm flow
-- Fold error/empty/loading states in throughout — don't save them for the end
+### Milestone 5 — Hardening  *(🔄 IN PROGRESS — security ✅ SHIPPED 2026-06-26, live-verified · branch `claude/m5-security-hardening`)*
+- **Security — part 1 ✅ (see `SECURITY.md`):** **backend API token** (`X-Zenith-Token` on every route except `/` + `/health`; `backend/auth.py`; fail-open+warn when unset / 401 when set) + one frontend `apiFetch` wrapper (`lib/api.ts`); **prompt-injection guard** (fence untrusted read-tool results as `<external-content>`, system-prompt rule, same-turn ⚠️ warning on the HUD confirm card + Telegram buttons); **secrets restricted at rest** (`secure_files.harden()` — `icacls` / `chmod 600` on `.env` + `tokens/`); **thread-safe rate limiter** verified (+ concurrency tests); **logs scrubbed** behind `ZENITH_DEBUG_LOGS`; fixed a `.gitignore` bug that left `backend/tokens/` un-ignored. **+23 tests**; live-verified (auth 401/200, `/chat`, HUD). Bots unaffected (in-process). Encryption-at-rest deferred to Phase-2 (perms + a note instead).
+- **Remaining:** Settings page · usage/cost dashboard (the kill-switch cap already *blocks*) · README · `.env.example` ✅ · more tests (tool router) · keep folding error/empty/loading states in throughout — don't save them for the end
 
 ### Milestone 6 — Memory vault + Copy Factory  *(Phase 1)*
 - **Memory = local Markdown vault** (Obsidian-style), tools `search_notes` + `save_note`; daily logs, client briefs, decisions; voice-matched drafts (§4.10)
@@ -584,6 +590,7 @@ SECRET_KEY=
 - **Phasing call (this session):** the personally-useful "future" features (Copy Factory, memory vault, proactivity, WhatsApp triage) were pulled into **Phase 1** because it's a daily driver for the owner; only true SaaS machinery stays Phase 2.
 - **Orb (v1.5):** rebuilt as a **WebGL particle sphere** (react-three-fiber + Bloom, ~40-60k cyan particles, audio-reactive core; the 4 nodes anchored around it). **Supersedes** the reactive-mesh orb and the queued mesh-refinement. No concentric/orbital rings; speaking stays cyan (no orange). Perf: tunable particle `const`, modest Bloom, test on 8GB. (§6, `TODO.md` §2)
 - **TTS (v1.5):** edge-tts stays default (English voices Neerja/Prabhat). **Kokoro** (hexgrad/kokoro) logged as a future **offline** TTS option — verify Hindi support before switching. The reply-lag is edge-tts's round-trip (separate from STT); pre-fetch/stream later.
+- **Security (v1.9 / M5):** localhost binding was the only wall → added a **shared-secret `X-Zenith-Token`** on all routes (fail-open when unset so fresh clones + tests still run; strict 401 when set). The **confirm gate is the prompt-injection backstop** → fence untrusted read-tool content as `<external-content>`, tell the model it's data not instructions, and warn on a same-turn action-after-read. **Telegram/Discord bypass the HTTP gate by design** (they call `chat_core` in-process). The `NEXT_PUBLIC_` token is embedded in the client bundle (acceptable under local trust — the real boundary is localhost **+** token together). Encryption-at-rest deferred (tight file perms + a `SECURITY.md` note instead). Tokens live only in gitignored `.env` / `.env.local`. (`SECURITY.md`)
 
 ---
 
@@ -665,5 +672,5 @@ all files, README setup guide, and .env.example
 
 ---
 
-*PRD Version 1.5 | Updated: June 2026 (from v1.4 · v1.3 · v1.2 · v1.1 · v1.0, June 15, 2026)*
-*Next Step (see `TODO.md`): (1) voice — English default + `large-v3`/CUDA + make the CPU-fallback visible; (2) orb → WebGL particle sphere; (3) Command-Center minimize. Then wire HUD panels off `lib/mock.ts` to live data + scaffold the Tauri shell (`src-tauri/`) → Milestone 3 (Google OAuth + Calendar/Gmail tools + morning briefing).*
+*PRD Version 1.9 | Updated: June 2026 (from v1.8 · v1.7 · v1.6 · v1.5 · v1.4 · v1.3 · v1.2 · v1.1 · v1.0, June 15, 2026)*
+*Next Step: finish Milestone 5 — settings page + usage/cost dashboard + README (security hardening shipped 2026-06-26, see `SECURITY.md`); then M6 (Memory vault + Copy Factory). Tauri desktop shell (`src-tauri/`) still pending from M2.*

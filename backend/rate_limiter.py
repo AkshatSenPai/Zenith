@@ -11,7 +11,9 @@ DAILY_TOKEN_BUDGET = 300_000   # hard cap — tool results balloon fast (PRD §1
 
 
 class RateLimiter:
-    """5 requests/min, 150 requests/day, and a daily token kill-switch. In-memory."""
+    """5 requests/min, 150 requests/day, and a daily token kill-switch. In-memory and
+    thread-safe — a single Lock guards every read/mutate, so the HUD and Telegram threads
+    can't race (check-and-record is one atomic critical section)."""
 
     def __init__(self) -> None:
         self._minute: deque[float] = deque()

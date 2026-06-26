@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { startRecording, transcribe, speak, cancelSpeech, getSpeechBars, type RecordingHandle } from "../lib/voice";
 import { connections as mockConnections, type Connection } from "../lib/mock";
-import { getGoogleStatus, connectGoogle, disconnectGoogle, getDiscordStatus, getTelegramStatus, type GoogleStatus, type DiscordStatus, type TelegramStatus } from "../lib/api";
+import { apiFetch, getGoogleStatus, connectGoogle, disconnectGoogle, getDiscordStatus, getTelegramStatus, type GoogleStatus, type DiscordStatus, type TelegramStatus } from "../lib/api";
 import { TopBar } from "../components/TopBar";
 import { ContextRail, type View } from "../components/ContextRail";
 import { ZenithOrb, type OrbState } from "../components/ZenithOrb";
@@ -23,7 +23,7 @@ import { StatusLabel } from "../components/StatusLabel";
 import { useSkin } from "../components/SkinProvider";
 import { SkinPicker } from "../components/SkinPicker";
 
-type PendingAction = { id: string; tool: string; input: Record<string, unknown> };
+type PendingAction = { id: string; tool: string; input: Record<string, unknown>; untrusted?: boolean };
 type Usage = {
   requests_today: number;
   daily_request_cap: number;
@@ -32,8 +32,6 @@ type Usage = {
   tokens_today: number;
   daily_token_budget: number;
 };
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 // Gmail + Calendar reflect the live Google status; WhatsApp + Discord stay mock (M4).
 // Order is preserved — the orb places its nodes in this sequence.
@@ -98,7 +96,7 @@ export default function Home() {
 
   async function refreshUsage() {
     try {
-      const res = await fetch(`${API_URL}/usage`);
+      const res = await apiFetch("/usage");
       if (res.ok) setUsage(await res.json());
     } catch {
       /* leave last-known usage */
@@ -194,10 +192,11 @@ export default function Home() {
     pending?: Record<string, unknown>;
     tool?: string;
     id?: string;
+    untrusted?: boolean;
   }) {
     if (data.warning !== undefined) setWarning(data.warning ?? null);
     if (data.pending && data.tool && data.id) {
-      setPending({ id: data.id, tool: data.tool, input: data.pending });
+      setPending({ id: data.id, tool: data.tool, input: data.pending, untrusted: data.untrusted });
     } else if (typeof data.reply === "string") {
       setMessages((prev) => [...prev, { role: "assistant", content: data.reply as string }]);
     }
@@ -212,7 +211,7 @@ export default function Home() {
     setMessages((prev) => [...prev, { role: "user", content: text }]);
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/chat`, {
+      const res = await apiFetch("/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: text }),
@@ -330,7 +329,7 @@ export default function Home() {
     setError(null);
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/chat/confirm`, {
+      const res = await apiFetch("/chat/confirm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: cur.id, approved }),
@@ -356,18 +355,26 @@ export default function Home() {
     }
   }
 
-  const pendingBody =
-    pending?.tool === "send_message" ? (
-      <>
-        Send a message to <span className="text-zenith-cyan">{String(pending.input.to ?? "?")}</span>:
-        <span className="mt-1 block rounded bg-black/40 px-3 py-2 font-mono text-xs">“{String(pending.input.body ?? "")}”</span>
-      </>
-    ) : pending ? (
-      <>
-        Run <span className="text-zenith-cyan">{pending.tool}</span>:{" "}
-        <span className="font-mono text-xs">{JSON.stringify(pending.input)}</span>
-      </>
-    ) : null;
+  const pendingBody = pending ? (
+    <>
+      {pending.untrusted && (
+        <span className="mb-2 block border border-zenith-alert/50 bg-zenith-alert/10 px-2 py-1.5 font-mono text-[11px] leading-snug text-zenith-alert">
+          ⚠ This may have been triggered by content Zenith read (email / Discord / calendar). Verify before approving.
+        </span>
+      )}
+      {pending.tool === "send_message" ? (
+        <>
+          Send a message to <span className="text-zenith-cyan">{String(pending.input.to ?? "?")}</span>:
+          <span className="mt-1 block rounded bg-black/40 px-3 py-2 font-mono text-xs">“{String(pending.input.body ?? "")}”</span>
+        </>
+      ) : (
+        <>
+          Run <span className="text-zenith-cyan">{pending.tool}</span>:{" "}
+          <span className="font-mono text-xs">{JSON.stringify(pending.input)}</span>
+        </>
+      )}
+    </>
+  ) : null;
 
   return (
     <div className="relative grid h-screen grid-rows-[auto_1fr] overflow-hidden text-zenith-text">

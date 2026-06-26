@@ -32,7 +32,11 @@ def _finish(working: list, outcome: dict, channel: str, warning: str | None = No
         memory_service.commit(channel, working)
         return {"reply": outcome["reply"], "warning": warning}
     PENDING[outcome["id"]] = {"working": working, "channel": channel}
-    return {"pending": outcome["pending"], "tool": outcome["tool"], "id": outcome["id"], "warning": warning}
+    pending = {"pending": outcome["pending"], "tool": outcome["tool"], "id": outcome["id"], "warning": warning}
+    if outcome.get("untrusted"):
+        # action proposed right after untrusted read-content entered the turn → flag for the confirm UI
+        pending["untrusted"] = True
+    return pending
 
 
 def process_chat(message: str, channel: str = "hud") -> dict:

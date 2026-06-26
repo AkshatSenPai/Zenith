@@ -87,3 +87,27 @@ def test_empty_vault_and_missing_note(tmp_path, monkeypatch):
     assert vault_service.search("anything") == []
     assert vault_service.list_notes() == []
     assert vault_service.read("nope") is None
+
+
+# ---------- Task 3: the 4 tools (not gated, trusted) ----------
+
+import tools  # noqa: E402
+
+
+def test_tools_registered_and_not_gated():
+    for t in ("search_notes", "read_note", "list_notes", "save_note"):
+        assert t in tools._EXECUTORS
+        assert t not in tools.ACTION_TOOLS          # save_note is a SAFE local write — not gated
+        assert t not in tools.UNTRUSTED_TOOLS       # owner's own notes are trusted
+
+
+def test_save_note_tool_runs_inline(_vault):
+    out = tools.run_tool("save_note", {"folder": "notes", "title": "T", "content": "hello"})
+    assert "Saved to notes/T.md" in out
+    assert tools.run_tool("read_note", {"path_or_title": "T"}).strip() == "hello"
+
+
+def test_search_and_list_tools(_vault):
+    tools.run_tool("save_note", {"folder": "clients", "title": "Acme", "content": "funnel work"})
+    assert "clients/Acme.md" in tools.run_tool("search_notes", {"query": "funnel"})
+    assert "clients/Acme.md" in tools.run_tool("list_notes", {"folder": "clients"})

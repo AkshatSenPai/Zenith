@@ -14,6 +14,7 @@ import activity_log
 import discord_service
 import google_service
 import news_service
+import vault_service
 import weather_service
 
 
@@ -250,6 +251,33 @@ def _send_discord_message(i: dict) -> str:
 
 # ---------- registry ----------
 
+# ---------- memory-vault executors (M6 — local Markdown notes; reads are trusted, save is not gated) ----------
+
+def _search_notes(i: dict) -> str:
+    hits = vault_service.search(i.get("query", ""))
+    if not hits:
+        return "No matching notes."
+    return "\n".join(f"- {h['path']}: {h['snippet']}" for h in hits)
+
+
+def _read_note(i: dict) -> str:
+    body = vault_service.read(i.get("path_or_title", ""))
+    return body if body is not None else "Note not found."
+
+
+def _list_notes(i: dict) -> str:
+    notes = vault_service.list_notes(i.get("folder"), recent=i.get("recent"))
+    if not notes:
+        return "No notes yet."
+    return "\n".join(f"- {n['path']}" for n in notes)
+
+
+def _save_note(i: dict) -> str:
+    return vault_service.save_note(
+        i.get("folder", "notes"), i.get("title", ""), i.get("content", ""), i.get("mode", "new"),
+    )
+
+
 _ISO_HINT = "ISO 8601 local datetime, e.g. 2026-06-26T16:00:00"
 
 TOOLS = [
@@ -454,6 +482,35 @@ TOOLS = [
             "required": ["channel", "text"],
         },
     },
+    {
+        "name": "search_notes",
+        "description": "Search the local Markdown vault (the owner's own notes, client briefs, and daily logs) by text. Use for 'what did I note about X', 'what did I do last week'.",
+        "input_schema": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]},
+    },
+    {
+        "name": "read_note",
+        "description": "Read one vault note in full, by relative path (e.g. clients/Rahul.md) or by title (e.g. Rahul).",
+        "input_schema": {"type": "object", "properties": {"path_or_title": {"type": "string"}}, "required": ["path_or_title"]},
+    },
+    {
+        "name": "list_notes",
+        "description": "List vault notes to browse. Optional folder (daily, clients, or notes) or recent=N newest.",
+        "input_schema": {"type": "object", "properties": {"folder": {"type": "string"}, "recent": {"type": "integer"}}, "required": []},
+    },
+    {
+        "name": "save_note",
+        "description": "Save to the local vault. folder=daily/clients/notes, title, content, mode=new or append. For a DAILY LOG use folder='daily' with an empty title — it auto-dates to today and appends a timestamped line. Runs immediately; no confirmation needed (local, reversible).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "folder": {"type": "string", "description": "daily, clients, or notes"},
+                "title": {"type": "string", "description": "Note title / filename (leave empty for a daily log)"},
+                "content": {"type": "string"},
+                "mode": {"type": "string", "description": "new (default) or append"},
+            },
+            "required": ["folder", "content"],
+        },
+    },
 ]
 
 # Action tools require user confirmation before running (the existing confirm gate).
@@ -495,6 +552,10 @@ _EXECUTORS = {
     "get_discord_messages": _get_discord_messages,
     "search_discord_messages": _search_discord_messages,
     "send_discord_message": _send_discord_message,
+    "search_notes": _search_notes,
+    "read_note": _read_note,
+    "list_notes": _list_notes,
+    "save_note": _save_note,
 }
 
 
@@ -516,6 +577,12 @@ def _activity_target(name: str, i: dict) -> str:
         return "#" + str(i.get("channel", "")).lstrip("#")
     if name == "search_discord_messages":
         return i.get("query", "")
+    if name == "save_note":
+        return i.get("title") or i.get("folder", "")
+    if name in ("search_notes", "read_note"):
+        return i.get("query") or i.get("path_or_title", "")
+    if name == "list_notes":
+        return i.get("folder", "all")
     return ""
 
 

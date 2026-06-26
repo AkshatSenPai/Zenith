@@ -503,8 +503,12 @@ def run_tool(name: str, tool_input: dict) -> str:
     else:
         try:
             result = executor(tool_input)
-            # disconnected / validation results are plain strings — don't log them as real work
-            if result.lstrip().startswith(("Not connected", "Weather unavailable")) or " needs " in result:
+            # disconnected / validation results are plain strings — don't log them as real work, and
+            # don't fence them as content. Match a LEADING "<tool> needs ..." (a prefix, NOT a body
+            # substring: an email/message body that merely contains " needs " must still be fenced,
+            # or the prompt-injection guard is bypassed — PR #1 review).
+            stripped = result.lstrip()
+            if stripped.startswith(("Not connected", "Weather unavailable")) or stripped.startswith(f"{name} needs"):
                 failed = True
         except google_service.NotConnected as exc:
             result, failed = str(exc), True

@@ -92,3 +92,58 @@ def read(path_or_title: str) -> str | None:
         if p.name.lower() == target:
             return p.read_text(encoding="utf-8")
     return None
+
+
+def _title_of(path: Path) -> str:
+    return path.stem
+
+
+def list_notes(folder: str | None = None, recent: int | None = None) -> list[dict]:
+    """Index of notes. folder= limits to one subfolder; recent=N returns the N newest by mtime.
+    Each entry: {path, title, folder, modified}."""
+    root = vault_root()
+    if not root.exists():
+        return []
+    base = root / folder.strip().strip("/") if folder else root
+    if not base.exists():
+        return []
+    out: list[dict] = []
+    for p in base.rglob("*.md"):
+        rel = p.relative_to(root)
+        parent = rel.parent.as_posix()
+        out.append({
+            "path": rel.as_posix(),
+            "title": _title_of(p),
+            "folder": "" if parent == "." else parent,
+            "modified": p.stat().st_mtime,
+        })
+    out.sort(key=lambda n: n["modified"], reverse=True)
+    return out[:recent] if recent else out
+
+
+def search(query: str, limit: int = 20) -> list[dict]:
+    """Case-insensitive scan of filenames + content. Returns {path, title, snippet} per match."""
+    q = (query or "").strip().lower()
+    if not q:
+        return []
+    root = vault_root()
+    if not root.exists():
+        return []
+    hits: list[dict] = []
+    for p in root.rglob("*.md"):
+        rel = p.relative_to(root).as_posix()
+        try:
+            text = p.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        low = text.lower()
+        if q in p.name.lower() or q in low:
+            idx = low.find(q)
+            snippet = (
+                text[max(0, idx - 60): idx + 80].replace("\n", " ").strip()
+                if idx >= 0 else _title_of(p)
+            )
+            hits.append({"path": rel, "title": _title_of(p), "snippet": snippet})
+        if len(hits) >= limit:
+            break
+    return hits

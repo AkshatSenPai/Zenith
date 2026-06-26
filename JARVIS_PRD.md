@@ -564,9 +564,9 @@ SECRET_KEY=
 - **Security — part 1 ✅ (see `SECURITY.md`):** **backend API token** (`X-Zenith-Token` on every route except `/` + `/health`; `backend/auth.py`; fail-open+warn when unset / 401 when set) + one frontend `apiFetch` wrapper (`lib/api.ts`); **prompt-injection guard** (fence untrusted read-tool results as `<external-content>`, system-prompt rule, same-turn ⚠️ warning on the HUD confirm card + Telegram buttons); **secrets restricted at rest** (`secure_files.harden()` — `icacls` / `chmod 600` on `.env` + `tokens/`); **thread-safe rate limiter** verified (+ concurrency tests); **logs scrubbed** behind `ZENITH_DEBUG_LOGS`; fixed a `.gitignore` bug that left `backend/tokens/` un-ignored. **+23 tests**; live-verified (auth 401/200, `/chat`, HUD). Bots unaffected (in-process). Encryption-at-rest deferred to Phase-2 (perms + a note instead).
 - **Polish — part 2 ✅ (commit 4d68ff5, merged to main 2026-06-26):** real **usage/cost dashboard** (`UsagePanel` — token in/out split → est. ₹/$ cost + kill-switch chip; across all 3 skins; `rate_limiter.stats()` adds the split + cost + `killswitch`) · **Settings page** (`SettingsView` — Appearance / read-only active config from `/health` v0.5.0 + a `config` block / Connections / Security) · **README + `.env.example`** rewrite · **error/empty/loading audit** (Retry states on Activity/Calendar/Usage, Connections live/offline chip, stale `demo` badge removed; verified live in a real backend-down state + auto-recovery) · **+18 tests** (full fast suite 82 green)
 
-### Milestone 6 — Memory vault + Copy Factory  *(Phase 1)*
-- **Memory = local Markdown vault** (Obsidian-style), tools `search_notes` + `save_note`; daily logs, client briefs, decisions; voice-matched drafts (§4.10)
-- **Copy Factory / Template Studio:** intake-form-as-brief → email sequences, WABA templates (category-tagged), ad copy + creative briefs, landing/funnel copy, in EN/HI/Hinglish. Output-only; paste into Arkquen (§4.9)
+### Milestone 6 — Memory vault + Copy Factory  *(Phase 1 — Part 1 ✅ SHIPPED 2026-06-26, merged to main)*
+- **Memory = local Markdown vault ✅** (Obsidian-style) — `vault_service.py` + 4 tools on the existing loop: `search_notes`/`read_note`/`list_notes` (read, trusted) + `save_note` (**local write, not gated**). Daily logs (`daily/YYYY-MM-DD.md`), client briefs, decisions. Path from `ZENITH_VAULT_PATH` (points at the owner's Obsidian vault); strict path-safety (no escape). Read-only HUD browser on the Drafts/Clients rail tabs. +18 tests, live-verified. (§4.10)
+- **Copy Factory / Template Studio — Part 2 (next):** intake-form-as-brief → email sequences, WABA templates (category-tagged), ad copy + creative briefs, landing/funnel copy, in EN/HI/Hinglish. Output-only; paste into Arkquen. Reads the vault for voice-matched style. (§4.9)
 
 ### Milestone 7 — Proactivity + WhatsApp triage  *(Phase 1)*
 - Background watcher (e.g. APScheduler) → "what slipped" as floating status cards
@@ -677,5 +677,5 @@ all files, README setup guide, and .env.example
 
 ---
 
-*PRD Version 2.0 | Updated: June 2026 (from v1.9 · v1.8 · v1.7 · v1.6 · v1.5 · v1.4 · v1.3 · v1.2 · v1.1 · v1.0, June 15, 2026)*
-*Next Step: Milestone 6 — Memory vault + Copy Factory. Milestone 5 is fully shipped + merged to main 2026-06-26 (security part 1 = a185e6a · polish part 2 = 4d68ff5). Tauri desktop shell (`src-tauri/`) still pending from M2.*
+*PRD Version 2.1 | Updated: June 2026 (from v2.0 · v1.9 · v1.8 · v1.7 · v1.6 · v1.5 · v1.4 · v1.3 · v1.2 · v1.1 · v1.0, June 15, 2026)*
+*Next Step: Milestone 6 Part 2 — Copy Factory (M6 Part 1, the memory vault, shipped + merged to main 2026-06-26, commit 76dfad1). Tauri desktop shell (`src-tauri/`) still pending from M2.*

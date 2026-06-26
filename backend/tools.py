@@ -13,6 +13,7 @@ import os
 import activity_log
 import discord_service
 import google_service
+import news_service
 import weather_service
 
 
@@ -174,11 +175,32 @@ def build_briefing(location: str | None = None) -> str:
     except weather_service.WeatherUnavailable as exc:
         lines.append(f"\nWeather: {exc}")
 
+    try:
+        headlines = news_service.get_headlines(5)
+        if headlines:
+            lines.append("\nTop headlines (world + India):")
+            lines += [_news_line(h) for h in headlines]
+    except news_service.NewsUnavailable as exc:
+        lines.append(f"\nNews: {exc}")
+
     return "\n".join(lines)
 
 
 def _get_briefing(i: dict) -> str:
     return build_briefing(i.get("location"))
+
+
+# ---------- news ----------
+
+def _news_line(h: dict) -> str:
+    return f"- [{h['source']}] {h['title']}"
+
+
+def _get_news(i: dict) -> str:
+    items = news_service.get_headlines(int(i.get("limit", 5)))
+    if not items:
+        return "No headlines available right now."
+    return "Top headlines (world + India):\n" + "\n".join(_news_line(h) for h in items)
 
 
 # ---------- discord executors ----------
@@ -371,11 +393,22 @@ TOOLS = [
     },
     {
         "name": "get_briefing",
-        "description": "Morning briefing: today's events + unread email + weather, assembled for you to narrate "
-        "concisely. Use for 'good morning', 'brief me', 'what's my day look like'.",
+        "description": "Morning briefing: today's events + unread email + weather + top world/India "
+        "headlines, assembled for you to narrate concisely. Use for 'good morning', 'brief me', "
+        "'what's my day look like'.",
         "input_schema": {
             "type": "object",
             "properties": {"location": {"type": "string", "description": "Optional weather location override"}},
+            "required": [],
+        },
+    },
+    {
+        "name": "get_news",
+        "description": "Top world + India news headlines (free RSS). Use for 'what's the news', "
+        "'today's headlines', 'what's happening in the world'.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"limit": {"type": "integer", "description": "How many headlines (default 5)"}},
             "required": [],
         },
     },
@@ -431,7 +464,7 @@ ACTION_TOOLS = {"send_message", "create_event", "update_event", "delete_event", 
 UNTRUSTED_TOOLS = {
     "get_emails", "read_email", "search_emails",
     "get_discord_messages", "search_discord_messages",
-    "get_calendar_events", "search_calendar", "get_briefing",
+    "get_calendar_events", "search_calendar", "get_briefing", "get_news",
 }
 UNTRUSTED_MARKER = "<external-content"
 
@@ -457,6 +490,7 @@ _EXECUTORS = {
     "send_email": _send_email,
     "get_weather": _get_weather,
     "get_briefing": _get_briefing,
+    "get_news": _get_news,
     "list_discord_channels": _list_discord_channels,
     "get_discord_messages": _get_discord_messages,
     "search_discord_messages": _search_discord_messages,
@@ -513,6 +547,8 @@ def run_tool(name: str, tool_input: dict) -> str:
         except google_service.NotConnected as exc:
             result, failed = str(exc), True
         except weather_service.WeatherUnavailable as exc:
+            result, failed = str(exc), True
+        except news_service.NewsUnavailable as exc:
             result, failed = str(exc), True
         except (discord_service.DiscordNotConnected, discord_service.DiscordChannelNotFound) as exc:
             result, failed = str(exc), True

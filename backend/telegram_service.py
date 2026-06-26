@@ -18,7 +18,14 @@ import os
 
 from dotenv import load_dotenv
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import Application, CallbackQueryHandler, ContextTypes, MessageHandler, filters
+from telegram.ext import (
+    Application,
+    CallbackQueryHandler,
+    CommandHandler,
+    ContextTypes,
+    MessageHandler,
+    filters,
+)
 
 import chat_core
 
@@ -28,6 +35,20 @@ CHANNEL = "telegram"
 
 _app: Application | None = None
 _state: dict = {"connected": False, "bot_user": None, "last_error": None}
+
+# A first-contact greeting (static — no API call / rate-limit slot). Allowed users are greeted once
+# per process: on /start, or on their first text message. Resets on restart (acceptable).
+WELCOME = (
+    "Zenith online, Boss. I'm your assistant — now right here on your phone.\n\n"
+    "Ask me to:\n"
+    "• check your calendar or unread email\n"
+    "• send an email or a message (I'll ask you to confirm first)\n"
+    "• read or post in your Discord channels\n"
+    "• get a briefing — just say \"good morning\"\n\n"
+    "Anything that sends or changes something comes back as a Confirm/Cancel button, so nothing "
+    "happens without your okay. What do you need?"
+)
+_seen_users: set[int] = set()
 
 
 # ---------- config / auth (security first) ----------
@@ -80,6 +101,26 @@ def _confirm_body(outcome: dict) -> str:
 
 # ---------- handlers ----------
 
+async def _greet_once(update: Update, user) -> None:
+    """Send the welcome the first time we see an allowed user this process."""
+    if user.id in _seen_users:
+        return
+    _seen_users.add(user.id)
+    if update.message:
+        await update.message.reply_text(WELCOME)
+
+
+async def _on_start(update: Update, _ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """/start — the conventional Telegram entry point. Allow-list gated, like everything else."""
+    user = update.effective_user
+    if not _is_allowed(user):
+        print(f"[telegram] IGNORED /start from unauthorized id={getattr(user, 'id', '?')}", flush=True)
+        return
+    _seen_users.add(user.id)
+    if update.message:
+        await update.message.reply_text(WELCOME)
+
+
 async def _on_message(update: Update, _ctx: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
     if not _is_allowed(user):
@@ -88,6 +129,7 @@ async def _on_message(update: Update, _ctx: ContextTypes.DEFAULT_TYPE) -> None:
     text = (update.message.text or "").strip() if update.message else ""
     if not text:
         return
+    await _greet_once(update, user)  # one-time welcome on first contact, then answer normally
     try:
         outcome = await asyncio.to_thread(chat_core.process_chat, text, CHANNEL)
     except chat_core.RateLimited as exc:
@@ -158,6 +200,7 @@ async def start() -> None:
               "(fail-closed). Set your numeric id (see SETUP-TELEGRAM.md).", flush=True)
     try:
         app = Application.builder().token(token).build()
+        app.add_handler(CommandHandler("start", _on_start))
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, _on_message))
         app.add_handler(CallbackQueryHandler(_on_callback))
         app.add_error_handler(_on_error)

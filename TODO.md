@@ -1,5 +1,10 @@
 # Zenith — TODO (next session)
 
+**Update (2026-06-26):** M3 (Google), M4 (Discord + Telegram), and M5 (security + usage/cost dashboard +
+Settings + docs) are all **shipped + merged to main**. Telegram now sends a **first-contact welcome**
+(`/start` or first message). **New backlog item §5 below: Discord voice — listen to a call + Hindi brief**
+(owner request — to discuss/scope). Next milestone is **M6 (memory vault + Copy Factory)**.
+
 **Status (2026-06-21):** items **1–3 DONE** (v1.5 voice + particle orb + CC minimize/restore).
 **§4 half done:** the **Kokoro local/offline TTS** option shipped in v1.6 (`d8926bf`) and is now the
 default engine; only **TTS pre-fetch/stream** (cut reply lag) is left. Full details below as a record.
@@ -104,6 +109,36 @@ Files: `frontend/components/CommandCenter.tsx` (chevron + pill + collapse),
 - ⬜ **Pre-fetch / stream the TTS** so it starts speaking sooner. Still open — and now the *main*
   voice-latency lever. Kokoro generates faster than realtime, so streaming the first chunk while the
   rest synthesizes would make even long replies start in ~1s. (Was masked before by edge's round-trip.)
+
+---
+
+## 5. Discord voice — join a call, listen, brief it (in Hindi)  ⬜ FUTURE (to discuss — owner request 2026-06-26)
+
+**What the owner wants:** Zenith joins a Discord **voice channel**, stays in the call, listens, and
+produces a **brief of what's being discussed**. Meetings will be in **Hindi**.
+
+**Verdict: doable, but it's a milestone-sized feature, not a quick add.** Discuss + scope before building.
+
+**Fits our stack (the easy half):**
+- Discord hands the bot **per-user audio streams** → speaker labels ("who said what") come *for free*
+  (normally the hardest part of meeting transcription).
+- We already have both engines: **faster-whisper** (STT, supports Hindi) + **Claude** (the brain) for
+  the summary. So "transcribe the call → Claude writes a brief" is squarely in the existing architecture.
+
+**The real catches (why it's a build):**
+1. **`discord.py` cannot RECEIVE voice** — our current lib only sends. Need either **Pycord** (built-in
+   recording "sinks") or **`discord-ext-voice-recv`**. Dependency decision + possible bot rewrite. *(biggest risk)*
+2. **Hindi accuracy wants a bigger Whisper model on the GPU** (`medium`/`large-v3`), but Whisper is on
+   **CPU `small`** right now to free the 8GB card for Kokoro TTS. Resource trade-off → likely run the
+   transcription as a **batch job after the call** (when TTS isn't busy).
+3. **Batch, not live, first.** "Record call → brief afterward" is reliable; live "what are we talking
+   about now" is much harder (latency/chunking) — defer.
+4. **Consent:** the bot is recording a conversation → it should announce itself when it joins.
+
+**Open questions for the discuss session:** Pycord vs `discord-ext-voice-recv` · batch vs live · the
+GPU/model plan (swap Whisper to GPU for the brief?) · where the brief lands (DM / channel post /
+Activity Log / a note in the M6 memory vault) · Hindi output: Devanagari transcript → Claude summary in
+EN or Hinglish? · likely lands **after M6** (the vault is a natural home for saved briefs).
 
 ---
 

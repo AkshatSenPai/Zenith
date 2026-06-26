@@ -137,6 +137,7 @@ Built for freelancers and agency owners who want to automate daily tasks via voi
 - Trigger: "Good morning" or "Briefing do"
 - Output (voice + text):
   - Today's date, day, weather (needs a Weather API key)
+  - Today's top news headlines (world + India, free RSS — no key; `get_news` tool / `NEWS_FEEDS`)
   - All meetings/events today
   - Unread email count + top 3 summaries
   - Pending WhatsApp messages count
@@ -453,6 +454,10 @@ DISCORD_BOT_TOKEN=
 
 # Weather (morning briefing)
 WEATHER_API_KEY=
+
+# News headlines (morning briefing) — free RSS, no key. Optional override of the world+India defaults.
+# Comma-separated "Label|url" pairs; blank = BBC World + Times of India.
+NEWS_FEEDS=
 
 # Speech-to-text — faster-whisper is local (no key).
 # DEFAULT = English. On the RTX 5060 (8GB, shared with the orb) use cuda + medium (large-v3 is tight on VRAM).

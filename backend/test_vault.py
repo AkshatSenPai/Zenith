@@ -111,3 +111,19 @@ def test_search_and_list_tools(_vault):
     tools.run_tool("save_note", {"folder": "clients", "title": "Acme", "content": "funnel work"})
     assert "clients/Acme.md" in tools.run_tool("search_notes", {"query": "funnel"})
     assert "clients/Acme.md" in tools.run_tool("list_notes", {"folder": "clients"})
+
+
+# ---------- Task 4: HUD read-only routes ----------
+
+def test_vault_routes(_vault, monkeypatch):
+    from fastapi.testclient import TestClient
+    import main
+    monkeypatch.delenv("ZENITH_API_TOKEN", raising=False)  # importing main runs load_dotenv → re-clear
+
+    vault_service.save_note("clients", "Acme", "Brief here.", "new")
+    c = TestClient(main.app)
+    notes = c.get("/vault/notes", params={"folder": "clients"}).json()["notes"]
+    assert any(n["title"] == "Acme" for n in notes)
+    got = c.get("/vault/note", params={"path": "clients/Acme.md"}).json()
+    assert got["found"] and "Brief" in got["content"]
+    assert c.get("/vault/note", params={"path": "nope.md"}).json()["found"] is False

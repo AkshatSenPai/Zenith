@@ -15,6 +15,7 @@ import google_auth
 import google_service
 import secure_files
 import telegram_service
+import vault_service
 from stt_service import active_config, transcribe_audio, warm as warm_stt
 from tts_service import active_tts_config, synthesize
 
@@ -233,6 +234,24 @@ async def discord_status() -> dict:
 def telegram_status() -> dict:
     """Telegram remote bot status for the orb Telegram node + Connections row."""
     return telegram_service.status()
+
+
+# ---------- vault: read-only note browsing for the HUD (shares vault_service; NOT Claude tools) ----------
+
+@app.get("/vault/notes")
+def vault_notes(folder: str | None = None, recent: int | None = None) -> dict:
+    """Note index for the HUD Drafts/Clients tabs (read-only)."""
+    return {"notes": vault_service.list_notes(folder, recent=recent)}
+
+
+@app.get("/vault/note")
+def vault_note(path: str) -> dict:
+    """Full content of one note for the HUD reader. found:false when the note is absent."""
+    body = vault_service.read(path)
+    if body is None:
+        return {"found": False, "path": path, "title": "", "content": ""}
+    from pathlib import Path as _P
+    return {"found": True, "path": path, "title": _P(path).stem, "content": body}
 
 
 # ---------- chat: the HUD route. The same chat_core is shared with the Telegram remote. ----------

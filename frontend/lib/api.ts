@@ -136,6 +136,32 @@ export async function getHealth(): Promise<Health | null> {
   }
 }
 
+export type VaultNote = { path: string; title: string; folder: string; modified: number };
+
+/** Vault note index for the HUD Drafts/Clients tabs. null = backend unreachable; [] = none yet. */
+export async function getVaultNotes(folder?: string, recent?: number): Promise<VaultNote[] | null> {
+  try {
+    const qs = new URLSearchParams();
+    if (folder) qs.set("folder", folder);
+    if (recent) qs.set("recent", String(recent));
+    const res = await apiFetch(`/vault/notes?${qs.toString()}`);
+    if (!res.ok) return null;
+    return ((await res.json()).notes ?? []) as VaultNote[];
+  } catch {
+    return null;
+  }
+}
+
+/** Full content of one vault note (read-only). null = backend unreachable. */
+export async function getVaultNote(path: string): Promise<{ found: boolean; title: string; content: string } | null> {
+  try {
+    const res = await apiFetch(`/vault/note?path=${encodeURIComponent(path)}`);
+    return res.ok ? ((await res.json()) as { found: boolean; title: string; content: string }) : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Recent tool activity (newest first). null = backend unreachable; [] = nothing logged yet. */
 export async function getActivity(): Promise<ActivityEntry[] | null> {
   try {

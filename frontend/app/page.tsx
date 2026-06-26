@@ -22,6 +22,7 @@ import { BootScreen } from "../components/BootScreen";
 import { StatusLabel } from "../components/StatusLabel";
 import { useSkin } from "../components/SkinProvider";
 import { SettingsView } from "../components/SettingsView";
+import { VaultView } from "../components/VaultView";
 
 type PendingAction = { id: string; tool: string; input: Record<string, unknown>; untrusted?: boolean };
 
@@ -523,6 +524,10 @@ export default function Home() {
               onDisconnectGoogle={onDisconnectGoogle}
               connectError={connectError}
             />
+          ) : view === "clients" ? (
+            <VaultView mode="clients" title="Clients" />
+          ) : view === "drafts" ? (
+            <VaultView mode="recent" title="Notes" />
           ) : (
             <PlaceholderView view={view} />
           )}

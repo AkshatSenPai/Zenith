@@ -1,6 +1,7 @@
 """Zenith — Milestone 1 backend wiring (thin routes; logic in the service modules)."""
 
 import asyncio
+import os
 
 from fastapi import Depends, FastAPI, File, HTTPException, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,6 +17,16 @@ import secure_files
 import telegram_service
 from stt_service import active_config, transcribe_audio, warm as warm_stt
 from tts_service import active_tts_config, synthesize
+
+ZENITH_VERSION = "0.5.0"  # Milestone 5 (hardening + polish)
+
+# Same truthy parsing tools.py uses for ZENITH_DEBUG_LOGS, so /health reports the real state.
+_TRUTHY = {"1", "true", "yes", "on"}
+
+
+def _debug_logs_on() -> bool:
+    return os.getenv("ZENITH_DEBUG_LOGS", "").strip().lower() in _TRUTHY
+
 
 app = FastAPI(
     title="Zenith — Milestone 1 (The Brain)",
@@ -124,9 +135,19 @@ def health() -> dict:
 @app.get("/health")
 def health_detail() -> dict:
     """Diagnostics: which device/model whisper ACTUALLY loaded on (catches the silent
-    CUDA->CPU fallback) + the active STT language, plus the active TTS engine/voice.
+    CUDA->CPU fallback) + the active STT language, plus the active TTS engine/voice,
+    the backend version, and the security posture (auth + debug-logs flag).
     Open in the browser to verify the GPU and which voice is serving."""
-    return {"status": "ok", "whisper": active_config(), "tts": active_tts_config()}
+    return {
+        "status": "ok",
+        "version": ZENITH_VERSION,
+        "whisper": active_config(),
+        "tts": active_tts_config(),
+        "config": {
+            "debug_logs": _debug_logs_on(),
+            "auth_enforced": auth.enforcement_enabled(),
+        },
+    }
 
 
 @app.get("/usage")

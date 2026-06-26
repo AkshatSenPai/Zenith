@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getActivity } from "../lib/api";
 import type { ActivityEntry, ActivityTone, ActivityType } from "../lib/mock";
 
@@ -30,29 +30,52 @@ function ActIcon({ type }: { type: ActivityType }) {
 }
 
 export function ActivityLog() {
-  // null = not loaded / backend unreachable; [] = connected but nothing logged yet.
+  // entries: last-known list ([] = nothing logged yet). loaded: first response is in.
+  // error: the most recent fetch couldn't reach the backend (keep showing stale entries if any).
   const [entries, setEntries] = useState<ActivityEntry[] | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState(false);
+
+  const load = useCallback(async () => {
+    const e = await getActivity();
+    if (e !== null) {
+      setEntries(e);
+      setError(false);
+    } else {
+      setError(true); // unreachable — keep any last-known entries on screen
+    }
+    setLoaded(true);
+  }, []);
 
   useEffect(() => {
     let alive = true;
-    async function load() {
-      const e = await getActivity();
-      if (alive) setEntries(e);
-    }
-    load();
-    const id = setInterval(load, 5000);
+    const run = () => {
+      if (alive) void load();
+    };
+    run();
+    const id = setInterval(run, 5000);
     return () => {
       alive = false;
       clearInterval(id);
     };
-  }, []);
+  }, [load]);
 
   return (
     <section className="relative z-10 border-t border-zenith-cyan/12 p-4">
       <div className="mb-3 font-mono text-[10px] uppercase tracking-widest text-zenith-cyan/70">Activity Log</div>
-      {entries === null ? (
+      {!loaded ? (
         <div className="font-mono text-[10px] text-zenith-text/35">loading…</div>
-      ) : entries.length === 0 ? (
+      ) : error && entries === null ? (
+        <div className="flex items-center justify-between gap-3">
+          <span className="font-mono text-[10px] text-zenith-text/45">Can&apos;t reach the backend.</span>
+          <button
+            onClick={() => void load()}
+            className="press rounded-sm border border-zenith-cyan/40 px-2 py-0.5 font-mono text-[9px] uppercase tracking-widest text-zenith-cyan/80 transition hover:border-zenith-cyan/70"
+          >
+            Retry
+          </button>
+        </div>
+      ) : entries === null || entries.length === 0 ? (
         <div className="font-mono text-[10px] text-zenith-text/35">No activity yet — your actions will show here.</div>
       ) : (
         <ul className="space-y-2.5">

@@ -86,6 +86,56 @@ export async function getCalendarEvents(when = "today"): Promise<CalendarRespons
   }
 }
 
+export type Usage = {
+  requests_today: number;
+  daily_request_cap: number;
+  requests_last_minute: number;
+  per_minute_cap: number;
+  tokens_today: number;
+  daily_token_budget: number;
+  input_tokens_today: number;
+  output_tokens_today: number;
+  cost_usd: number;
+  cost_inr: number;
+  killswitch: boolean;
+};
+
+/** Live usage/cost snapshot for the HUD gauges. null = backend unreachable (drives the error state). */
+export async function getUsage(): Promise<Usage | null> {
+  try {
+    const res = await apiFetch("/usage");
+    return res.ok ? ((await res.json()) as Usage) : null;
+  } catch {
+    return null;
+  }
+}
+
+export type Health = {
+  status: string;
+  version: string;
+  whisper: {
+    language: string;
+    model: string;
+    device: string;
+    compute: string;
+    requested_device: string;
+    fallback: boolean;
+    error: string | null;
+  };
+  tts: { engine: string; voice: string; lang: string | null; device: string };
+  config: { debug_logs: boolean; auth_enforced: boolean };
+};
+
+/** Active backend config for the Settings page (STT/TTS device + security posture). null = unreachable. */
+export async function getHealth(): Promise<Health | null> {
+  try {
+    const res = await apiFetch("/health");
+    return res.ok ? ((await res.json()) as Health) : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Recent tool activity (newest first). null = backend unreachable; [] = nothing logged yet. */
 export async function getActivity(): Promise<ActivityEntry[] | null> {
   try {

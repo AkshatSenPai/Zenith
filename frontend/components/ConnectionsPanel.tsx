@@ -9,12 +9,15 @@ export function ConnectionsPanel({
   onConnect,
   onDisconnect,
   connectError,
+  backendState = "live",
 }: {
   connections: Connection[];
   status?: GoogleStatus | null;
   onConnect?: () => void;
   onDisconnect?: (email?: string) => void;
   connectError?: string | null;
+  /** Whole-backend reachability (from the /usage poll): drives the header chip. */
+  backendState?: "loading" | "offline" | "live";
 }) {
   const account = status?.accounts?.[0]?.email;
   const connected = Boolean(status?.gmail_connected || status?.calendar_connected);
@@ -24,9 +27,18 @@ export function ConnectionsPanel({
     <section className="relative z-10 p-4">
       <div className="mb-3 flex items-center justify-between">
         <span className="font-mono text-[10px] uppercase tracking-widest text-zenith-cyan/70">Connections</span>
-        <span className="rounded-sm border border-zenith-alert/40 px-1 py-0.5 font-mono text-[8px] uppercase tracking-widest text-zenith-alert/75">
-          demo
-        </span>
+        {backendState === "offline" ? (
+          <span className="rounded-sm border border-zenith-alert/50 px-1.5 py-0.5 font-mono text-[8px] uppercase tracking-widest text-zenith-alert">
+            Backend offline
+          </span>
+        ) : backendState === "loading" ? (
+          <span className="font-mono text-[8px] uppercase tracking-widest text-zenith-text/35">Connecting…</span>
+        ) : (
+          <span className="flex items-center gap-1 font-mono text-[8px] uppercase tracking-widest text-zenith-cyan/70">
+            <span className="glow-cyan h-1.5 w-1.5 rounded-full bg-zenith-cyan" />
+            Live
+          </span>
+        )}
       </div>
 
       {/* Google connect control (real) — drives the Gmail + Calendar rows below + the orb nodes */}

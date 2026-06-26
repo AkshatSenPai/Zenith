@@ -9,6 +9,12 @@ MAX_REQUESTS_PER_DAY = 150
 WARNING_THRESHOLD = 120
 DAILY_TOKEN_BUDGET = 300_000   # hard cap — tool results balloon fast (PRD §10)
 
+# Claude Sonnet 4.6 pricing (per 1M tokens) — input/output differ ~5×, so the split matters
+# even for a rough estimate. Kept here so cost lives in ONE place (see stats()).
+PRICE_IN_PER_MTOK = 3.0
+PRICE_OUT_PER_MTOK = 15.0
+USD_TO_INR = 86.0              # approximate; the HUD labels the figure "est."
+
 
 class RateLimiter:
     """5 requests/min, 150 requests/day, and a daily token kill-switch. In-memory and
@@ -19,6 +25,8 @@ class RateLimiter:
         self._minute: deque[float] = deque()
         self._day_count = 0
         self._day_tokens = 0
+        self._day_input = 0
+        self._day_output = 0
         self._day_key = self._today()
         self._lock = Lock()
 
@@ -32,6 +40,8 @@ class RateLimiter:
             self._day_key = today
             self._day_count = 0
             self._day_tokens = 0
+            self._day_input = 0
+            self._day_output = 0
             self._minute.clear()
 
     def check_request(self) -> tuple[bool, str | None, str | None]:
@@ -73,15 +83,32 @@ class RateLimiter:
     def record_usage(self, input_tokens: int, output_tokens: int) -> None:
         with self._lock:
             self._roll()
-            self._day_tokens += (input_tokens or 0) + (output_tokens or 0)
+            inp = input_tokens or 0
+            out = output_tokens or 0
+            self._day_input += inp
+            self._day_output += out
+            self._day_tokens += inp + out
 
     def stats(self) -> dict:
-        """Current usage WITHOUT consuming a request slot (for GET /usage)."""
+        """Current usage WITHOUT consuming a request slot (for GET /usage).
+
+        Cost is computed here so pricing lives in one place. Input/output are priced
+        separately (~5× apart) and returned as both USD and an approximate INR figure
+        (the HUD labels it "est."). ``killswitch`` reflects whether either hard cap is hit.
+        """
         with self._lock:
             self._roll()
             now = time.monotonic()
             while self._minute and now - self._minute[0] >= 60:
                 self._minute.popleft()
+            cost_usd = (
+                self._day_input / 1_000_000 * PRICE_IN_PER_MTOK
+                + self._day_output / 1_000_000 * PRICE_OUT_PER_MTOK
+            )
+            killswitch = (
+                self._day_tokens >= DAILY_TOKEN_BUDGET
+                or self._day_count >= MAX_REQUESTS_PER_DAY
+            )
             return {
                 "requests_today": self._day_count,
                 "daily_request_cap": MAX_REQUESTS_PER_DAY,
@@ -89,4 +116,9 @@ class RateLimiter:
                 "per_minute_cap": MAX_REQUESTS_PER_MINUTE,
                 "tokens_today": self._day_tokens,
                 "daily_token_budget": DAILY_TOKEN_BUDGET,
+                "input_tokens_today": self._day_input,
+                "output_tokens_today": self._day_output,
+                "cost_usd": round(cost_usd, 4),
+                "cost_inr": round(cost_usd * USD_TO_INR, 2),
+                "killswitch": killswitch,
             }

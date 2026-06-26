@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { startRecording, transcribe, speak, cancelSpeech, getSpeechBars, type RecordingHandle } from "../lib/voice";
 import { connections as mockConnections, type Connection } from "../lib/mock";
-import { apiFetch, getGoogleStatus, connectGoogle, disconnectGoogle, getDiscordStatus, getTelegramStatus, type GoogleStatus, type DiscordStatus, type TelegramStatus } from "../lib/api";
+import { apiFetch, getGoogleStatus, connectGoogle, disconnectGoogle, getDiscordStatus, getTelegramStatus, getUsage, type GoogleStatus, type DiscordStatus, type TelegramStatus, type Usage } from "../lib/api";
 import { TopBar } from "../components/TopBar";
 import { ContextRail, type View } from "../components/ContextRail";
 import { ZenithOrb, type OrbState } from "../components/ZenithOrb";
@@ -15,23 +15,15 @@ import { FocusCard } from "../components/FocusCard";
 import { ActivityLog } from "../components/ActivityLog";
 import { CommandCenter, type Message } from "../components/CommandCenter";
 import { PlaceholderView } from "../components/PlaceholderView";
-import { GaugeIndicator } from "../components/GaugeIndicator";
+import { UsagePanel } from "../components/UsagePanel";
 import { StatusCard } from "../components/StatusCard";
 import { HexCorners } from "../components/hud/primitives";
 import { BootScreen } from "../components/BootScreen";
 import { StatusLabel } from "../components/StatusLabel";
 import { useSkin } from "../components/SkinProvider";
-import { SkinPicker } from "../components/SkinPicker";
+import { SettingsView } from "../components/SettingsView";
 
 type PendingAction = { id: string; tool: string; input: Record<string, unknown>; untrusted?: boolean };
-type Usage = {
-  requests_today: number;
-  daily_request_cap: number;
-  requests_last_minute: number;
-  per_minute_cap: number;
-  tokens_today: number;
-  daily_token_budget: number;
-};
 
 // Gmail + Calendar reflect the live Google status; WhatsApp + Discord stay mock (M4).
 // Order is preserved — the orb places its nodes in this sequence.
@@ -71,6 +63,7 @@ export default function Home() {
   const [voiceState, setVoiceState] = useState<OrbState>("idle");
   const [bars, setBars] = useState<number[]>([]);
   const [usage, setUsage] = useState<Usage | null>(null);
+  const [usageError, setUsageError] = useState(false);
   const [ccMinimized, setCcMinimized] = useState(false);
   const [gstatus, setGstatus] = useState<GoogleStatus | null>(null);
   const [dstatus, setDstatus] = useState<DiscordStatus | null>(null);
@@ -93,13 +86,16 @@ export default function Home() {
   const orbBig = voiceCycle || !convo || ccMinimized;
   const ccExpanded = convo && !voiceCycle && !ccMinimized;
   const connections = useMemo(() => buildConnections(gstatus, dstatus, tstatus), [gstatus, dstatus, tstatus]);
+  // Whole-backend reachability from the /usage poll (runs every 5s, config-independent).
+  const backendState: "loading" | "offline" | "live" = usageError ? "offline" : usage === null ? "loading" : "live";
 
   async function refreshUsage() {
-    try {
-      const res = await apiFetch("/usage");
-      if (res.ok) setUsage(await res.json());
-    } catch {
-      /* leave last-known usage */
+    const u = await getUsage();
+    if (u) {
+      setUsage(u);
+      setUsageError(false);
+    } else {
+      setUsageError(true); // keep last-known usage; flag the error (panel shows it only when no usage yet)
     }
   }
   useEffect(() => {
@@ -401,20 +397,7 @@ export default function Home() {
         <div className="hud-scroll flex min-h-0 flex-col overflow-y-auto border-r border-zenith-cyan/12">
           <CalendarPanel />
           <QuickActions onPrefill={prefillInput} onBriefing={() => void runBriefing()} />
-          <section className="relative z-10 p-4">
-            <div className="mb-3 font-mono text-[10px] uppercase tracking-widest text-zenith-cyan/70">Usage</div>
-            <div className="flex justify-around">
-              {usage ? (
-                <>
-                  <GaugeIndicator label="Req/min" value={usage.requests_last_minute} max={usage.per_minute_cap} />
-                  <GaugeIndicator label="Daily" value={usage.requests_today} max={usage.daily_request_cap} />
-                  <GaugeIndicator label="Tokens" value={usage.tokens_today} max={usage.daily_token_budget} />
-                </>
-              ) : (
-                <div className="py-4 font-mono text-[10px] text-zenith-text/35">loading usage…</div>
-              )}
-            </div>
-          </section>
+          <UsagePanel usage={usage} error={usageError} onRetry={refreshUsage} />
           <LeftRailExtras />
         </div>
         )}
@@ -444,21 +427,12 @@ export default function Home() {
 
               {/* connections */}
               <div className="bento-conn panel hud-scroll min-h-0 overflow-y-auto">
-                <ConnectionsPanel connections={connections} status={gstatus} onConnect={onConnectGoogle} onDisconnect={onDisconnectGoogle} connectError={connectError} />
+                <ConnectionsPanel connections={connections} status={gstatus} onConnect={onConnectGoogle} onDisconnect={onDisconnectGoogle} connectError={connectError} backendState={backendState} />
               </div>
 
-              {/* usage — tightened to a single centered gauge row */}
-              <div className="bento-usage panel flex min-h-0 flex-col overflow-hidden p-4">
-                <div className="mb-2 font-mono text-[10px] uppercase tracking-widest text-zenith-cyan/70">Usage</div>
-                {usage ? (
-                  <div className="flex flex-1 items-center justify-around">
-                    <GaugeIndicator label="Req/min" value={usage.requests_last_minute} max={usage.per_minute_cap} />
-                    <GaugeIndicator label="Daily" value={usage.requests_today} max={usage.daily_request_cap} />
-                    <GaugeIndicator label="Tokens" value={usage.tokens_today} max={usage.daily_token_budget} />
-                  </div>
-                ) : (
-                  <div className="flex flex-1 items-center justify-center font-mono text-[10px] text-zenith-text/35">loading usage…</div>
-                )}
+              {/* usage — progress bars + estimated cost + kill-switch */}
+              <div className="bento-usage panel hud-scroll min-h-0 overflow-y-auto">
+                <UsagePanel usage={usage} error={usageError} onRetry={refreshUsage} />
               </div>
 
               {/* calendar — wide event strip */}
@@ -541,7 +515,14 @@ export default function Home() {
             </div>
             )
           ) : view === "settings" ? (
-            <SkinPicker />
+            <SettingsView
+              gstatus={gstatus}
+              dstatus={dstatus}
+              tstatus={tstatus}
+              onConnectGoogle={onConnectGoogle}
+              onDisconnectGoogle={onDisconnectGoogle}
+              connectError={connectError}
+            />
           ) : (
             <PlaceholderView view={view} />
           )}
@@ -550,7 +531,7 @@ export default function Home() {
         {/* right (hidden in Ghost focus + Amethyst bento) */}
         {!sideless && (
         <div className="hud-scroll flex min-h-0 flex-col overflow-y-auto border-l border-zenith-cyan/12">
-          <ConnectionsPanel connections={connections} status={gstatus} onConnect={onConnectGoogle} onDisconnect={onDisconnectGoogle} connectError={connectError} />
+          <ConnectionsPanel connections={connections} status={gstatus} onConnect={onConnectGoogle} onDisconnect={onDisconnectGoogle} connectError={connectError} backendState={backendState} />
           <FocusCard />
           <ActivityLog />
         </div>
@@ -560,7 +541,8 @@ export default function Home() {
       {/* Ghost focus: a single one-line usage readout in the corner (replaces the gauges) */}
       {ghost && usage && (
         <div className="pointer-events-none absolute bottom-3 left-[80px] z-20 font-mono text-[10px] uppercase tracking-[0.2em] text-zenith-text/45">
-          {usage.requests_today}/{usage.daily_request_cap} req · {Math.round(usage.tokens_today / 1000)}k tok
+          {usage.requests_today}/{usage.daily_request_cap} req · {Math.round(usage.tokens_today / 1000)}k tok · ~₹{usage.cost_inr.toFixed(2)}
+          {usage.killswitch && <span className="ml-2 text-zenith-alert">● capped</span>}
         </div>
       )}
     </div>

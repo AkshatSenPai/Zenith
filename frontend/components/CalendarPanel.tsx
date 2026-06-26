@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getCalendarEvents, type ApiCalEvent } from "../lib/api";
 
 type Data = { connected: boolean; today: ApiCalEvent[]; tomorrow: ApiCalEvent[] };
@@ -11,25 +11,28 @@ export function CalendarPanel() {
   const [phase, setPhase] = useState<Phase>("loading");
   const [data, setData] = useState<Data>({ connected: false, today: [], tomorrow: [] });
 
+  const load = useCallback(async () => {
+    const [t, tm] = await Promise.all([getCalendarEvents("today"), getCalendarEvents("tomorrow")]);
+    if (t === null) {
+      setPhase("offline"); // backend unreachable
+      return;
+    }
+    setData({ connected: t.connected, today: t.events, tomorrow: tm?.events ?? [] });
+    setPhase("ready");
+  }, []);
+
   useEffect(() => {
     let alive = true;
-    async function load() {
-      const [t, tm] = await Promise.all([getCalendarEvents("today"), getCalendarEvents("tomorrow")]);
-      if (!alive) return;
-      if (t === null) {
-        setPhase("offline"); // backend unreachable
-        return;
-      }
-      setData({ connected: t.connected, today: t.events, tomorrow: tm?.events ?? [] });
-      setPhase("ready");
-    }
-    load();
-    const id = setInterval(load, 60000); // refresh each minute
+    const run = () => {
+      if (alive) void load();
+    };
+    run();
+    const id = setInterval(run, 60000); // refresh each minute
     return () => {
       alive = false;
       clearInterval(id);
     };
-  }, []);
+  }, [load]);
 
   const day = now.getDate();
   const month = now.toLocaleDateString("en-GB", { month: "short" }).toUpperCase();
@@ -53,7 +56,7 @@ export function CalendarPanel() {
           <Skeleton rows={3} />
         </Section>
       ) : phase === "offline" ? (
-        <Notice text="Calendar unavailable — backend offline." />
+        <Notice text="Calendar unavailable — backend offline." onRetry={() => void load()} />
       ) : !data.connected ? (
         <Notice text="Connect Google to see your calendar." />
       ) : (
@@ -129,6 +132,18 @@ function Empty({ text }: { text: string }) {
   return <div className="font-body text-xs text-zenith-text/35">{text}</div>;
 }
 
-function Notice({ text }: { text: string }) {
-  return <div className="font-body text-xs text-zenith-text/40">{text}</div>;
+function Notice({ text, onRetry }: { text: string; onRetry?: () => void }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="font-body text-xs text-zenith-text/40">{text}</span>
+      {onRetry && (
+        <button
+          onClick={onRetry}
+          className="press rounded-sm border border-zenith-cyan/40 px-2 py-0.5 font-mono text-[9px] uppercase tracking-widest text-zenith-cyan/80 transition hover:border-zenith-cyan/70"
+        >
+          Retry
+        </button>
+      )}
+    </div>
+  );
 }

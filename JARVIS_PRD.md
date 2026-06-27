@@ -564,9 +564,9 @@ SECRET_KEY=
 - **Security — part 1 ✅ (see `SECURITY.md`):** **backend API token** (`X-Zenith-Token` on every route except `/` + `/health`; `backend/auth.py`; fail-open+warn when unset / 401 when set) + one frontend `apiFetch` wrapper (`lib/api.ts`); **prompt-injection guard** (fence untrusted read-tool results as `<external-content>`, system-prompt rule, same-turn ⚠️ warning on the HUD confirm card + Telegram buttons); **secrets restricted at rest** (`secure_files.harden()` — `icacls` / `chmod 600` on `.env` + `tokens/`); **thread-safe rate limiter** verified (+ concurrency tests); **logs scrubbed** behind `ZENITH_DEBUG_LOGS`; fixed a `.gitignore` bug that left `backend/tokens/` un-ignored. **+23 tests**; live-verified (auth 401/200, `/chat`, HUD). Bots unaffected (in-process). Encryption-at-rest deferred to Phase-2 (perms + a note instead).
 - **Polish — part 2 ✅ (commit 4d68ff5, merged to main 2026-06-26):** real **usage/cost dashboard** (`UsagePanel` — token in/out split → est. ₹/$ cost + kill-switch chip; across all 3 skins; `rate_limiter.stats()` adds the split + cost + `killswitch`) · **Settings page** (`SettingsView` — Appearance / read-only active config from `/health` v0.5.0 + a `config` block / Connections / Security) · **README + `.env.example`** rewrite · **error/empty/loading audit** (Retry states on Activity/Calendar/Usage, Connections live/offline chip, stale `demo` badge removed; verified live in a real backend-down state + auto-recovery) · **+18 tests** (full fast suite 82 green)
 
-### Milestone 6 — Memory vault + Copy Factory  *(Phase 1 — Part 1 ✅ SHIPPED 2026-06-26, merged to main)*
+### Milestone 6 — Memory vault + Copy Factory  *(Phase 1 — ✅ SHIPPED, both parts merged to main: vault 2026-06-26, Copy Factory 2026-06-27)*
 - **Memory = local Markdown vault ✅** (Obsidian-style) — `vault_service.py` + 4 tools on the existing loop: `search_notes`/`read_note`/`list_notes` (read, trusted) + `save_note` (**local write, not gated**). Daily logs (`daily/YYYY-MM-DD.md`), client briefs, decisions. Path from `ZENITH_VAULT_PATH` (points at the owner's Obsidian vault); strict path-safety (no escape). Read-only HUD browser on the Drafts/Clients rail tabs. +18 tests, live-verified. (§4.10)
-- **Copy Factory / Template Studio — Part 2 (next):** intake-form-as-brief → email sequences, WABA templates (category-tagged), ad copy + creative briefs, landing/funnel copy, in EN/HI/Hinglish. Output-only; paste into Arkquen. Reads the vault for voice-matched style. (§4.9)
+- **Copy Factory / Template Studio — Part 2 ✅ SHIPPED 2026-06-27** (live-verified, merged to main): 3 **output-only** tools on the existing loop (NOT gated; reads trusted; nothing wired to Arkquen) — `draft_sequence` (coherent multi-stage email + Meta WABA-template WhatsApp journey: Enquiry→Nurture→Booking→Reminder→No-show, `{{1}}` positional vars, category-tagged), `draft_ad_copy` (Meta primary/headlines + creative brief OR Google RSA within char limits), `draft_landing_copy` (hero→trust→benefits→FAQ→final CTA), in EN/HI/Hinglish (Latin only). New `backend/copy_factory.py` resolves the brief from `clients/<name>.md` (or inline text) + the owner's voice from `notes/voice.md`/recent client notes → a directive; the loop's Claude writes the finished copy, saved via the existing `save_note` → Drafts tab. `MAX_TOKENS` 1024→8192 (non-streaming-safe) so a full sequence isn't truncated. +9 tests (111 fast suite green). Plan: `docs/superpowers/plans/2026-06-26-copy-factory.md`. (§4.9)
 
 ### Milestone 7 — Proactivity + WhatsApp triage  *(Phase 1)*
 - Background watcher (e.g. APScheduler) → "what slipped" as floating status cards
@@ -602,7 +602,7 @@ SECRET_KEY=
 ## 16. FUTURE ROADMAP
 
 ### Phase 1 — later milestones (pulled in from "future" this session)
-- [ ] M6: Memory vault (Markdown / Obsidian-style) + Copy Factory / Template Studio
+- [x] M6: Memory vault (Markdown / Obsidian-style) + Copy Factory / Template Studio — ✅ shipped
 - [ ] M7: Proactivity engine + WhatsApp triage of your own messages
 
 ### Phase 2 — Scale (Month 2-3)
@@ -677,5 +677,6 @@ all files, README setup guide, and .env.example
 
 ---
 
-*PRD Version 2.1 | Updated: June 2026 (from v2.0 · v1.9 · v1.8 · v1.7 · v1.6 · v1.5 · v1.4 · v1.3 · v1.2 · v1.1 · v1.0, June 15, 2026)*
-*Next Step: Milestone 6 Part 2 — Copy Factory (M6 Part 1, the memory vault, shipped + merged to main 2026-06-26, commit 76dfad1). Tauri desktop shell (`src-tauri/`) still pending from M2.*
+*PRD Version 2.2 | Updated: June 2026 (from v2.1 · v2.0 · v1.9 · v1.8 · v1.7 · v1.6 · v1.5 · v1.4 · v1.3 · v1.2 · v1.1 · v1.0, June 15, 2026)*
+*v2.2 (M6 Part 2 — Copy Factory, SHIPPED 2026-06-27, merged to main): three output-only draft tools (`draft_sequence`, `draft_ad_copy`, `draft_landing_copy`) on the existing loop + confirm gate (zero route/gate changes); `backend/copy_factory.py` resolves a vault/inline brief + the owner's voice into a directive and the loop's Claude writes the copy; not gated, reads trusted, nothing wired to Arkquen; `MAX_TOKENS` 1024→8192; +9 tests (111 fast suite green); live-verified.*
+*Next Step: Milestone 7 — Proactivity + WhatsApp triage (M6 fully shipped + merged to main: Part 1 vault 2026-06-26 commit 76dfad1, Part 2 Copy Factory 2026-06-27). Tauri desktop shell (`src-tauri/`) still pending from M2.*

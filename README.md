@@ -38,9 +38,13 @@ particle-sphere orb and three switchable **skins**.
   ("note that I promised Rahul the proposal by Friday" → today's daily log; "what did I note about
   Rahul?" → finds it). Point `ZENITH_VAULT_PATH` at your **Obsidian vault** to share notes. Local
   writes run immediately (no confirm); the rail's Drafts/Clients tabs browse it read-only.
+- **She drafts copy in your voice** *(M6 — Copy Factory)* — "draft a WhatsApp + email sequence for
+  <client> in Hinglish", "Meta ad copy for <client>", "landing copy for <client>". She reads the
+  client brief and your style from the vault, then writes a coherent multi-stage email/WhatsApp
+  (Meta WABA template) journey, ad copy + a creative brief, or landing/funnel copy. Copy only —
+  nothing is sent; "save that" drops it into the vault's Drafts tab.
 
-**Coming next**: WhatsApp (personal + business) and the **Copy Factory** (M6 Part 2) — email
-sequences / ad copy / proposals drafted in your own voice from one brief. See `JARVIS_PRD.md`.
+**Coming next**: WhatsApp (personal + business), then proactivity + message triage (M7). See `JARVIS_PRD.md`.
 
 ---
 
@@ -274,7 +278,7 @@ acts) its name in `ACTION_TOOLS`. The chat route and confirm gate handle the res
 - [x] **Milestone 3 — Google:** Calendar + Gmail as tools (OAuth, least-privilege), weather + spoken morning briefing, live Connections/Calendar/Activity panels. *Shipped + live-verified. One-time [Google setup](SETUP-GOOGLE.md).*
 - [x] **Milestone 4 — Messaging:** **Discord** — 4 tools (list / read / search / send-gated) via a discord.py bot, **server channels only (no DMs)**; orb node + Connections + Activity Log go live. Plus a **Telegram remote** — a phone front-end into the *same* brain (not a tool; allow-list-locked; the confirm gate comes back as inline buttons). The orb's WhatsApp node became **Telegram** ([setup](SETUP-TELEGRAM.md)). *Both Discord + Telegram are live-verified + shipped.* **WhatsApp-personal is parked** (ban-risk bridge).
 - [~] **Milestone 5 — Hardening:** **part 1 shipped** — backend `X-Zenith-Token` gate, prompt-injection guard, secrets-at-rest, log scrubbing ([SECURITY.md](SECURITY.md)). **Part 2 (this pass):** real usage/cost dashboard + Settings page + README/`.env` + error/empty/loading audit + tests.
-- [ ] **Milestone 6 — Memory vault + Copy Factory.**
+- [x] **Milestone 6 — Memory vault + Copy Factory:** a local Markdown/Obsidian vault (search / read / write, daily logs) + the **Copy Factory** — three output-only draft tools (email + WhatsApp sequence, Meta/Google ad copy, landing copy) written in your voice from a vault brief. *Shipped + live-verified.*
 - [ ] **Milestone 7 — Proactivity + message triage.**
 
 Full detail and the reasoning behind each decision live in `JARVIS_PRD.md` and `CLAUDE.md`.

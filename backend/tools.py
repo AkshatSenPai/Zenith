@@ -11,6 +11,7 @@ import datetime as dt
 import os
 
 import activity_log
+import copy_factory
 import discord_service
 import google_service
 import news_service
@@ -278,6 +279,20 @@ def _save_note(i: dict) -> str:
     )
 
 
+# ---------- copy-factory executors (M6 Part 2 — OUTPUT-ONLY drafts; never gated, nothing sent) ----------
+
+def _draft_sequence(i: dict) -> str:
+    return copy_factory.build_sequence_brief(i.get("client_or_brief", ""), i.get("channel", "both"), i.get("language", "en"))
+
+
+def _draft_ad_copy(i: dict) -> str:
+    return copy_factory.build_ad_brief(i.get("client_or_brief", ""), i.get("platform", "meta"), i.get("language", "en"))
+
+
+def _draft_landing_copy(i: dict) -> str:
+    return copy_factory.build_landing_brief(i.get("client_or_brief", ""), i.get("language", "en"))
+
+
 _ISO_HINT = "ISO 8601 local datetime, e.g. 2026-06-26T16:00:00"
 
 TOOLS = [
@@ -511,6 +526,51 @@ TOOLS = [
             "required": ["folder", "content"],
         },
     },
+    {
+        "name": "draft_sequence",
+        "description": "Copy Factory: draft a coherent multi-stage EMAIL + WhatsApp (Meta WABA template) "
+        "marketing sequence in the owner's voice, from a client brief — pass a client name (matches a "
+        "clients/<name> vault note) OR the inline brief text. Output-only: returns the draft for the "
+        "owner to paste elsewhere; nothing is sent.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "client_or_brief": {"type": "string", "description": "Client name (matches a clients/<name> vault note) OR the inline brief text"},
+                "channel": {"type": "string", "enum": ["email", "whatsapp", "both"], "description": "default both"},
+                "language": {"type": "string", "enum": ["en", "hi", "hinglish"], "description": "default en"},
+            },
+            "required": ["client_or_brief"],
+        },
+    },
+    {
+        "name": "draft_ad_copy",
+        "description": "Copy Factory: draft ad copy in the owner's voice from a client brief (a "
+        "clients/<name> vault note OR inline text) — Meta primary text + headlines + a creative brief, "
+        "or a Google responsive search ad. Output-only: returns the draft; nothing is sent.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "client_or_brief": {"type": "string", "description": "Client name (matches a clients/<name> vault note) OR the inline brief text"},
+                "platform": {"type": "string", "enum": ["meta", "google"], "description": "default meta"},
+                "language": {"type": "string", "enum": ["en", "hi", "hinglish"], "description": "default en"},
+            },
+            "required": ["client_or_brief"],
+        },
+    },
+    {
+        "name": "draft_landing_copy",
+        "description": "Copy Factory: draft landing/funnel page copy in the owner's voice from a client "
+        "brief (a clients/<name> vault note OR inline text) — hero, trust/approvals, benefits, FAQ, "
+        "final CTA. Output-only: returns the draft; nothing is sent.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "client_or_brief": {"type": "string", "description": "Client name (matches a clients/<name> vault note) OR the inline brief text"},
+                "language": {"type": "string", "enum": ["en", "hi", "hinglish"], "description": "default en"},
+            },
+            "required": ["client_or_brief"],
+        },
+    },
 ]
 
 # Action tools require user confirmation before running (the existing confirm gate).
@@ -556,6 +616,9 @@ _EXECUTORS = {
     "read_note": _read_note,
     "list_notes": _list_notes,
     "save_note": _save_note,
+    "draft_sequence": _draft_sequence,
+    "draft_ad_copy": _draft_ad_copy,
+    "draft_landing_copy": _draft_landing_copy,
 }
 
 
@@ -583,6 +646,8 @@ def _activity_target(name: str, i: dict) -> str:
         return i.get("query") or i.get("path_or_title", "")
     if name == "list_notes":
         return i.get("folder", "all")
+    if name in ("draft_sequence", "draft_ad_copy", "draft_landing_copy"):
+        return (i.get("client_or_brief", "") or "")[:40]
     return ""
 
 

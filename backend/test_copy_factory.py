@@ -63,3 +63,20 @@ def test_landing_directive_sections(_vault):
     d = copy_factory.build_landing_brief("Gym, Rs 1500/mo")
     for section in ("HERO", "TRUST", "BENEFITS", "FAQ", "FINAL CTA"):
         assert section in d
+
+
+# ---------- Task 3: the three tools (output-only, not gated) ----------
+
+import tools  # noqa: E402
+
+
+def test_copy_tools_registered_output_only():
+    for t in ("draft_sequence", "draft_ad_copy", "draft_landing_copy"):
+        assert t in tools._EXECUTORS
+        assert t not in tools.ACTION_TOOLS      # output-only — never gated
+        assert t not in tools.UNTRUSTED_TOOLS
+
+
+def test_draft_sequence_tool_returns_directive(_vault):
+    out = tools.run_tool("draft_sequence", {"client_or_brief": "Gym, Rs 1500/mo", "channel": "both", "language": "en"})
+    assert "COPY FACTORY" in out and "WABA" in out

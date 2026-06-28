@@ -466,9 +466,10 @@ TOOLS = [
     },
     {
         "name": "get_briefing",
-        "description": "Morning briefing: today's events + unread email + weather + top world/India "
-        "headlines, assembled for you to narrate concisely. Use for 'good morning', 'brief me', "
-        "'what's my day look like'.",
+        "description": "Daily briefing: today's events + unread email + weather + top world/India "
+        "headlines, assembled for you to narrate concisely. Use whenever the owner greets you to start "
+        "the day or asks for a status — 'good morning/afternoon/evening', 'brief me', 'what's my day "
+        "look like'.",
         "input_schema": {
             "type": "object",
             "properties": {"location": {"type": "string", "description": "Optional weather location override"}},

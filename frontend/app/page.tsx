@@ -240,7 +240,9 @@ export default function Home() {
   // is never deduplicated against an earlier one), then speak the reply.
   async function runBriefing() {
     if (loading) return;
-    const reply = await sendMessage(briefingGreeting(), { fresh: true });
+    // Explicit briefing ask (not a bare greeting): "good evening" alone reads as chit-chat, only
+    // "good morning" cued get_briefing. The greeting still leads so the spoken reply matches the clock.
+    const reply = await sendMessage(`${briefingGreeting()}. Brief me on my day.`, { fresh: true });
     if (reply) {
       setVoiceState("speaking");
       try {

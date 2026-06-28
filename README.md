@@ -43,6 +43,9 @@ particle-sphere orb and three switchable **skins**.
   client brief and your style from the vault, then writes a coherent multi-stage email/WhatsApp
   (Meta WABA template) journey, ad copy + a creative brief, or landing/funnel copy. Copy only —
   nothing is sent; "save that" drops it into the vault's Drafts tab.
+- **She keeps your to-do list** *(M6)* — "add *X* to my to-do", "what's on my list", "mark *X* done"
+  by voice or chat; the **Today's Focus** card edits the same list. Stored as a checklist in your
+  Obsidian vault (`Todos.md`), so it syncs there too.
 
 **Coming next**: WhatsApp (personal + business), then proactivity + message triage (M7). See `JARVIS_PRD.md`.
 

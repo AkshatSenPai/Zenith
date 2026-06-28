@@ -29,11 +29,6 @@ export const tomorrowEvents: CalEvent[] = [
 
 export const dayStats = { meetings: 3, unread: 5, drafts: 2 };
 
-export const focus = {
-  title: "Send Shadnagar Heights the revised proposal",
-  pending: 3,
-};
-
 export type QuickAction = { id: string; label: string; milestone: string };
 export const quickActions: QuickAction[] = [
   { id: "proposal", label: "Draft proposal", milestone: "M6" },

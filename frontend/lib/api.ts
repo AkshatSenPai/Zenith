@@ -211,3 +211,40 @@ export async function getTelegramStatus(): Promise<TelegramStatus | null> {
     return null;
   }
 }
+
+export type Todo = { index: number; text: string; done: boolean };
+
+/** The owner's to-do list. null = backend unreachable; [] = none yet. */
+export async function getTodos(): Promise<Todo[] | null> {
+  try {
+    const res = await apiFetch("/todos");
+    if (!res.ok) return null;
+    return ((await res.json()).todos ?? []) as Todo[];
+  } catch {
+    return null;
+  }
+}
+
+async function mutateTodos(path: string, init: RequestInit): Promise<Todo[] | null> {
+  try {
+    const res = await apiFetch(path, init);
+    if (!res.ok) return null;
+    return ((await res.json()).todos ?? []) as Todo[];
+  } catch {
+    return null;
+  }
+}
+
+const JSON_HEADERS = { "Content-Type": "application/json" };
+
+export function addTodo(text: string): Promise<Todo[] | null> {
+  return mutateTodos("/todos", { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ text }) });
+}
+
+export function setTodoDone(index: number, done: boolean): Promise<Todo[] | null> {
+  return mutateTodos(`/todos/${index}`, { method: "PATCH", headers: JSON_HEADERS, body: JSON.stringify({ done }) });
+}
+
+export function removeTodo(index: number): Promise<Todo[] | null> {
+  return mutateTodos(`/todos/${index}`, { method: "DELETE" });
+}

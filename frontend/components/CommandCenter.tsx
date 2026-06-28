@@ -94,7 +94,7 @@ export function CommandCenter({
 
   return (
     <div
-      className="panel relative flex w-full min-h-0 max-w-2xl flex-col transition-[flex-grow] duration-300 ease-out"
+      className="panel relative flex w-full min-h-0 max-w-2xl flex-col transition-[flex-grow] duration-500 ease-out"
       style={{ flexGrow: expanded ? 1 : 0 }}
     >
       <CardBrackets cls="border-zenith-cyan/30" />
@@ -137,7 +137,7 @@ export function CommandCenter({
       </div>
 
       {/* response surface — grows in when there's a conversation, collapses otherwise */}
-      <div className={`overflow-hidden transition-all duration-300 ease-out ${expanded && !empty ? "flex-1 min-h-0 opacity-100" : "max-h-0 flex-none opacity-0"}`}>
+      <div className={`overflow-hidden transition-all duration-500 ease-out ${expanded && !empty ? "flex-1 min-h-0 opacity-100" : "max-h-0 flex-none opacity-0"}`}>
         <div className="hud-scroll h-full overflow-y-auto px-5 py-4">
           {cur.query && (
             <div className="mb-3 flex gap-2 font-mono text-xs text-zenith-text/55">
@@ -185,7 +185,7 @@ export function CommandCenter({
       )}
 
       {/* input row — collapses with the panel when minimized; reappears on restore (§3) */}
-      <div className={`overflow-hidden transition-all duration-300 ease-out ${minimized ? "max-h-0 opacity-0" : "max-h-28 opacity-100"}`}>
+      <div className={`overflow-hidden transition-all duration-500 ease-out ${minimized ? "max-h-0 opacity-0" : "max-h-28 opacity-100"}`}>
       <div className="flex items-center gap-2.5 border-t border-zenith-cyan/15 px-3 py-2.5">
         <button
           type="button"

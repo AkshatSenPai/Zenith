@@ -15,6 +15,7 @@ import copy_factory
 import discord_service
 import google_service
 import news_service
+import todo_service
 import vault_service
 import weather_service
 
@@ -291,6 +292,35 @@ def _draft_ad_copy(i: dict) -> str:
 
 def _draft_landing_copy(i: dict) -> str:
     return copy_factory.build_landing_brief(i.get("client_or_brief", ""), i.get("language", "en"))
+
+
+# ---------- to-do executors (vault-backed; local writes — never gated) ----------
+
+def _todo_line(t: dict) -> str:
+    return f"- [{'x' if t['done'] else ' '}] {t['text']}"
+
+
+def _add_todo(i: dict) -> str:
+    text = (i.get("text") or "").strip()
+    if not text:
+        return "add_todo needs the to-do text."
+    todo_service.add_todo(text)
+    return f"Added to your to-do list: {text}"
+
+
+def _list_todos(i: dict) -> str:
+    todos = todo_service.list_todos()
+    if not todos:
+        return "Your to-do list is empty."
+    return "Your to-dos:\n" + "\n".join(_todo_line(t) for t in todos)
+
+
+def _complete_todo(i: dict) -> str:
+    task = (i.get("task") or "").strip()
+    if not task:
+        return "complete_todo needs which task to mark done."
+    done = todo_service.complete_by_text(task)
+    return f"Marked done: {done['text']}" if done else f"Couldn't find an open to-do matching '{task}'."
 
 
 _ISO_HINT = "ISO 8601 local datetime, e.g. 2026-06-26T16:00:00"
@@ -571,6 +601,25 @@ TOOLS = [
             "required": ["client_or_brief"],
         },
     },
+    {
+        "name": "add_todo",
+        "description": "Add an item to the owner's personal to-do list (a local Markdown checklist in "
+        "the vault). Use when the owner says 'add X to my to-do/list', 'remind me to X', 'put X on my "
+        "list'. Runs immediately; no confirmation (local, reversible).",
+        "input_schema": {"type": "object", "properties": {"text": {"type": "string", "description": "The to-do text"}}, "required": ["text"]},
+    },
+    {
+        "name": "list_todos",
+        "description": "Read the owner's personal to-do list. Use for 'what's on my to-do list', "
+        "'what do I have to do', 'my tasks'.",
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "complete_todo",
+        "description": "Mark an item on the owner's to-do list as done, matched by text. Use for "
+        "'mark X done', 'I finished X', 'check off X', 'X is done'.",
+        "input_schema": {"type": "object", "properties": {"task": {"type": "string", "description": "A word or phrase identifying which to-do to complete"}}, "required": ["task"]},
+    },
 ]
 
 # Action tools require user confirmation before running (the existing confirm gate).
@@ -619,6 +668,9 @@ _EXECUTORS = {
     "draft_sequence": _draft_sequence,
     "draft_ad_copy": _draft_ad_copy,
     "draft_landing_copy": _draft_landing_copy,
+    "add_todo": _add_todo,
+    "list_todos": _list_todos,
+    "complete_todo": _complete_todo,
 }
 
 
@@ -648,6 +700,12 @@ def _activity_target(name: str, i: dict) -> str:
         return i.get("folder", "all")
     if name in ("draft_sequence", "draft_ad_copy", "draft_landing_copy"):
         return (i.get("client_or_brief", "") or "")[:40]
+    if name == "add_todo":
+        return (i.get("text", "") or "")[:40]
+    if name == "complete_todo":
+        return (i.get("task", "") or "")[:40]
+    if name == "list_todos":
+        return ""
     return ""
 
 

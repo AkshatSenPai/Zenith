@@ -73,3 +73,27 @@ def test_non_checklist_lines_preserved(_vault):
     raw = (_vault / "Todos.md").read_text(encoding="utf-8")
     assert "# My list" in raw and "some note" in raw
     assert "- [x] keep me" in raw and "- [ ] new one" in raw
+
+
+# ---------- Task 3: tools ----------
+
+import tools  # noqa: E402
+
+
+def test_todo_tools_registered_not_gated(_vault):
+    for t in ("add_todo", "list_todos", "complete_todo"):
+        assert t in tools._EXECUTORS
+        assert t not in tools.ACTION_TOOLS         # local writes — never gated
+        assert t not in tools.UNTRUSTED_TOOLS      # owner's own to-dos are trusted
+
+
+def test_add_and_list_tools(_vault):
+    assert "Added to your to-do list: Pay GST" in tools.run_tool("add_todo", {"text": "Pay GST"})
+    listed = tools.run_tool("list_todos", {})
+    assert "Pay GST" in listed and "- [ ]" in listed
+
+
+def test_complete_tool(_vault):
+    tools.run_tool("add_todo", {"text": "Call Rahul"})
+    assert "Marked done: Call Rahul" in tools.run_tool("complete_todo", {"task": "rahul"})
+    assert tools.run_tool("complete_todo", {"task": "ghost"}).startswith("Couldn't find")

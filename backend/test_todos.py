@@ -97,3 +97,21 @@ def test_complete_tool(_vault):
     tools.run_tool("add_todo", {"text": "Call Rahul"})
     assert "Marked done: Call Rahul" in tools.run_tool("complete_todo", {"task": "rahul"})
     assert tools.run_tool("complete_todo", {"task": "ghost"}).startswith("Couldn't find")
+
+
+# ---------- Task 4: HTTP routes ----------
+
+def test_todo_routes(_vault, monkeypatch):
+    from fastapi.testclient import TestClient
+    import main
+    monkeypatch.delenv("ZENITH_API_TOKEN", raising=False)  # importing main runs load_dotenv → re-clear
+
+    c = TestClient(main.app)
+    assert c.get("/todos").json()["todos"] == []
+    added = c.post("/todos", json={"text": "Review ad set"}).json()["todos"]
+    assert added[0]["text"] == "Review ad set" and added[0]["done"] is False
+    done = c.patch("/todos/0", json={"done": True}).json()["todos"]
+    assert done[0]["done"] is True
+    assert c.patch("/todos/9", json={"done": True}).status_code == 404
+    assert c.post("/todos", json={"text": "  "}).status_code == 400
+    assert c.delete("/todos/0").json()["todos"] == []

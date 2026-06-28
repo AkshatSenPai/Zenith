@@ -15,6 +15,7 @@ import google_auth
 import google_service
 import secure_files
 import telegram_service
+import todo_service
 import vault_service
 from stt_service import active_config, transcribe_audio, warm as warm_stt
 from tts_service import active_tts_config, synthesize
@@ -117,6 +118,14 @@ class SpeakRequest(BaseModel):
 
 class DisconnectRequest(BaseModel):
     email: str | None = None
+
+
+class TodoAdd(BaseModel):
+    text: str
+
+
+class TodoSet(BaseModel):
+    done: bool
 
 
 class ChatResponse(BaseModel):
@@ -252,6 +261,38 @@ def vault_note(path: str) -> dict:
         return {"found": False, "path": path, "title": "", "content": ""}
     from pathlib import Path as _P
     return {"found": True, "path": path, "title": _P(path).stem, "content": body}
+
+
+# ---------- to-dos: the HUD "Today's Focus" card (shares todo_service with the to-do tools) ----------
+
+@app.get("/todos")
+def todos_list() -> dict:
+    """The owner's to-do list for the HUD 'Today's Focus' card."""
+    return {"todos": todo_service.list_todos()}
+
+
+@app.post("/todos")
+def todos_add(req: TodoAdd) -> dict:
+    try:
+        return {"todos": todo_service.add_todo(req.text)}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.patch("/todos/{index}")
+def todos_set(index: int, req: TodoSet) -> dict:
+    try:
+        return {"todos": todo_service.set_done(index, req.done)}
+    except IndexError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.delete("/todos/{index}")
+def todos_remove(index: int) -> dict:
+    try:
+        return {"todos": todo_service.remove(index)}
+    except IndexError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 # ---------- chat: the HUD route. The same chat_core is shared with the Telegram remote. ----------

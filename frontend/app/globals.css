@@ -460,7 +460,10 @@ body {
    chain to 100% lets CSS scale it smoothly with the wrapper; the GL buffer resolution catches up a
    frame later (a momentary softness, no position jump or drift). */
 .orb-canvas,
-.orb-canvas > div,
+.orb-canvas > div:has(> canvas), /* ONLY the canvas container — NOT the drei <Html> node-label
+                                    portals (also .orb-canvas > div, z-index ~16M): forcing those to
+                                    100% turned them into full-size overlays that covered the Command
+                                    Center and ate clicks (the collapse icon went dead). */
 .orb-canvas canvas {
   width: 100% !important;
   height: 100% !important;

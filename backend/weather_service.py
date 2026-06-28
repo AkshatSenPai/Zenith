@@ -26,12 +26,26 @@ def _round(value):
     return round(value) if value is not None else None
 
 
+def _query() -> tuple[dict, str]:
+    """OWM query params + a label for messages. Precedence: an explicit caller location wins (handled
+    by get_weather); else hyperlocal WEATHER_LAT/WEATHER_LON (the owner's exact spot, e.g. Jangpura
+    rather than the Delhi centroid); else WEATHER_DEFAULT_LOCATION; else the built-in default."""
+    lat, lon = os.getenv("WEATHER_LAT"), os.getenv("WEATHER_LON")
+    if lat and lon:
+        return {"lat": lat, "lon": lon}, f"{lat},{lon}"
+    loc = os.getenv("WEATHER_DEFAULT_LOCATION") or _DEFAULT_LOCATION
+    return {"q": loc}, loc
+
+
 def get_weather(location: str | None = None) -> dict:
     key = os.getenv("WEATHER_API_KEY")
-    loc = location or os.getenv("WEATHER_DEFAULT_LOCATION") or _DEFAULT_LOCATION
     if not key:
         raise WeatherUnavailable("Weather unavailable — set WEATHER_API_KEY in backend/.env.")
-    resp = requests.get(_API, params={"q": loc, "appid": key, "units": "metric"}, timeout=10)
+    if location:
+        query, loc = {"q": location}, location
+    else:
+        query, loc = _query()
+    resp = requests.get(_API, params={**query, "appid": key, "units": "metric"}, timeout=10)
     if resp.status_code == 401:
         raise WeatherUnavailable("Weather API key rejected (401) — check WEATHER_API_KEY.")
     if resp.status_code == 404:

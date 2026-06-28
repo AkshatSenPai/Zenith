@@ -7,6 +7,8 @@ import { quickActions, dayStats } from "../lib/mock";
 const PREFILL: Record<string, string> = {
   email: "Draft an email to ",
   event: "Add to my calendar: ",
+  proposal: "Draft a proposal for ",
+  note: "Note that ",
 };
 
 export function QuickActions({

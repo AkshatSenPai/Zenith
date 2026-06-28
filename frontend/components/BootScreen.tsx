@@ -3,9 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
-import { connections } from "../lib/mock";
 import { DUR, EASE, prefersReducedMotion } from "../lib/anim";
-import { apiFetch } from "../lib/api";
+import { apiFetch, getGoogleStatus, getDiscordStatus, getTelegramStatus } from "../lib/api";
 
 /** Cinematic boot overlay. The real HUD mounts underneath immediately (so its WebGL orb
  *  warms up hidden), this covers it, plays a GSAP boot sequence, then dissolves to reveal
@@ -21,13 +20,15 @@ export function BootScreen({ onDone }: { onDone: () => void }) {
 
   // null = still checking; resolves to "online"/"offline" (or 1.2s timeout → offline).
   const [health, setHealth] = useState<"online" | "offline" | null>(null);
+  // Real linked-connection count (Gmail/Calendar/Telegram/Discord) — set together with `health`.
+  const [linked, setLinked] = useState(0);
+  const TOTAL = 4;
 
-  const linked = connections.filter((c) => c.connected).length;
   const lines = [
     "> INITIALIZING ZENITH",
     "> INTERFACE .......... ok",
     `> BACKEND :8000 ...... ${health ?? "...."}`,
-    `> CONNECTIONS ........ ${linked}/${connections.length} linked`,
+    `> CONNECTIONS ........ ${linked}/${TOTAL} linked`,
     "> READY",
   ];
 
@@ -37,16 +38,27 @@ export function BootScreen({ onDone }: { onDone: () => void }) {
     onDone();
   }
 
-  // Real backend check (raced against a 1.2s timeout so a dead backend can't hang the boot).
+  // Real backend + connection check, raced against a 1.2s timeout so a dead backend can't hang the
+  // boot. health + the linked count resolve in one batch so the typewriter prints the true "N/4".
   useEffect(() => {
     let settled = false;
-    const t = setTimeout(() => {
-      if (!settled) { settled = true; setHealth("offline"); }
-    }, 1200);
-    apiFetch("/health")
-      .then((r) => (r.ok ? r : Promise.reject()))
-      .then(() => { if (!settled) { settled = true; clearTimeout(t); setHealth("online"); } })
-      .catch(() => { if (!settled) { settled = true; clearTimeout(t); setHealth("offline"); } });
+    const finish = (h: "online" | "offline", n: number) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(t);
+      setLinked(n);
+      setHealth(h);
+    };
+    const t = setTimeout(() => finish("offline", 0), 1200);
+    Promise.all([
+      apiFetch("/health").then((r) => r.ok).catch(() => false),
+      getGoogleStatus(),
+      getDiscordStatus(),
+      getTelegramStatus(),
+    ]).then(([ok, g, d, tg]) => {
+      const n = [g?.gmail_connected, g?.calendar_connected, tg?.connected, d?.connected].filter(Boolean).length;
+      finish(ok ? "online" : "offline", n);
+    });
     return () => { settled = true; clearTimeout(t); };
   }, []);
 

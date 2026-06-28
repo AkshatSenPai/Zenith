@@ -453,6 +453,19 @@ body {
   transform: scale(0.97);
 }
 
+/* The orb's WebGL canvas must visually FILL its (animating) wrapper. three.js's gl.setSize writes
+   explicit px sizes on the r3f container divs AND the <canvas>, updated only by a lagging
+   ResizeObserver — so during the orb's width transition the fixed-size canvas rode the wrapper's left
+   edge and then SNAPPED to full size (the "drifts left, then enlarges" jank). Forcing the whole r3f
+   chain to 100% lets CSS scale it smoothly with the wrapper; the GL buffer resolution catches up a
+   frame later (a momentary softness, no position jump or drift). */
+.orb-canvas,
+.orb-canvas > div,
+.orb-canvas canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
 /* ---------- motion keyframes ---------- */
 @keyframes core-bloom {
   0%, 100% { opacity: 0.85; transform: scale(0.97); }

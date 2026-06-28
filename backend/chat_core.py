@@ -39,23 +39,31 @@ def _finish(working: list, outcome: dict, channel: str, warning: str | None = No
     return pending
 
 
-def process_chat(message: str, channel: str = "hud") -> dict:
+def process_chat(message: str, channel: str = "hud", fresh: bool = False) -> dict:
     """Run one user message through the loop for a channel. Returns {reply,warning} OR
-    {pending,tool,id,warning}. Raises ValueError (empty) / RateLimited / ClaudeUnavailable."""
+    {pending,tool,id,warning}. Raises ValueError (empty) / RateLimited / ClaudeUnavailable.
+
+    fresh=True (the morning briefing) hides the channel's prior history from Claude for THIS turn, so a
+    briefing is never deduplicated against an earlier one ("already said good morning — scroll up").
+    Prior history is still preserved and the fresh turn appended, so follow-ups keep their context."""
     message = message.strip()
     if not message:
         raise ValueError("Message is empty.")
     allowed, reason, warning = limiter.check_request()
     if not allowed:
         raise RateLimited(reason)
-    working = memory_service.snapshot(channel) + [{"role": "user", "content": message}]
+    prior = memory_service.snapshot(channel)
+    working = ([] if fresh else prior) + [{"role": "user", "content": message}]
     try:
         outcome = run_loop(working, limiter)
     except BudgetExceeded as exc:
         raise RateLimited(str(exc)) from exc
     except anthropic.APIError as exc:
         raise ClaudeUnavailable(f"Claude API error: {exc}") from exc
-    return _finish(working, outcome, channel, warning)
+    # On a fresh turn Claude saw only `working`; re-attach the prior history before committing so the
+    # stored thread stays continuous (and any pending action resumes with full context).
+    committed = (prior + working) if fresh else working
+    return _finish(committed, outcome, channel, warning)
 
 
 def process_confirm(action_id: str, approved: bool) -> dict:

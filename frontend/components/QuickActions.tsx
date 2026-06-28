@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { quickActions, dayStats } from "../lib/mock";
+import { briefingGreeting } from "../lib/greeting";
 
 // Starter prompts for the now-real M3 actions; they prefill the Command Center input.
 const PREFILL: Record<string, string> = {
@@ -35,12 +36,12 @@ export function QuickActions({
     <section className="relative z-10 p-4">
       <div className="mb-2.5 font-mono text-[10px] uppercase tracking-widest text-zenith-cyan/70">Quick Actions</div>
 
-      {/* Good morning — runs the spoken briefing (events + unread + weather) */}
+      {/* Greeting (time-aware) — runs the spoken briefing (events + unread + weather) */}
       <button
         onClick={onBriefing}
         className="panel panel-hover press relative mb-2 flex w-full items-center justify-between px-3 py-2.5 text-left"
       >
-        <span className="font-mono text-[11px] text-zenith-text/85">Good morning</span>
+        <span className="font-mono text-[11px] text-zenith-text/85">{briefingGreeting()}</span>
         <span className="font-mono text-[8px] uppercase tracking-widest text-zenith-cyan/70">briefing</span>
       </button>
 

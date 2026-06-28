@@ -105,6 +105,7 @@ async def _stop_telegram() -> None:
 
 class ChatRequest(BaseModel):
     message: str
+    fresh: bool = False  # briefing: ignore prior chat history for this turn (always-fresh)
 
 
 class ConfirmRequest(BaseModel):
@@ -300,7 +301,7 @@ def todos_remove(index: int) -> dict:
 @app.post("/chat", response_model=ChatResponse, response_model_exclude_none=True)
 def chat(req: ChatRequest) -> ChatResponse:
     try:
-        return ChatResponse(**chat_core.process_chat(req.message, "hud"))
+        return ChatResponse(**chat_core.process_chat(req.message, "hud", fresh=req.fresh))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except chat_core.RateLimited as exc:

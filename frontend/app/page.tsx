@@ -23,6 +23,7 @@ import { StatusLabel } from "../components/StatusLabel";
 import { useSkin } from "../components/SkinProvider";
 import { SettingsView } from "../components/SettingsView";
 import { VaultView } from "../components/VaultView";
+import { briefingGreeting } from "../lib/greeting";
 
 type PendingAction = { id: string; tool: string; input: Record<string, unknown>; untrusted?: boolean };
 
@@ -199,7 +200,7 @@ export default function Home() {
     }
   }
 
-  async function sendMessage(textArg?: string): Promise<string | null> {
+  async function sendMessage(textArg?: string, opts?: { fresh?: boolean }): Promise<string | null> {
     const text = (textArg ?? input).trim();
     if (!text || loading) return null;
     setError(null);
@@ -211,7 +212,7 @@ export default function Home() {
       const res = await apiFetch("/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text }),
+        body: JSON.stringify({ message: text, fresh: opts?.fresh ?? false }),
       });
       if (res.status === 429) {
         const d = await res.json().catch(() => ({}));
@@ -235,10 +236,11 @@ export default function Home() {
     }
   }
 
-  // "Good morning" → run the briefing prompt through the normal loop, then speak the reply.
+  // The greeting button → run the briefing FRESH (fresh:true ignores prior chat history so a briefing
+  // is never deduplicated against an earlier one), then speak the reply.
   async function runBriefing() {
     if (loading) return;
-    const reply = await sendMessage("good morning");
+    const reply = await sendMessage(briefingGreeting(), { fresh: true });
     if (reply) {
       setVoiceState("speaking");
       try {

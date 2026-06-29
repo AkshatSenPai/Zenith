@@ -13,26 +13,16 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Html } from "@react-three/drei";
 import { EffectComposer, Bloom } from "@react-three/postprocessing";
 import * as THREE from "three";
-import type { Connection } from "../lib/mock";
 import type { OrbState, ZenithOrbProps } from "./ZenithOrb";
 import { useSkin } from "./SkinProvider";
 
 const SHELL_RATIO = 0.6; // mostly a soft surface shell; the rest concentrate toward the centre
 
-type Anchor = { channel: Connection["channel"]; pos: [number, number, number] };
-// Fixed cardinal anchors around the sphere — they do NOT rotate with the cloud.
-// All four at the SAME radius so they sit symmetrically INSIDE the camera frustum
-// (the old ±1.98 left/right anchors fell outside it, so Calendar/Discord were off-screen).
-const ANCHOR_R = 1.45;
-const ANCHORS: Anchor[] = [
-  { channel: "Gmail", pos: [0, ANCHOR_R, 0] },
-  { channel: "Calendar", pos: [ANCHOR_R, 0, 0] },
-  { channel: "Telegram", pos: [0, -ANCHOR_R, 0] }, // WhatsApp parked — Telegram takes the bottom slot
-  { channel: "Discord", pos: [-ANCHOR_R, 0, 0] },
-];
+// Connection-node labels are now CSS-positioned chips around the orb box (ZenithOrb.tsx), not
+// 3D-anchored drei <Html> — that 3D projection is what used to drift/snap while the orb resized.
+// The particle sphere itself no longer carries anchors or spokes.
 
 /** Aggregate the live frequency bars into a single 0–1 amplitude. */
 function ampFromBars(bars: number[]): number {
@@ -297,67 +287,6 @@ const NET_LINE_FRAG = /* glsl */ `
   precision mediump float; uniform vec3 uColor; uniform float uOpacity;
   void main(){ gl_FragColor = vec4(uColor, uOpacity); }`;
 
-/** Faint spoke from the sphere surface out to a connected anchor (connection map). */
-function Spoke({ anchor, color }: { anchor: Anchor; color: string }) {
-  const obj = useMemo(() => {
-    const v = new THREE.Vector3(...anchor.pos);
-    const dir = v.clone().normalize();
-    const geo = new THREE.BufferGeometry().setFromPoints([
-      dir.clone().multiplyScalar(1.02),
-      dir.clone().multiplyScalar(v.length() - 0.3),
-    ]);
-    const mat = new THREE.LineBasicMaterial({
-      color: new THREE.Color(color),
-      transparent: true,
-      opacity: 0.22,
-      depthWrite: false,
-      depthTest: false,
-    });
-    return new THREE.Line(geo, mat);
-  }, [anchor, color]);
-  useEffect(() => () => {
-    obj.geometry.dispose();
-    (obj.material as THREE.Material).dispose();
-  }, [obj]);
-  return <primitive object={obj} />;
-}
-
-/** Labelled connection anchors around the sphere — lit when connected, dim when not.
- *  Label/dot colors theme via Tailwind `*-zenith-cyan`; the inline glows + spoke use the
- *  accent CSS var / token so Amethyst recolors automatically. */
-function Anchors({ connections, color }: { connections: Connection[]; color: string }) {
-  return (
-    <>
-      {ANCHORS.map((a) => {
-        const on = !!connections.find((c) => c.channel === a.channel)?.connected;
-        return (
-          <group key={a.channel}>
-            {on && <Spoke anchor={a} color={color} />}
-            <Html position={a.pos} center style={{ pointerEvents: "none" }}>
-              <div
-                className={`flex select-none items-center gap-1.5 whitespace-nowrap rounded-sm border px-2 py-1 font-mono text-[9px] uppercase tracking-[0.18em] transition-colors duration-500 ${
-                  on
-                    ? "border-zenith-cyan/40 bg-black/55 text-zenith-cyan"
-                    : "border-zenith-text/15 bg-black/40 text-zenith-text/40"
-                }`}
-                style={on ? { boxShadow: "0 0 12px rgb(var(--zenith-cyan) / 0.18)" } : undefined}
-              >
-                <span
-                  className={`inline-block h-1.5 w-1.5 rounded-full ${
-                    on ? "bg-zenith-cyan" : "bg-transparent ring-1 ring-zenith-text/30"
-                  }`}
-                  style={on ? { boxShadow: "0 0 6px rgb(var(--zenith-cyan) / 0.9)" } : undefined}
-                />
-                {a.channel}
-              </div>
-            </Html>
-          </group>
-        );
-      })}
-    </>
-  );
-}
-
 /** Ghost ink web: dark nodes + neighbour lines, normal blending, no bloom, no anchors.
  *  "Brighter" on speech/listen = a touch more opacity (it's ink, never a colour/glow). */
 function NetworkOrb({ state, bars }: { state: OrbState; bars: number[] }) {
@@ -464,7 +393,7 @@ function NetworkOrb({ state, bars }: { state: OrbState; bars: number[] }) {
   );
 }
 
-function SceneContents({ state = "idle", connections = [], bars = [] }: ZenithOrbProps) {
+function SceneContents({ state = "idle", bars = [] }: ZenithOrbProps) {
   const { gl } = useThree();
   const { skin } = useSkin();
 
@@ -595,7 +524,6 @@ function SceneContents({ state = "idle", connections = [], bars = [] }: ZenithOr
           opacity={0.55}
         />
       </sprite>
-      <Anchors connections={connections} color={tokens.color} />
       <EffectComposer>
         {/* threshold > 0 so ONLY the bright core blooms — the dim shell stays crisp points
             (this is what stops the whole ball glowing and the glow clipping to a square). */}

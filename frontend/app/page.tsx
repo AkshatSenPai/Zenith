@@ -26,6 +26,7 @@ import { BootScreen } from "../components/BootScreen";
 import { AmbientBackground } from "../components/AmbientBackground";
 import { StatusLabel } from "../components/StatusLabel";
 import { Waveform } from "../components/Waveform";
+import { CommandPalette } from "../components/CommandPalette";
 import { SettingsView } from "../components/SettingsView";
 import { briefingGreeting } from "../lib/greeting";
 
@@ -60,6 +61,7 @@ function buildConnections(g: GoogleStatus | null, d: DiscordStatus | null, t: Te
 export default function Home() {
   const [booting, setBooting] = useState(true);
   const [view, setView] = useState<View>("chat");
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -292,17 +294,22 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Push-to-talk: hold Space to record (ignored while typing in the text box).
+  // Push-to-talk: hold Space to record. Ignored while typing in ANY text field (the command
+  // center input, the ⌘K palette search, etc.) so Space types a space there instead of recording.
   useEffect(() => {
+    const isTyping = () => {
+      const el = document.activeElement as HTMLElement | null;
+      return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
+    };
     function onKeyDown(e: KeyboardEvent) {
       if (e.code !== "Space" || e.repeat) return;
-      if (document.activeElement === inputRef.current) return; // typing a space
+      if (isTyping()) return;
       e.preventDefault();
       void startListening();
     }
     function onKeyUp(e: KeyboardEvent) {
       if (e.code !== "Space") return;
-      if (document.activeElement === inputRef.current) return;
+      if (isTyping()) return;
       void stopListening();
     }
     window.addEventListener("keydown", onKeyDown);
@@ -312,6 +319,18 @@ export default function Home() {
       window.removeEventListener("keyup", onKeyUp);
     };
   }, [startListening, stopListening]);
+
+  // ⌘K / Ctrl-K toggles the command palette from anywhere.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPaletteOpen((o) => !o);
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   async function resolvePending(approved: boolean) {
     if (!pending || loading) return;
@@ -371,13 +390,37 @@ export default function Home() {
     <div className="relative flex h-screen flex-col overflow-hidden text-zenith-text">
       {booting && <BootScreen onDone={() => setBooting(false)} />}
 
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        onNavigate={(v) => {
+          setView(v);
+          setPaletteOpen(false);
+        }}
+        onAction={(a) => {
+          setPaletteOpen(false);
+          setView("chat");
+          if (a === "briefing") {
+            void runBriefing();
+            return;
+          }
+          const prefills: Record<string, string> = {
+            email: "Draft an email to ",
+            proposal: "Draft a proposal for ",
+            event: "Add to my calendar: ",
+            note: "Note that ",
+          };
+          if (prefills[a]) prefillInput(prefills[a]);
+        }}
+      />
+
       {/* ambient depth layers (behind content) — v7 field + scanline + vignette */}
       <AmbientBackground />
       <div className="amb-scanline" />
       <div className="amb-vignette" />
       <HexCorners />
 
-      <TopBar />
+      <TopBar onOpenPalette={() => setPaletteOpen(true)} />
       <MonthRuler />
 
       {/* main row: icon strip · left rail · center router · right rail — one layout for all skins */}

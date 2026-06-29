@@ -18,6 +18,7 @@ import { ActivityLog } from "../components/ActivityLog";
 import { CommandCenter, type Message } from "../components/CommandCenter";
 import { MemoryView } from "../components/MemoryView";
 import { NotesView } from "../components/NotesView";
+import { ClientsView } from "../components/ClientsView";
 import { UsagePanel } from "../components/UsagePanel";
 import { StatusCard } from "../components/StatusCard";
 import { HexCorners } from "../components/hud/primitives";
@@ -26,7 +27,6 @@ import { AmbientBackground } from "../components/AmbientBackground";
 import { StatusLabel } from "../components/StatusLabel";
 import { Waveform } from "../components/Waveform";
 import { SettingsView } from "../components/SettingsView";
-import { VaultView } from "../components/VaultView";
 import { briefingGreeting } from "../lib/greeting";
 
 type PendingAction = { id: string; tool: string; input: Record<string, unknown>; untrusted?: boolean };
@@ -441,7 +441,7 @@ export default function Home() {
           ) : view === "memory" ? (
             <MemoryView />
           ) : view === "clients" ? (
-            <VaultView mode="clients" title="Clients" />
+            <ClientsView />
           ) : view === "notes" ? (
             <NotesView />
           ) : (

@@ -6,6 +6,8 @@ import { getCalendarEvents, type ApiCalEvent } from "../lib/api";
 type Data = { connected: boolean; today: ApiCalEvent[]; tomorrow: ApiCalEvent[] };
 type Phase = "loading" | "offline" | "ready";
 
+// v7 compact Schedule card (left rail). Data wiring (/calendar/events, 60s refresh, phases) is
+// unchanged from before — only the presentation is v7.
 export function CalendarPanel() {
   const [now] = useState(() => new Date());
   const [phase, setPhase] = useState<Phase>("loading");
@@ -39,21 +41,21 @@ export function CalendarPanel() {
   const weekday = now.toLocaleDateString("en-GB", { weekday: "long" });
 
   return (
-    <aside className="relative z-10 flex flex-col gap-4 p-4">
-      <div className="flex items-center gap-3">
-        <div className="panel relative flex h-14 w-14 flex-col items-center justify-center">
-          <span className="font-display text-2xl font-bold leading-none tabular-nums text-zenith-cyan">{day}</span>
-          <span className="font-mono text-[8px] tracking-widest text-zenith-text/50">{month}</span>
+    <section className="flex flex-col gap-4 p-[18px]">
+      <div className="flex items-start gap-3.5">
+        <div className="rounded-md border border-zenith-cyan/25 bg-zenith-cyan/[0.04] px-3 py-1.5 text-center">
+          <div className="font-mono text-[28px] font-semibold leading-none tabular-nums text-zenith-hi">{day}</div>
+          <div className="mt-0.5 font-mono text-[9px] tracking-[0.2em] text-zenith-cyan">{month}</div>
         </div>
-        <div>
-          <div className="font-mono text-[10px] uppercase tracking-widest text-zenith-cyan/70">Schedule</div>
-          <div className="font-body text-xs text-zenith-text/65">{weekday}</div>
+        <div className="pt-0.5">
+          <div className="mb-1.5 font-mono text-[9px] uppercase tracking-[0.2em] text-zenith-dim">Schedule</div>
+          <div className="text-[17px] font-semibold text-zenith-hi">{weekday}</div>
         </div>
       </div>
 
       {phase === "loading" ? (
         <Section title="Today">
-          <Skeleton rows={3} />
+          <Skeleton rows={2} />
         </Section>
       ) : phase === "offline" ? (
         <Notice text="Calendar unavailable — backend offline." onRetry={() => void load()} />
@@ -69,7 +71,7 @@ export function CalendarPanel() {
           </Section>
         </>
       )}
-    </aside>
+    </section>
   );
 }
 
@@ -91,7 +93,7 @@ function fmtDuration(start: string | null, end: string | null, allDay: boolean):
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="mb-1.5 font-mono text-[10px] uppercase tracking-widest text-zenith-cyan/70">{title}</div>
+      <div className="mb-2 font-mono text-[9px] uppercase tracking-[0.2em] text-zenith-dim">{title}</div>
       {children}
     </div>
   );
@@ -99,18 +101,20 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 function EventList({ events }: { events: ApiCalEvent[] }) {
   return (
-    <ul className="space-y-0.5">
+    <ul className="flex flex-col gap-1.5">
       {events.map((e) => {
         const secondary = e.location || (e.attendees.length ? `${e.attendees.length} guest${e.attendees.length > 1 ? "s" : ""}` : "");
         return (
-          <li key={e.id} className="press flex flex-col gap-0.5 rounded px-2 py-1.5 transition-colors hover:bg-zenith-cyan/[0.05]">
-            <div className="flex items-center gap-2">
-              <span className="h-2 w-2 shrink-0 rounded-full bg-zenith-cyan" />
-              <span className="font-mono text-[11px] tabular-nums text-zenith-cyan">{fmtTime(e.start, e.all_day)}</span>
-              <span className="font-mono text-[9px] text-zenith-text/35">{fmtDuration(e.start, e.end, e.all_day)}</span>
-              <span className="truncate font-body text-xs text-zenith-text/85">{e.title}</span>
+          <li key={e.id} className="flex items-start gap-2.5 rounded-md border border-zenith-line bg-zenith-panel px-2.5 py-2">
+            <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-zenith-cyan" />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-[10px] tabular-nums text-zenith-cyan">{fmtTime(e.start, e.all_day)}</span>
+                <span className="font-mono text-[9px] text-zenith-faint">{fmtDuration(e.start, e.end, e.all_day)}</span>
+                <span className="truncate text-[12px] text-zenith-mid">{e.title}</span>
+              </div>
+              {secondary && <span className="block truncate font-mono text-[9px] uppercase tracking-wide text-zenith-dim">{secondary}</span>}
             </div>
-            {secondary && <span className="truncate pl-4 font-mono text-[9px] uppercase tracking-wide text-zenith-text/35">{secondary}</span>}
           </li>
         );
       })}
@@ -120,26 +124,31 @@ function EventList({ events }: { events: ApiCalEvent[] }) {
 
 function Skeleton({ rows }: { rows: number }) {
   return (
-    <div className="space-y-2">
+    <div className="space-y-1.5">
       {Array.from({ length: rows }).map((_, i) => (
-        <div key={i} className="h-7 w-full animate-pulse rounded bg-zenith-cyan/[0.06]" />
+        <div key={i} className="h-9 w-full animate-pulse rounded-md bg-zenith-line2" />
       ))}
     </div>
   );
 }
 
 function Empty({ text }: { text: string }) {
-  return <div className="font-body text-xs text-zenith-text/35">{text}</div>;
+  return (
+    <div className="flex items-center gap-2.5 rounded-md border border-zenith-line bg-zenith-panel px-2.5 py-2">
+      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-zenith-faint" />
+      <span className="text-[11px] text-zenith-lo">{text}</span>
+    </div>
+  );
 }
 
 function Notice({ text, onRetry }: { text: string; onRetry?: () => void }) {
   return (
     <div className="flex items-center justify-between gap-3">
-      <span className="font-body text-xs text-zenith-text/40">{text}</span>
+      <span className="text-[11px] text-zenith-lo">{text}</span>
       {onRetry && (
         <button
           onClick={onRetry}
-          className="press rounded-sm border border-zenith-cyan/40 px-2 py-0.5 font-mono text-[9px] uppercase tracking-widest text-zenith-cyan/80 transition hover:border-zenith-cyan/70"
+          className="press shrink-0 rounded-sm border border-zenith-cyan/40 px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.15em] text-zenith-cyan/80 transition hover:border-zenith-cyan/70"
         >
           Retry
         </button>

@@ -17,6 +17,7 @@ import { FocusCard } from "../components/FocusCard";
 import { ActivityLog } from "../components/ActivityLog";
 import { CommandCenter, type Message } from "../components/CommandCenter";
 import { MemoryView } from "../components/MemoryView";
+import { NotesView } from "../components/NotesView";
 import { UsagePanel } from "../components/UsagePanel";
 import { StatusCard } from "../components/StatusCard";
 import { HexCorners } from "../components/hud/primitives";
@@ -442,7 +443,7 @@ export default function Home() {
           ) : view === "clients" ? (
             <VaultView mode="clients" title="Clients" />
           ) : view === "notes" ? (
-            <VaultView mode="recent" title="Notes" />
+            <NotesView />
           ) : (
             <SettingsView
               gstatus={gstatus}

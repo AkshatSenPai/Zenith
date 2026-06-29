@@ -39,6 +39,8 @@
   --line: rgba(120, 200, 200, 0.08);
   --line2: rgba(120, 200, 200, 0.16);
   --panel: rgba(255, 255, 255, 0.02);
+  --scanline-op: 0.5;
+  --vignette: radial-gradient(ellipse 70% 60% at 50% 48%, rgba(0, 0, 0, 0) 40%, rgba(0, 0, 0, 0.5) 100%);
 
   --orb-color: #00ffe5;
   --orb-cool: #39d6ff;
@@ -81,6 +83,8 @@
   --line: rgba(20, 60, 58, 0.12);
   --line2: rgba(20, 60, 58, 0.22);
   --panel: rgba(12, 32, 32, 0.03);
+  --scanline-op: 0;
+  --vignette: radial-gradient(ellipse 75% 65% at 50% 48%, rgba(0, 0, 0, 0) 55%, rgba(120, 140, 140, 0.13) 100%);
 
   --orb-color: #1a1a1c;
   --orb-cool: #4a4f57;
@@ -132,6 +136,8 @@
   --line: rgba(176, 108, 240, 0.12);
   --line2: rgba(176, 108, 240, 0.24);
   --panel: rgba(176, 108, 240, 0.05);
+  --scanline-op: 0.5;
+  --vignette: radial-gradient(ellipse 70% 60% at 50% 48%, rgba(0, 0, 0, 0) 35%, rgba(0, 0, 0, 0.55) 100%);
 
   --orb-color: #b26bff;
   --orb-cool: #8a6bff;
@@ -188,6 +194,24 @@
 [data-skin="amethyst"] .bento-cal { grid-area: cal; }
 [data-skin="amethyst"] .bento-activity { grid-area: activity; }
 [data-skin="amethyst"] .bento-cc { grid-area: cc; }
+
+/* v7 ambient overlays (scanline + vignette), token-driven so each skin tunes/disables them.
+   Parked at z-index -10 so they sit above the -20 ambient canvas but behind all HUD content. */
+.amb-scanline {
+  position: absolute;
+  inset: 0;
+  z-index: -10;
+  pointer-events: none;
+  background: repeating-linear-gradient(to bottom, rgb(var(--c-faint) / 0.06) 0 1px, transparent 1px 3px);
+  opacity: var(--scanline-op, 0.5);
+}
+.amb-vignette {
+  position: absolute;
+  inset: 0;
+  z-index: -10;
+  pointer-events: none;
+  background: var(--vignette, radial-gradient(ellipse 70% 60% at 50% 48%, transparent 40%, rgb(0 0 0 / 0.5) 100%));
+}
 
 html,
 body {

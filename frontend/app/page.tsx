@@ -19,6 +19,7 @@ import { UsagePanel } from "../components/UsagePanel";
 import { StatusCard } from "../components/StatusCard";
 import { HexCorners } from "../components/hud/primitives";
 import { BootScreen } from "../components/BootScreen";
+import { AmbientBackground } from "../components/AmbientBackground";
 import { StatusLabel } from "../components/StatusLabel";
 import { useSkin } from "../components/SkinProvider";
 import { SettingsView } from "../components/SettingsView";
@@ -381,9 +382,10 @@ export default function Home() {
     <div className="relative grid h-screen grid-rows-[auto_1fr] overflow-hidden text-zenith-text">
       {booting && <BootScreen onDone={() => setBooting(false)} />}
 
-      {/* ambient depth layers (behind content) */}
-      <div className="bg-aura" />
-      <div className="bg-grain" />
+      {/* ambient depth layers (behind content) — v7 field + scanline + vignette */}
+      <AmbientBackground />
+      <div className="amb-scanline" />
+      <div className="amb-vignette" />
       {!ghost && <HexCorners />}
 
       <TopBar minimal={ghost} />

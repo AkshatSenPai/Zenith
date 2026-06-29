@@ -23,6 +23,7 @@ import { HexCorners } from "../components/hud/primitives";
 import { BootScreen } from "../components/BootScreen";
 import { AmbientBackground } from "../components/AmbientBackground";
 import { StatusLabel } from "../components/StatusLabel";
+import { Waveform } from "../components/Waveform";
 import { SettingsView } from "../components/SettingsView";
 import { VaultView } from "../components/VaultView";
 import { briefingGreeting } from "../lib/greeting";
@@ -69,7 +70,6 @@ export default function Home() {
   const [usage, setUsage] = useState<Usage | null>(null);
   const [usageHistory, setUsageHistory] = useState<number[]>([]);
   const [usageError, setUsageError] = useState(false);
-  const [ccMinimized, setCcMinimized] = useState(false);
   const [gstatus, setGstatus] = useState<GoogleStatus | null>(null);
   const [dstatus, setDstatus] = useState<DiscordStatus | null>(null);
   const [tstatus, setTstatus] = useState<TelegramStatus | null>(null);
@@ -80,13 +80,6 @@ export default function Home() {
 
   // Live voice state wins; otherwise "thinking" while a request is in flight.
   const orbState: OrbState = voiceState !== "idle" ? voiceState : loading ? "thinking" : "idle";
-  const voiceCycle = orbState !== "idle"; // listening / thinking / speaking
-  const convo = messages.length > 0 || loading;
-  // Orb stays big while idle or during a voice round-trip (so you watch it react); it recedes
-  // to reveal the command center once there's a conversation to read. The CC grows to match.
-  // Minimizing the CC (§3) also hands the space back to the orb.
-  const orbBig = voiceCycle || !convo || ccMinimized;
-  const ccExpanded = convo && !voiceCycle && !ccMinimized;
   const connections = useMemo(() => buildConnections(gstatus, dstatus, tstatus), [gstatus, dstatus, tstatus]);
   // Whole-backend reachability from the /usage poll (runs every 5s, config-independent).
   const backendState: "loading" | "offline" | "live" = usageError ? "offline" : usage === null ? "loading" : "live";
@@ -179,12 +172,6 @@ export default function Home() {
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, [voiceState]);
-
-  // Auto-restore the Command Center when a new message arrives (e.g. a push-to-talk answer
-  // while minimized) so Zenith's reply is always shown. (§3 minimize/restore)
-  useEffect(() => {
-    setCcMinimized(false);
-  }, [messages.length]);
 
   function applyData(data: {
     reply?: string;
@@ -408,32 +395,37 @@ export default function Home() {
         <main className="relative z-10 flex min-h-0 min-w-0 flex-1 flex-col">
           {view === "chat" ? (
             <div className="flex min-h-0 flex-1 flex-col items-center px-4 pb-4 pt-2">
-              <div
-                className={`aspect-square shrink-0 transition-[width] duration-500 ease-out ${
-                  orbBig ? "w-[min(50vw,56vh)] max-w-[560px]" : "w-[min(32vw,32vh)] max-w-[340px]"
-                }`}
-              >
+              {/* fixed-size orb — it no longer recedes; the Command Center is paginated, not grown */}
+              <div className="aspect-square w-[min(46vw,52vh)] max-w-[520px] shrink-0">
                 <ZenithOrb state={orbState} connections={connections} bars={bars} />
               </div>
-              <div className="-mt-1 mb-2 font-mono text-[10px] uppercase tracking-[0.35em] text-zenith-text/50">
-                Status: <StatusLabel state={orbState} />
+
+              {/* STATUS + live waveform (v7) — mt clears the orb's bottom node chip */}
+              <div className="mb-3 mt-5 flex items-center gap-3.5">
+                <div className="flex items-center gap-2.5">
+                  <span className="font-mono text-[11px] tracking-[0.25em] text-zenith-dim">STATUS</span>
+                  <span className="min-w-[92px] font-mono text-[11px] font-semibold uppercase tracking-[0.25em]">
+                    <StatusLabel state={orbState} />
+                  </span>
+                </div>
+                <Waveform bars={bars} />
               </div>
 
+              {/* confirm gate — pinned between STATUS and the CC, visible regardless of the CC page */}
               {pending && (
-                <div className="rise-in mb-2 w-full max-w-2xl">
+                <div className="rise-in mb-2 w-full max-w-[720px]">
                   <StatusCard tone="alert" title="Action — confirm before it runs" busy={loading} onConfirm={() => resolvePending(true)} onCancel={() => resolvePending(false)}>
                     {pendingBody}
                   </StatusCard>
                 </div>
               )}
 
-              <div className="flex min-h-0 w-full flex-1 flex-col items-center">
+              <div className="flex w-full flex-none flex-col items-center">
                 <CommandCenter
                   messages={messages}
                   loading={loading}
                   error={error}
                   warning={warning}
-                  expanded={ccExpanded}
                   input={input}
                   onInput={setInput}
                   onSend={() => void sendMessage()}
@@ -442,9 +434,6 @@ export default function Home() {
                   voiceState={orbState}
                   onMicDown={() => void startListening()}
                   onMicUp={() => void stopListening()}
-                  minimized={ccMinimized}
-                  onMinimize={() => setCcMinimized(true)}
-                  onRestore={() => setCcMinimized(false)}
                 />
               </div>
             </div>

@@ -18,6 +18,11 @@ const SPECS: Record<string, Spec> = {
     milestone: "Milestone 5",
     blurb: "Connections, voice, model and the usage / kill-switch budget — all configurable here.",
   },
+  memory: {
+    title: "Memory",
+    milestone: "Milestone 6",
+    blurb: "Your Obsidian vault — pinned context, notes and [[links]] that Zenith remembers and writes back to.",
+  },
 };
 
 export function PlaceholderView({ view }: { view: string }) {

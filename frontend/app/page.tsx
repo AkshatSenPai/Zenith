@@ -5,7 +5,9 @@ import { startRecording, transcribe, speak, cancelSpeech, getSpeechBars, type Re
 import { connections as mockConnections, type Connection } from "../lib/mock";
 import { apiFetch, getGoogleStatus, connectGoogle, disconnectGoogle, getDiscordStatus, getTelegramStatus, getUsage, type GoogleStatus, type DiscordStatus, type TelegramStatus, type Usage } from "../lib/api";
 import { TopBar } from "../components/TopBar";
-import { ContextRail, type View } from "../components/ContextRail";
+import { IconNav } from "../components/IconNav";
+import { MonthRuler } from "../components/MonthRuler";
+import type { View } from "../lib/nav";
 import { ZenithOrb, type OrbState } from "../components/ZenithOrb";
 import { CalendarPanel } from "../components/CalendarPanel";
 import { QuickActions } from "../components/QuickActions";
@@ -21,7 +23,6 @@ import { HexCorners } from "../components/hud/primitives";
 import { BootScreen } from "../components/BootScreen";
 import { AmbientBackground } from "../components/AmbientBackground";
 import { StatusLabel } from "../components/StatusLabel";
-import { useSkin } from "../components/SkinProvider";
 import { SettingsView } from "../components/SettingsView";
 import { VaultView } from "../components/VaultView";
 import { briefingGreeting } from "../lib/greeting";
@@ -74,10 +75,7 @@ export default function Home() {
   const [connectError, setConnectError] = useState<string | null>(null);
   const recordingRef = useRef<RecordingHandle | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const { skin } = useSkin();
-  const ghost = skin === "ghost"; // light/ink centered-focus skin: hide dashboard columns + chrome
-  const amethyst = skin === "amethyst"; // violet bento dashboard
-  const sideless = ghost || amethyst; // both drop the L/R dashboard columns (Ghost=focus, Amethyst=bento)
+  // (skin-conditional layout removed — all skins share the unified v7 layout now.)
 
   // Live voice state wins; otherwise "thinking" while a request is in flight.
   const orbState: OrbState = voiceState !== "idle" ? voiceState : loading ? "thinking" : "idle";
@@ -379,110 +377,37 @@ export default function Home() {
   ) : null;
 
   return (
-    <div className="relative grid h-screen grid-rows-[auto_1fr] overflow-hidden text-zenith-text">
+    <div className="relative flex h-screen flex-col overflow-hidden text-zenith-text">
       {booting && <BootScreen onDone={() => setBooting(false)} />}
 
       {/* ambient depth layers (behind content) — v7 field + scanline + vignette */}
       <AmbientBackground />
       <div className="amb-scanline" />
       <div className="amb-vignette" />
-      {!ghost && <HexCorners />}
+      <HexCorners />
 
-      <TopBar minimal={ghost} />
+      <TopBar />
+      <MonthRuler />
 
-      {/* main row: rail · calendar+actions+usage · center · connections+focus+log.
-          Ghost = centered focus, Amethyst = bento: both keep only rail + center (side columns hidden). */}
-      <div
-        className={`stagger grid min-h-0 ${
-          sideless ? "grid-cols-[64px_1fr]" : "grid-cols-[64px_264px_1fr_320px]"
-        }`}
-      >
-        <ContextRail view={view} onChange={setView} />
+      {/* main row: icon strip · left rail · center router · right rail — one layout for all skins */}
+      <div className="stagger flex min-h-0 flex-1">
+        <IconNav view={view} onChange={setView} />
 
-        {/* left — full-height divider; content fills down to a pinned footer */}
-        {!sideless && (
-        <div className="hud-scroll flex min-h-0 flex-col overflow-y-auto border-r border-zenith-cyan/12">
+        {/* left rail */}
+        <aside className="hud-scroll flex w-[288px] flex-none flex-col overflow-y-auto border-r border-zenith-line">
           <CalendarPanel />
           <QuickActions onPrefill={prefillInput} onBriefing={() => void runBriefing()} />
           <UsagePanel usage={usage} error={usageError} onRetry={refreshUsage} />
           <LeftRailExtras />
-        </div>
-        )}
+        </aside>
 
-        {/* center */}
-        <div className="relative z-10 flex min-h-0 flex-col">
+        {/* center router */}
+        <main className="relative z-10 flex min-h-0 min-w-0 flex-1 flex-col">
           {view === "chat" ? (
-            amethyst ? (
-            /* Amethyst bento: orb hero + Connections/Usage/Calendar/Activity tiles + slim CC bar */
-            <div className="bento stagger min-h-0 flex-1 p-4">
-              {/* orb hero (2x2) */}
-              <div className="bento-orb panel relative flex flex-col items-center justify-center overflow-hidden p-4">
-                <div className="aspect-square w-[min(40vh,440px)] max-w-full">
-                  <ZenithOrb state={orbState} connections={connections} bars={bars} />
-                </div>
-                <div className="mt-1 font-mono text-[10px] uppercase tracking-[0.35em] text-zenith-text/50">
-                  Status: <StatusLabel state={orbState} />
-                </div>
-                {pending && (
-                  <div className="rise-in absolute inset-x-4 bottom-4 z-20">
-                    <StatusCard tone="alert" title="Action — confirm before it runs" busy={loading} onConfirm={() => resolvePending(true)} onCancel={() => resolvePending(false)}>
-                      {pendingBody}
-                    </StatusCard>
-                  </div>
-                )}
-              </div>
-
-              {/* connections */}
-              <div className="bento-conn panel hud-scroll min-h-0 overflow-y-auto">
-                <ConnectionsPanel connections={connections} status={gstatus} onConnect={onConnectGoogle} onDisconnect={onDisconnectGoogle} connectError={connectError} backendState={backendState} />
-              </div>
-
-              {/* usage — progress bars + estimated cost + kill-switch */}
-              <div className="bento-usage panel hud-scroll min-h-0 overflow-y-auto">
-                <UsagePanel usage={usage} error={usageError} onRetry={refreshUsage} />
-              </div>
-
-              {/* calendar — wide event strip */}
-              <div className="bento-cal panel hud-scroll min-h-0 overflow-y-auto">
-                <CalendarPanel />
-              </div>
-
-              {/* activity */}
-              <div className="bento-activity panel hud-scroll min-h-0 overflow-y-auto">
-                <ActivityLog />
-              </div>
-
-              {/* command center — slim full-width bar (grows when a conversation is open) */}
-              <div className="bento-cc flex min-h-0 items-stretch justify-center">
-                <CommandCenter
-                  messages={messages}
-                  loading={loading}
-                  error={error}
-                  warning={warning}
-                  expanded={ccExpanded}
-                  input={input}
-                  onInput={setInput}
-                  onSend={() => void sendMessage()}
-                  onKeyDown={handleKeyDown}
-                  inputRef={inputRef}
-                  voiceState={orbState}
-                  onMicDown={() => void startListening()}
-                  onMicUp={() => void stopListening()}
-                  minimized={ccMinimized}
-                  onMinimize={() => setCcMinimized(true)}
-                  onRestore={() => setCcMinimized(false)}
-                />
-              </div>
-            </div>
-            ) : (
             <div className="flex min-h-0 flex-1 flex-col items-center px-4 pb-4 pt-2">
               <div
                 className={`aspect-square shrink-0 transition-[width] duration-500 ease-out ${
-                  orbBig
-                    ? ghost
-                      ? "w-[min(56vw,74vh)] max-w-[760px]" // Ghost focus: a larger hero orb
-                      : "w-[min(58vw,62vh)] max-w-[640px]"
-                    : "w-[min(34vw,34vh)] max-w-[360px]"
+                  orbBig ? "w-[min(50vw,56vh)] max-w-[560px]" : "w-[min(32vw,32vh)] max-w-[340px]"
                 }`}
               >
                 <ZenithOrb state={orbState} connections={connections} bars={bars} />
@@ -520,8 +445,13 @@ export default function Home() {
                 />
               </div>
             </div>
-            )
-          ) : view === "settings" ? (
+          ) : view === "memory" ? (
+            <PlaceholderView view="memory" />
+          ) : view === "clients" ? (
+            <VaultView mode="clients" title="Clients" />
+          ) : view === "notes" ? (
+            <VaultView mode="recent" title="Notes" />
+          ) : (
             <SettingsView
               gstatus={gstatus}
               dstatus={dstatus}
@@ -530,32 +460,16 @@ export default function Home() {
               onDisconnectGoogle={onDisconnectGoogle}
               connectError={connectError}
             />
-          ) : view === "clients" ? (
-            <VaultView mode="clients" title="Clients" />
-          ) : view === "drafts" ? (
-            <VaultView mode="recent" title="Notes" />
-          ) : (
-            <PlaceholderView view={view} />
           )}
-        </div>
+        </main>
 
-        {/* right (hidden in Ghost focus + Amethyst bento) */}
-        {!sideless && (
-        <div className="hud-scroll flex min-h-0 flex-col overflow-y-auto border-l border-zenith-cyan/12">
+        {/* right rail */}
+        <aside className="hud-scroll flex w-[316px] flex-none flex-col overflow-y-auto border-l border-zenith-line">
           <ConnectionsPanel connections={connections} status={gstatus} onConnect={onConnectGoogle} onDisconnect={onDisconnectGoogle} connectError={connectError} backendState={backendState} />
           <FocusCard />
           <ActivityLog />
-        </div>
-        )}
+        </aside>
       </div>
-
-      {/* Ghost focus: a single one-line usage readout in the corner (replaces the gauges) */}
-      {ghost && usage && (
-        <div className="pointer-events-none absolute bottom-3 left-[80px] z-20 font-mono text-[10px] uppercase tracking-[0.2em] text-zenith-text/45">
-          {usage.requests_today}/{usage.daily_request_cap} req · {Math.round(usage.tokens_today / 1000)}k tok · ~₹{usage.cost_inr.toFixed(2)}
-          {usage.killswitch && <span className="ml-2 text-zenith-alert">● capped</span>}
-        </div>
-      )}
     </div>
   );
 }

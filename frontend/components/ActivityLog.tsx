@@ -3,14 +3,15 @@
 import { useCallback, useEffect, useState } from "react";
 import { getActivity } from "../lib/api";
 import type { ActivityEntry, ActivityTone, ActivityType } from "../lib/mock";
+import { useCollapsed, Chevron } from "./CollapsibleSection";
 
 const toneColor: Record<ActivityTone, string> = {
   ok: "text-zenith-cyan",
   warn: "text-zenith-alert",
-  info: "text-zenith-text/55",
+  info: "text-zenith-mid",
 };
 
-// Minimal 14px line icons per activity type (not Lucide/Feather defaults).
+// Minimal 14px line icons per activity type.
 function ActIcon({ type }: { type: ActivityType }) {
   const common = { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.6, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, className: "h-3.5 w-3.5" };
   switch (type) {
@@ -29,12 +30,12 @@ function ActIcon({ type }: { type: ActivityType }) {
   }
 }
 
+// v7 collapsible Activity Log. Live /activity poll (5s) unchanged; loading/empty/Retry states kept.
 export function ActivityLog() {
-  // entries: last-known list ([] = nothing logged yet). loaded: first response is in.
-  // error: the most recent fetch couldn't reach the backend (keep showing stale entries if any).
   const [entries, setEntries] = useState<ActivityEntry[] | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
+  const { open, toggle } = useCollapsed("zenith.collapse.log", true);
 
   const load = useCallback(async () => {
     const e = await getActivity();
@@ -61,37 +62,45 @@ export function ActivityLog() {
   }, [load]);
 
   return (
-    <section className="relative z-10 border-t border-zenith-cyan/12 p-4">
-      <div className="mb-3 font-mono text-[10px] uppercase tracking-widest text-zenith-cyan/70">Activity Log</div>
-      {!loaded ? (
-        <div className="font-mono text-[10px] text-zenith-text/35">loading…</div>
-      ) : error && entries === null ? (
-        <div className="flex items-center justify-between gap-3">
-          <span className="font-mono text-[10px] text-zenith-text/45">Can&apos;t reach the backend.</span>
-          <button
-            onClick={() => void load()}
-            className="press rounded-sm border border-zenith-cyan/40 px-2 py-0.5 font-mono text-[9px] uppercase tracking-widest text-zenith-cyan/80 transition hover:border-zenith-cyan/70"
-          >
-            Retry
-          </button>
+    <section className="px-[18px] py-3.5">
+      <button onClick={toggle} aria-expanded={open} className="flex w-full items-center justify-between text-left">
+        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-zenith-dim">Activity Log</span>
+        <Chevron open={open} />
+      </button>
+
+      {open && (
+        <div className="mt-3">
+          {!loaded ? (
+            <div className="text-[11px] italic text-zenith-dim">loading…</div>
+          ) : error && entries === null ? (
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-[11px] text-zenith-lo">Can&apos;t reach the backend.</span>
+              <button
+                onClick={() => void load()}
+                className="press rounded-sm border border-zenith-cyan/40 px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.15em] text-zenith-cyan/80 transition hover:border-zenith-cyan/70"
+              >
+                Retry
+              </button>
+            </div>
+          ) : entries === null || entries.length === 0 ? (
+            <div className="text-[11px] italic text-zenith-dim">No activity yet — your actions appear here.</div>
+          ) : (
+            <ul className="flex flex-col">
+              {entries.map((e, i) => (
+                <li key={i} className="flex items-start gap-2.5 border-b border-zenith-line py-2 last:border-b-0">
+                  <span className={`mt-px shrink-0 ${toneColor[e.tone]}`}>
+                    <ActIcon type={e.type} />
+                  </span>
+                  <span className="shrink-0 font-mono text-[9px] tabular-nums text-zenith-dim">{e.time}</span>
+                  <span className="min-w-0 text-[11px] leading-snug">
+                    <span className={toneColor[e.tone]}>{e.action}</span>
+                    {e.target && <span className="text-zenith-lo"> {e.target}</span>}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
-      ) : entries === null || entries.length === 0 ? (
-        <div className="font-mono text-[10px] text-zenith-text/35">No activity yet — your actions will show here.</div>
-      ) : (
-        <ul className="space-y-2.5">
-          {entries.map((e, i) => (
-            <li key={i} className="flex items-start gap-2.5 font-mono text-[11px] leading-tight">
-              <span className={`mt-px shrink-0 ${toneColor[e.tone]}`}>
-                <ActIcon type={e.type} />
-              </span>
-              <span className="shrink-0 tabular-nums text-zenith-text/35">{e.time}</span>
-              <span className="min-w-0">
-                <span className={toneColor[e.tone]}>{e.action}</span>
-                {e.target && <span className="text-zenith-text/45"> {e.target}</span>}
-              </span>
-            </li>
-          ))}
-        </ul>
       )}
     </section>
   );

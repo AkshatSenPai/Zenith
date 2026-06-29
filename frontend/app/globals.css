@@ -4,13 +4,11 @@
 
 :root {
   color-scheme: dark;
-  /* System fonts only — ZERO network dependency, so the dev server compiles and
-     the page paints instantly. The HUD's character comes from the SVG, colour,
-     and layout, not the typeface. Restore Space Grotesk / Inter / JetBrains Mono
-     later via self-hosted @font-face (no runtime/compile fetch) if desired. */
-  --font-display: ui-sans-serif, system-ui, "SF Pro Display", sans-serif;
-  --font-body: ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+  /* IBM Plex is the shared font for all skins (v7 redesign), self-hosted via next/font in
+     layout.tsx (zero runtime fetch). Plex Sans → display+body, Plex Mono → mono. */
+  --font-display: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-body: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
 
   /* Custom easing — stronger than the built-in CSS curves (emil-design-eng). */
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
@@ -32,6 +30,16 @@
   --zenith-red: 255 32 32;
   --zenith-panel: 6 8 15; /* raised card/panel surface */
 
+  /* v7 text hierarchy + structural tokens */
+  --c-hi: 230 242 241;
+  --c-mid: 201 214 217;
+  --c-lo: 126 144 148;
+  --c-dim: 79 97 102;
+  --c-faint: 42 58 61;
+  --line: rgba(120, 200, 200, 0.08);
+  --line2: rgba(120, 200, 200, 0.16);
+  --panel: rgba(255, 255, 255, 0.02);
+
   --orb-color: #00ffe5;
   --orb-cool: #39d6ff;
   --orb-core: 190 255 250;
@@ -49,14 +57,7 @@
   --orb-link-alpha: 0;
 }
 
-/* Arc opts into the real font trio — Space Grotesk (display) / Inter (body) / JetBrains Mono —
-   self-hosted via next/font in layout.tsx. Scoped to [data-skin="arc"] ONLY (not :root) so
-   Ghost/Amethyst keep the system stack defined in :root above; higher source order wins for Arc. */
-[data-skin="arc"] {
-  --font-display: var(--font-space-grotesk), ui-sans-serif, system-ui, "SF Pro Display", sans-serif;
-  --font-body: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --font-mono: var(--font-jetbrains-mono), ui-monospace, "SF Mono", Menlo, monospace;
-}
+/* (Arc's font-trio remap removed — IBM Plex is the shared font in :root above, v7 redesign.) */
 
 /* ---------- Ghost: light / ink-network focus skin ----------
    Near-white paper + graphite ink. Glow/bloom killed (depth comes from a hairline +
@@ -70,6 +71,16 @@
   --zenith-alert: 180 83 9; /* darkened amber, reads on white */
   --zenith-red: 200 30 46;
   --zenith-panel: 255 255 255; /* white card surface */
+
+  /* v7 text hierarchy + structural tokens (paper/ink) */
+  --c-hi: 14 23 25;
+  --c-mid: 38 56 59;
+  --c-lo: 95 113 116;
+  --c-dim: 138 154 156;
+  --c-faint: 188 200 201;
+  --line: rgba(20, 60, 58, 0.12);
+  --line2: rgba(20, 60, 58, 0.22);
+  --panel: rgba(12, 32, 32, 0.03);
 
   --orb-color: #1a1a1c;
   --orb-cool: #4a4f57;
@@ -111,6 +122,16 @@
   --zenith-alert: 255 107 0;
   --zenith-red: 255 48 80;
   --zenith-panel: 20 14 38; /* violet-dark glass surface */
+
+  /* v7 text hierarchy + structural tokens (violet) */
+  --c-hi: 240 231 251;
+  --c-mid: 220 205 239;
+  --c-lo: 137 123 162;
+  --c-dim: 90 77 116;
+  --c-faint: 51 40 80;
+  --line: rgba(176, 108, 240, 0.12);
+  --line2: rgba(176, 108, 240, 0.24);
+  --panel: rgba(176, 108, 240, 0.05);
 
   --orb-color: #b26bff;
   --orb-cool: #8a6bff;

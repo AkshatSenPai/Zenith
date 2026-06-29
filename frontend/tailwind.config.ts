@@ -19,6 +19,15 @@ const config: Config = {
           alert: "rgb(var(--zenith-alert) / <alpha-value>)",
           red: "rgb(var(--zenith-red) / <alpha-value>)",
           scan: "#2EE6A6", // unchanged (not themed)
+          // v7 text hierarchy + structural tokens (per-skin CSS vars in globals.css)
+          hi: "rgb(var(--c-hi) / <alpha-value>)",
+          mid: "rgb(var(--c-mid) / <alpha-value>)",
+          lo: "rgb(var(--c-lo) / <alpha-value>)",
+          dim: "rgb(var(--c-dim) / <alpha-value>)",
+          faint: "rgb(var(--c-faint) / <alpha-value>)",
+          line: "var(--line)",
+          line2: "var(--line2)",
+          panel: "var(--panel)",
         },
       },
       fontFamily: {

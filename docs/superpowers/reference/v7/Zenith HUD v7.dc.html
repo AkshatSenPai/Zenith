@@ -1,0 +1,1449 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:#05080a;height:100%}
+  ::selection{background:rgba(46,230,214,.25)}
+  ::-webkit-scrollbar{width:7px;height:7px}
+  ::-webkit-scrollbar-thumb{background:rgba(120,200,200,.16);border-radius:4px}
+  ::-webkit-scrollbar-track{background:transparent}
+  @keyframes zblink{0%,100%{opacity:1}50%{opacity:.25}}
+  @keyframes zscan{from{transform:translateY(-100%)}to{transform:translateY(100%)}}
+  @keyframes zcaret{0%,100%{opacity:1}50%{opacity:0}}
+  @keyframes ztoast{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:none}}
+  :focus:not(:focus-visible){outline:none}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+</style>
+</helmet>
+<div ref="{{ rootRef }}" style="height:100vh;width:100%;position:relative;display:flex;flex-direction:column;background:var(--bg,#05080a);font-family:'IBM Plex Sans',sans-serif;color:var(--c-body,#9fb2b6);overflow:hidden;font-size:13px;transition:background .45s ease,color .45s ease">
+
+  <canvas ref="{{ bgRef }}" style="position:absolute;inset:0;width:100%;height:100%;z-index:0;pointer-events:none"></canvas>
+  <div style="position:absolute;inset:0;z-index:1;pointer-events:none;background:var(--vignette)"></div>
+  <div style="position:absolute;inset:0;z-index:8;pointer-events:none;background:repeating-linear-gradient(to bottom, rgba(180,255,250,.022) 0 1px, transparent 1px 3px);opacity:var(--scanline-op,.6)"></div>
+  <div style="position:absolute;left:0;right:0;top:0;height:140px;z-index:7;pointer-events:none;background:var(--beam);opacity:{{ beamOpacity }};animation:{{ beamAnim }}"></div>
+  <div style="position:absolute;top:9px;left:9px;width:16px;height:16px;border-left:1px solid rgba(var(--accent-rgb,46 230 214),.45);border-top:1px solid rgba(var(--accent-rgb,46 230 214),.45);z-index:9;pointer-events:none"></div>
+  <div style="position:absolute;top:9px;right:9px;width:16px;height:16px;border-right:1px solid rgba(var(--accent-rgb),.45);border-top:1px solid rgba(var(--accent-rgb),.45);z-index:9;pointer-events:none"></div>
+  <div style="position:absolute;bottom:9px;left:9px;width:16px;height:16px;border-left:1px solid rgba(var(--accent-rgb),.45);border-bottom:1px solid rgba(var(--accent-rgb),.45);z-index:9;pointer-events:none"></div>
+  <div style="position:absolute;bottom:9px;right:9px;width:16px;height:16px;border-right:1px solid rgba(var(--accent-rgb),.45);border-bottom:1px solid rgba(var(--accent-rgb),.45);z-index:9;pointer-events:none"></div>
+
+  <!-- ===== BOOT OVERLAY ===== -->
+  <div onClick="{{ onSkipBoot }}" style="position:absolute;inset:0;z-index:20;background:var(--bg,#05080a);display:{{ bootDisplay }};flex-direction:column;align-items:center;justify-content:center;gap:22px;opacity:{{ bootOpacity }};pointer-events:{{ bootPE }};transition:opacity .7s ease">
+    <div style="width:24px;height:24px;border:1.5px solid var(--accent,#2ee6d6);transform:rotate(45deg);box-shadow:0 0 22px rgba(var(--accent-rgb),.6)"></div>
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:38px;letter-spacing:14px;font-weight:600;color:var(--c-hi,#e6f2f1);text-shadow:0 0 20px rgba(var(--accent-rgb),.45);padding-left:14px">{{ bootTitle }}</div>
+    <div style="width:300px;height:2px;background:var(--line2,rgba(120,200,200,.12));border-radius:2px;overflow:hidden"><div style="height:100%;width:{{ bootPct }};background:var(--accent,#2ee6d6);box-shadow:0 0 10px var(--accent);transition:width .25s ease"></div></div>
+    <div style="height:128px;width:320px;display:flex;flex-direction:column;gap:5px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--c-lo,#5a7d80)">
+      <sc-for list="{{ bootLines }}" as="b" hint-placeholder-count="0">
+        <div style="display:flex;gap:9px;align-items:center"><span style="color:var(--accent,#2ee6d6)">›</span><span>{{ b }}</span></div>
+      </sc-for>
+    </div>
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--c-dim)">CLICK TO SKIP</div>
+  </div>
+
+  <!-- ===== COMMAND PALETTE ===== -->
+  <sc-if value="{{ paletteOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ onPaletteBackdrop }}" style="position:absolute;inset:0;z-index:22;background:rgba(0,0,0,.5);display:flex;align-items:flex-start;justify-content:center;padding-top:12vh">
+      <div onClick="{{ stopProp }}" style="width:560px;max-width:90%;background:var(--bg);border:1px solid var(--line2);border-radius:12px;box-shadow:0 24px 70px rgba(0,0,0,.55);overflow:hidden">
+        <div style="display:flex;align-items:center;gap:11px;padding:13px 15px;border-bottom:1px solid var(--line)">
+          <span style="display:flex;color:var(--c-lo)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+          <input ref="{{ paletteInputRef }}" value="{{ paletteQuery }}" onChange="{{ onPaletteInput }}" placeholder="Search notes, clients, commands…" aria-label="Command palette search" style="flex:1;background:transparent;border:none;outline:none;color:var(--c-hi);font-size:15px;font-family:'IBM Plex Sans',sans-serif" />
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--c-dim);border:1px solid var(--line2);border-radius:4px;padding:2px 6px">ESC</span>
+        </div>
+        <div style="max-height:344px;overflow-y:auto;padding:6px">
+          <sc-for list="{{ paletteItems }}" as="p" hint-placeholder-count="0">
+            <div onClick="{{ p.run }}" style="display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:7px;cursor:pointer;background:{{ p.bg }}">
+              <span style="display:flex;color:var(--accent)" dangerouslySetInnerHTML="{{ p.icon }}"></span>
+              <div style="flex:1;min-width:0"><div style="font-size:13px;color:var(--c-hi);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.label }}</div><div style="font-size:10px;color:var(--c-lo);margin-top:1px">{{ p.sub }}</div></div>
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:1px;color:var(--c-dim)">{{ p.group }}</span>
+            </div>
+          </sc-for>
+          <sc-if value="{{ paletteEmpty }}"><div style="padding:20px;text-align:center;color:var(--c-dim);font-size:12px">No matches</div></sc-if>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ===== TOASTS ===== -->
+  <div style="position:absolute;right:18px;bottom:18px;z-index:23;display:flex;flex-direction:column;gap:8px;align-items:flex-end;pointer-events:none">
+    <sc-for list="{{ toasts }}" as="t" hint-placeholder-count="0">
+      <div style="display:flex;align-items:center;gap:9px;background:var(--bg);border:1px solid {{ t.border }};border-left:2px solid {{ t.accent }};border-radius:8px;padding:10px 13px;box-shadow:0 8px 24px rgba(0,0,0,.4);min-width:180px;animation:ztoast .25s ease both">
+        <span style="width:7px;height:7px;border-radius:50%;background:{{ t.accent }};box-shadow:0 0 6px {{ t.accent }};flex:none"></span>
+        <span style="font-size:12px;color:var(--c-mid)">{{ t.text }}</span>
+      </div>
+    </sc-for>
+  </div>
+
+  <!-- ===== TOP BAR ===== -->
+  <header style="position:relative;z-index:6;height:54px;flex:none;display:flex;align-items:center;padding:0 18px;border-bottom:1px solid var(--line,rgba(120,200,200,.09));gap:14px">
+    <button onClick="{{ onMenu }}" title="Menu" aria-label="Open menu" style="display:{{ menuBtnDisplay }};width:30px;height:30px;border:1px solid var(--line2);background:transparent;border-radius:6px;color:var(--c-lo);cursor:pointer;align-items:center;justify-content:center">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+    <div style="display:flex;align-items:center;gap:11px">
+      <div style="width:18px;height:18px;border:1.5px solid var(--accent,#2ee6d6);transform:rotate(45deg);box-shadow:0 0 12px rgba(var(--accent-rgb),.5)"></div>
+      <span style="font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:17px;letter-spacing:5px;color:var(--c-hi,#e6f2f1)">ZENITH</span>
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--c-dim);border:1px solid var(--line2);padding:2px 6px;border-radius:3px">HUD V7</span>
+    </div>
+    <div style="flex:1;display:flex;justify-content:center;align-items:center;gap:12px;font-family:'IBM Plex Mono',monospace;font-size:13px;letter-spacing:1px">
+      <span style="color:var(--c-mid,#c9d6d9)">{{ dateStr }}</span>
+      <span style="color:var(--c-faint)">·</span>
+      <span style="color:var(--accent,#2ee6d6);font-weight:500">{{ timeStr }}</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <div style="display:flex;align-items:center;gap:7px;background:rgba(var(--accent-rgb),.07);border:1px solid rgba(var(--accent-rgb),.25);padding:5px 11px;border-radius:20px">
+        <span style="width:7px;height:7px;border-radius:50%;background:var(--accent,#2ee6d6);box-shadow:0 0 8px var(--accent);animation:zblink 2.4s ease-in-out infinite"></span>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:1.5px;color:var(--accent)">ONLINE</span>
+      </div>
+      <button onClick="{{ onOpenPalette }}" title="Command palette (⌘K)" aria-label="Open command palette" style="height:30px;padding:0 10px;border:1px solid var(--line2);background:transparent;border-radius:15px;color:var(--c-lo);cursor:pointer;display:flex;align-items:center;gap:6px;transition:all .2s" style-hover="border-color:rgba(var(--accent-rgb),.45);color:var(--accent)">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:1px">⌘K</span>
+      </button>
+      <button onClick="{{ onCycleTheme }}" title="Cycle skin" aria-label="Cycle skin" style="height:30px;padding:0 10px;border:1px solid var(--line2);background:transparent;border-radius:15px;color:var(--c-lo);cursor:pointer;display:flex;align-items:center;gap:7px;transition:all .2s" style-hover="border-color:rgba(var(--accent-rgb),.45);color:var(--accent)">
+        <span style="width:11px;height:11px;border-radius:50%;background:var(--accent);box-shadow:0 0 7px var(--accent)"></span>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:1.5px">{{ themeName }}</span>
+      </button>
+      <button onClick="{{ onSound }}" title="Toggle sound" aria-label="Toggle sound" style="width:30px;height:30px;border:1px solid {{ soundBorder }};background:{{ soundBg }};border-radius:50%;color:{{ soundColor }};cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s">
+        <span style="display:flex" dangerouslySetInnerHTML="{{ soundIcon }}"></span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ===== MONTH RULER ===== -->
+  <div style="position:relative;z-index:2;height:30px;flex:none;display:flex;align-items:center;gap:10px;padding:0 18px;border-bottom:1px solid var(--line)">
+    <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--c-faint);flex:none">{{ monthLabel }}</span>
+    <div style="flex:1;display:flex;align-items:center;gap:0;justify-content:space-between">
+      <sc-for list="{{ days }}" as="d" hint-placeholder-count="30">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex:1">
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:{{ d.color }}">{{ d.label }}</span>
+          <span style="width:1px;height:{{ d.tick }};background:{{ d.color }}"></span>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- ===== MAIN ===== -->
+  <div style="position:relative;z-index:2;flex:1;display:flex;overflow:hidden">
+
+    <!-- icon nav -->
+    <nav style="width:74px;flex:none;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;padding:18px 0;gap:6px">
+      <sc-for list="{{ navItems }}" as="n" hint-placeholder-count="5">
+        <button onClick="{{ n.onClick }}" style="width:54px;height:54px;border:none;background:{{ n.bg }};border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;cursor:pointer;color:{{ n.color }};position:relative;transition:background .2s,color .2s" style-hover="background:rgba(var(--accent-rgb),.06)">
+          <span style="position:absolute;left:-12px;top:50%;transform:translateY(-50%);width:2px;height:{{ n.barH }};background:var(--accent);border-radius:2px;box-shadow:0 0 8px var(--accent);transition:height .25s"></span>
+          <span style="display:flex" dangerouslySetInnerHTML="{{ n.icon }}"></span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:1px">{{ n.label }}</span>
+        </button>
+      </sc-for>
+      <div style="flex:1"></div>
+      <div style="display:flex;flex-direction:column;gap:3px;opacity:.5">
+        <span style="width:9px;height:9px;border:1px solid var(--c-faint);transform:rotate(45deg)"></span>
+        <span style="width:9px;height:9px;border:1px solid var(--c-faint);transform:rotate(45deg)"></span>
+      </div>
+    </nav>
+
+    <!-- LEFT RAIL -->
+    <aside style="width:288px;flex:none;border-right:1px solid var(--line);overflow-y:auto;padding:20px 18px;display:{{ leftDisplay }};flex-direction:column;gap:24px;position:{{ leftPos }};left:74px;top:0;bottom:0;background:var(--bg);z-index:5">
+      <section>
+        <div style="display:flex;align-items:flex-start;gap:14px;margin-bottom:16px">
+          <div style="border:1px solid rgba(var(--accent-rgb),.25);border-radius:6px;padding:7px 12px;text-align:center;background:rgba(var(--accent-rgb),.04)">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:28px;font-weight:600;line-height:1;color:var(--c-hi)">{{ todayNum }}</div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--accent);margin-top:3px">{{ todayMon }}</div>
+          </div>
+          <div style="padding-top:2px">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--c-dim);margin-bottom:5px">SCHEDULE</div>
+            <div style="font-size:17px;font-weight:600;color:var(--c-hi)">{{ weekday }}</div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 11px;background:var(--panel);border:1px solid var(--line);border-radius:6px">
+            <span style="width:6px;height:6px;border-radius:50%;background:var(--accent);flex:none"></span>
+            <div><div style="font-size:11px;color:var(--c-mid)">No events today</div><div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--c-dim);margin-top:2px">TODAY</div></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 11px;background:var(--panel);border:1px solid var(--line);border-radius:6px">
+            <span style="width:6px;height:6px;border-radius:50%;background:var(--c-faint);flex:none"></span>
+            <div><div style="font-size:11px;color:var(--c-lo)">Nothing scheduled</div><div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--c-dim);margin-top:2px">TOMORROW</div></div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--c-dim);margin-bottom:13px">QUICK ACTIONS</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">
+          <sc-for list="{{ actions }}" as="a" hint-placeholder-count="4">
+            <button onClick="{{ a.onClick }}" style="text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:11px 11px;cursor:pointer;display:flex;flex-direction:column;gap:8px;min-height:72px;transition:border-color .2s,background .2s,transform .15s" style-hover="border-color:rgba(var(--accent-rgb),.4);background:rgba(var(--accent-rgb),.06);transform:translateY(-2px)">
+              <span style="display:flex;color:var(--accent)" dangerouslySetInnerHTML="{{ a.icon }}"></span>
+              <span style="font-size:12px;color:var(--c-mid);font-weight:500;line-height:1.25">{{ a.label }}</span>
+            </button>
+          </sc-for>
+        </div>
+      </section>
+
+      <section>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:13px">
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--c-dim)">USAGE · SONNET 4.6</span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--accent);border:1px solid rgba(var(--accent-rgb),.25);padding:1px 6px;border-radius:3px">{{ usageState }}</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:13px">
+          <sc-for list="{{ meters }}" as="m" hint-placeholder-count="3">
+            <div>
+              <div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--c-lo)">{{ m.label }}</span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--c-mid)">{{ m.value }}</span></div>
+              <div style="height:3px;background:var(--line2);border-radius:2px;overflow:hidden"><div style="height:100%;width:{{ m.pct }};background:{{ m.color }};border-radius:2px;box-shadow:0 0 6px {{ m.color }};transition:width .5s cubic-bezier(.2,.8,.2,1)"></div></div>
+            </div>
+          </sc-for>
+          <sc-if value="{{ sparkHas }}" hint-placeholder-val="{{ false }}">
+            <div>
+              <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--c-lo)">SESSION · TOKENS</span><span style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--c-dim)">{{ sparkTotal }}</span></div>
+              <svg viewBox="0 0 120 26" preserveAspectRatio="none" style="width:100%;height:26px;display:block">
+                <polyline points="{{ sparkArea }}" fill="rgba(var(--accent-rgb),.10)" stroke="none"></polyline>
+                <polyline points="{{ sparkPoints }}" fill="none" stroke="var(--accent)" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round"></polyline>
+              </svg>
+            </div>
+          </sc-if>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding-top:3px">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--c-dim)">COST · EST</span>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--c-mid)">{{ costStr }}</span>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--c-dim);margin-bottom:13px">SHORTCUTS</div>
+        <div style="display:flex;flex-direction:column;gap:9px">
+          <sc-for list="{{ shortcuts }}" as="s" hint-placeholder-count="4">
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <kbd style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--c-mid);border:1px solid var(--line2);border-bottom-width:2px;padding:3px 9px;border-radius:4px;background:var(--kbd)">{{ s.key }}</kbd>
+              <span style="font-size:11px;color:var(--c-lo)">{{ s.act }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </section>
+
+      <div style="flex:1"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding-top:12px;border-top:1px solid var(--line)">
+        <div style="display:flex;align-items:center;gap:7px"><span style="width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 6px var(--accent)"></span><span style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--c-lo)">CLAUDE SONNET 4.6</span></div>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--c-dim)">READY</span>
+      </div>
+    </aside>
+
+    <!-- CENTER (router) -->
+    <main style="flex:1;position:relative;overflow:hidden">
+
+      <!-- CHAT VIEW -->
+      <div style="position:absolute;inset:0;display:{{ chatDisplay }};flex-direction:column;align-items:center;justify-content:center;padding:24px">
+        <div style="position:relative;width:{{ orbW }};height:520px;max-width:78%;max-height:{{ orbMax }};display:flex;align-items:center;justify-content:center;transition:max-height .4s cubic-bezier(.2,.8,.2,1),width .4s cubic-bezier(.2,.8,.2,1)">
+          <canvas ref="{{ canvasRef }}" style="position:absolute;inset:0;width:100%;height:100%"></canvas>
+          <div onClick="{{ onChipGmail }}" style="position:absolute;top:0;left:50%;transform:translate(-50%,-50%);z-index:2"><div style="display:flex;align-items:center;gap:7px;background:var(--bg);border:1px solid rgba(var(--accent-rgb),.28);border-radius:5px;padding:5px 12px;cursor:pointer"><span style="width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 6px var(--accent)"></span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:1.5px;color:var(--c-mid)">GMAIL</span></div></div>
+          <div style="position:absolute;bottom:0;left:50%;transform:translate(-50%,50%);z-index:2"><div style="display:flex;align-items:center;gap:7px;background:var(--bg);border:1px solid rgba(var(--accent-rgb),.28);border-radius:5px;padding:5px 12px"><span style="width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 6px var(--accent)"></span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:1.5px;color:var(--c-mid)">TELEGRAM</span></div></div>
+          <div style="position:absolute;left:0;top:50%;transform:translate(-50%,-50%);z-index:2"><div style="display:flex;align-items:center;gap:7px;background:var(--bg);border:1px solid var(--line2);border-radius:5px;padding:5px 12px"><span style="width:6px;height:6px;border-radius:50%;background:var(--c-faint)"></span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:1.5px;color:var(--c-lo)">DISCORD</span></div></div>
+          <div style="position:absolute;right:0;top:50%;transform:translate(50%,-50%);z-index:2"><div style="display:flex;align-items:center;gap:7px;background:var(--bg);border:1px solid rgba(var(--accent-rgb),.28);border-radius:5px;padding:5px 12px"><span style="width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 6px var(--accent)"></span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:1.5px;color:var(--c-mid)">CALENDAR</span></div></div>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:14px;margin-top:4px;margin-bottom:14px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:3px;color:var(--c-dim)">STATUS</span>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:3px;font-weight:600;color:{{ statusColor }};min-width:96px">{{ statusDisp }}</span>
+          </div>
+          <canvas ref="{{ waveRef }}" style="width:170px;height:24px"></canvas>
+        </div>
+
+        <!-- paginated command center -->
+        <div style="width:100%;max-width:720px;background:var(--panel);border:1px solid {{ barBorder }};border-radius:10px;box-shadow:{{ barGlow }};transition:border-color .2s;overflow:hidden">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--line)">
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="width:7px;height:7px;border-radius:50%;background:{{ statusColor }};box-shadow:0 0 8px {{ statusColor }}"></span>
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--c-lo)">COMMAND CENTER</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <button onClick="{{ ccPrev }}" title="Previous turn" style="width:24px;height:24px;border-radius:5px;border:1px solid var(--line2);background:transparent;color:{{ ccPrevColor }};cursor:{{ ccPrevCursor }};display:flex;align-items:center;justify-content:center">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+              </button>
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--c-lo);min-width:46px;text-align:center">{{ ccPageLabel }}</span>
+              <button onClick="{{ ccNext }}" title="Next turn" style="width:24px;height:24px;border-radius:5px;border:1px solid var(--line2);background:transparent;color:{{ ccNextColor }};cursor:{{ ccNextCursor }};display:flex;align-items:center;justify-content:center">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <div style="min-height:84px;max-height:{{ ccBodyMax }};overflow-y:auto;padding:15px 16px;transition:max-height .4s cubic-bezier(.2,.8,.2,1)">
+            <sc-if value="{{ ccEmpty }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;height:54px;text-align:center">
+                <div style="font-size:13px;color:var(--c-lo)">Hold <span style="color:var(--accent)">Space</span> to talk, or type below.</div>
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:1.5px;color:var(--c-dim)">CONVERSATION · ONE TURN PER PAGE</div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ ccHasMsg }}">
+              <div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:2px;font-weight:600;color:{{ ccRoleColor }};border:1px solid {{ ccRoleBorder }};background:{{ ccRoleBg }};padding:2px 7px;border-radius:4px">{{ ccRoleLabel }}</span>
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--c-dim)">{{ ccTime }}</span>
+              </div>
+              <div style="font-size:14px;line-height:1.55;color:var(--c-mid)">{{ ccText }}<span style="display:{{ ccCaretDisplay }};color:var(--accent);animation:zcaret 1s step-end infinite">▋</span></div>
+            </sc-if>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:11px;padding:9px 11px 9px 15px;border-top:1px solid var(--line)">
+            <input ref="{{ cmdRef }}" onKeyDown="{{ onCmdKey }}" placeholder="Ask Zenith…" style="flex:1;background:transparent;border:none;outline:none;color:var(--c-hi);font-family:'IBM Plex Sans',sans-serif;font-size:14px" />
+            <button onMouseDown="{{ onMicDown }}" onMouseUp="{{ onMicUp }}" onMouseLeave="{{ onMicUp }}" title="Hold to talk" aria-label="Hold to talk" style="position:relative;width:34px;height:34px;border-radius:50%;border:1px solid {{ micBorder }};background:{{ micBg }};color:{{ micColor }};cursor:pointer;display:flex;align-items:center;justify-content:center;flex:none;transition:all .2s">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 11a6 6 0 0 0 12 0"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            </button>
+            <button onClick="{{ onSend }}" aria-label="Send" style="width:34px;height:34px;border-radius:50%;border:1px solid rgba(var(--accent-rgb),.3);background:rgba(var(--accent-rgb),.12);color:var(--accent);cursor:pointer;display:flex;align-items:center;justify-content:center;flex:none;transition:background .2s" style-hover="background:rgba(var(--accent-rgb),.24)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="13 6 19 12 13 18"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- DRAFTS / NOTES VIEW -->
+      <div style="position:absolute;inset:0;display:{{ draftsDisplay }};flex-direction:column">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:17px 24px;border-bottom:1px solid var(--line)">
+          <span style="font-size:19px;font-weight:600;color:var(--c-hi)">Notes</span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:1.5px;color:var(--c-dim)">RECENT NOTES · READ-ONLY</span>
+        </div>
+        <div style="flex:1;display:flex;overflow:hidden">
+          <div style="width:296px;flex:none;border-right:1px solid var(--line);overflow-y:auto;padding:13px">
+            <sc-for list="{{ notes }}" as="n" hint-placeholder-count="6">
+              <div onClick="{{ n.onSelect }}" style="padding:11px 13px;border-radius:7px;cursor:pointer;margin-bottom:6px;background:{{ n.bg }};border:1px solid {{ n.border }};border-left:2px solid {{ n.bar }};transition:background .15s">
+                <div style="font-size:13px;color:{{ n.titleColor }};font-weight:500;line-height:1.3">{{ n.title }}</div>
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:1.5px;color:var(--c-dim);margin-top:4px">{{ n.tag }}</div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="flex:1;overflow-y:auto;padding:26px 30px">
+            <div style="font-size:18px;font-weight:600;color:var(--c-hi);margin-bottom:5px">{{ noteTitle }}</div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--accent);margin-bottom:22px">{{ noteTag }}</div>
+            <sc-if value="{{ noteIsTodo }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;flex-direction:column;gap:11px;max-width:760px">
+                <sc-for list="{{ noteTasks }}" as="tk" hint-placeholder-count="3">
+                  <div style="display:flex;gap:12px;align-items:flex-start">
+                    <span style="width:16px;height:16px;border-radius:4px;border:1.5px solid var(--line2);flex:none;margin-top:1px"></span>
+                    <span style="font-size:13px;color:var(--c-mid);line-height:1.5">{{ tk }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-if>
+            <sc-if value="{{ noteIsText }}">
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:var(--c-body);line-height:1.75;white-space:pre-wrap;max-width:760px">{{ noteBody }}</div>
+            </sc-if>
+          </div>
+        </div>
+      </div>
+
+      <!-- CLIENTS VIEW -->
+      <div style="position:absolute;inset:0;display:{{ clientsDisplay }};flex-direction:column">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:17px 24px;border-bottom:1px solid var(--line)">
+          <span style="font-size:19px;font-weight:600;color:var(--c-hi)">Clients</span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:1.5px;color:var(--c-dim)">CLIENTS · READ-ONLY</span>
+        </div>
+        <div style="flex:1;display:flex;overflow:hidden">
+          <div style="width:296px;flex:none;border-right:1px solid var(--line);overflow-y:auto;padding:13px">
+            <sc-for list="{{ clients }}" as="c" hint-placeholder-count="2">
+              <div onClick="{{ c.onSelect }}" style="padding:12px 13px;border-radius:7px;cursor:pointer;margin-bottom:6px;background:{{ c.bg }};border:1px solid {{ c.border }};border-left:2px solid {{ c.bar }};transition:background .15s">
+                <div style="font-size:13px;color:{{ c.titleColor }};font-weight:500;line-height:1.3">{{ c.name }}</div>
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:1.5px;color:var(--c-dim);margin-top:4px">{{ c.tag }}</div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="flex:1;overflow-y:auto;padding:28px 32px">
+            <div style="display:flex;align-items:center;gap:16px;margin-bottom:26px">
+              <div style="width:48px;height:48px;border-radius:10px;background:rgba(var(--accent-rgb),.1);border:1px solid rgba(var(--accent-rgb),.3);display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:600;color:var(--accent);flex:none">{{ clientInitial }}</div>
+              <div>
+                <div style="font-size:21px;font-weight:600;color:var(--c-hi);line-height:1.1">{{ clientName }}</div>
+                <div style="display:flex;align-items:center;gap:6px;margin-top:6px;color:var(--c-lo);font-size:12px">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M21 10c0 6-9 12-9 12s-9-6-9-12a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="2.5"/></svg>
+                  <span>{{ clientLoc }}</span>
+                </div>
+              </div>
+            </div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--c-dim);margin-bottom:10px">PROJECT</div>
+            <div style="font-size:15px;font-weight:600;color:var(--c-mid);margin-bottom:14px">{{ clientProject }}</div>
+            <div style="display:flex;flex-direction:column;gap:9px;margin-bottom:28px;max-width:620px">
+              <sc-for list="{{ clientFacts }}" as="f" hint-placeholder-count="2">
+                <div style="display:flex;align-items:center;gap:11px;padding:11px 14px;background:var(--panel);border:1px solid var(--line);border-radius:7px">
+                  <span style="width:5px;height:5px;border-radius:50%;background:var(--accent);flex:none"></span>
+                  <span style="font-size:13px;color:var(--c-mid)">{{ f }}</span>
+                </div>
+              </sc-for>
+            </div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--c-dim);margin-bottom:10px">LINKED NOTES</div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px">
+              <sc-for list="{{ clientNotes }}" as="ln" hint-placeholder-count="1">
+                <div style="display:flex;align-items:center;gap:7px;padding:7px 12px;background:rgba(var(--accent-rgb),.1);border:1px solid rgba(var(--accent-rgb),.3);border-radius:6px;font-size:12px;color:var(--accent)">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>
+                  <span>{{ ln }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MEMORY VIEW -->
+      <div style="position:absolute;inset:0;display:{{ memoryDisplay }};flex-direction:column">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:17px 24px;border-bottom:1px solid var(--line)">
+          <div style="display:flex;align-items:baseline;gap:12px"><span style="font-size:19px;font-weight:600;color:var(--c-hi)">Memory</span><span style="font-size:12px;color:var(--c-lo)">Obsidian vault · what Zenith remembers</span></div>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:1.5px;color:var(--c-dim)">{{ vaultCount }} NOTES · {{ linkCount }} LINKS</span>
+        </div>
+        <div style="flex:1;overflow-y:auto;padding:26px 30px">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--c-dim);margin-bottom:12px">PINNED CONTEXT</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:13px;margin-bottom:32px">
+            <sc-for list="{{ pinned }}" as="p" hint-placeholder-count="2">
+              <div style="border:1px solid rgba(var(--accent-rgb),.18);border-left:2px solid var(--accent);border-radius:9px;padding:15px 16px;background:rgba(var(--accent-rgb),.04)">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:9px">
+                  <span style="display:flex;color:var(--accent)" dangerouslySetInnerHTML="{{ p.icon }}"></span>
+                  <span style="font-size:14px;font-weight:600;color:var(--c-hi)">{{ p.title }}</span>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:11px">
+                  <sc-for list="{{ p.facts }}" as="pf" hint-placeholder-count="2">
+                    <div style="font-size:12px;color:var(--c-body);line-height:1.45">{{ pf }}</div>
+                  </sc-for>
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:6px">
+                  <sc-for list="{{ p.links }}" as="pl" hint-placeholder-count="1">
+                    <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.5px;color:var(--accent);background:rgba(var(--accent-rgb),.1);border:1px solid rgba(var(--accent-rgb),.22);padding:2px 8px;border-radius:5px">[[{{ pl }}]]</span>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--c-dim);margin-bottom:12px">VAULT</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:11px">
+            <sc-for list="{{ vault }}" as="v" hint-placeholder-count="5">
+              <div onClick="{{ v.onSelect }}" style="border:1px solid var(--line);border-radius:8px;padding:13px 14px;background:var(--panel);cursor:pointer;transition:border-color .2s" style-hover="border-color:rgba(var(--accent-rgb),.35)">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+                  <span style="font-size:13px;font-weight:500;color:var(--c-mid)">{{ v.title }}</span>
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:1px;color:var(--c-dim)">{{ v.tag }}</span>
+                </div>
+                <div style="font-size:11px;color:var(--c-lo);line-height:1.5;margin-bottom:9px">{{ v.preview }}</div>
+                <div style="display:flex;align-items:center;gap:6px;font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.5px;color:var(--c-dim)">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>
+                  <span>{{ v.linkText }}</span>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+
+      <!-- SETTINGS VIEW -->
+      <div style="position:absolute;inset:0;display:{{ settingsDisplay }};flex-direction:column">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:17px 24px;border-bottom:1px solid var(--line)">
+          <span style="font-size:19px;font-weight:600;color:var(--c-hi)">Settings</span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:1.5px;color:var(--c-dim)">PREFERENCES</span>
+        </div>
+        <div style="flex:1;overflow-y:auto;padding:26px 30px;display:flex;flex-direction:column;gap:34px;max-width:1000px">
+          <section>
+            <div style="font-size:17px;font-weight:600;color:var(--c-hi);margin-bottom:3px">Appearance</div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--c-dim);margin-bottom:16px">SKIN · APPLIES INSTANTLY TO THE WHOLE HUD</div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;max-width:680px">
+              <sc-for list="{{ themes }}" as="th" hint-placeholder-count="3">
+                <div onClick="{{ th.onSelect }}" style="cursor:pointer;border:1px solid {{ th.border }};border-radius:10px;padding:13px;background:var(--panel);transition:border-color .2s">
+                  <div style="height:88px;border-radius:7px;background:{{ th.frameBg }};display:flex;align-items:center;justify-content:center;position:relative;margin-bottom:12px;overflow:hidden">
+                    <div style="width:30px;height:30px;border-radius:50%;background:{{ th.dot }};box-shadow:0 0 18px {{ th.dot }}"></div>
+                    <div style="position:absolute;bottom:10px;left:12px;width:52px;height:5px;border-radius:3px;background:{{ th.bar }}"></div>
+                  </div>
+                  <div style="display:flex;align-items:center;justify-content:space-between">
+                    <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:2px;color:var(--c-mid)">{{ th.name }}</span>
+                    <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:1px;color:{{ th.activeColor }}">{{ th.activeLabel }}</span>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </section>
+          <section>
+            <div style="font-size:17px;font-weight:600;color:var(--c-hi);margin-bottom:3px">Motion &amp; sound</div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--c-dim);margin-bottom:16px">COMFORT</div>
+            <div style="display:flex;flex-direction:column;gap:8px;max-width:720px">
+              <div onClick="{{ onToggleMotion }}" onKeyDown="{{ onToggleMotionKey }}" role="switch" aria-checked="{{ motionChecked }}" aria-label="Reduced motion" tabindex="0" style="display:flex;align-items:center;justify-content:space-between;padding:13px 15px;border:1px solid var(--line);border-radius:9px;cursor:pointer">
+                <div><div style="font-size:13px;color:var(--c-mid);font-weight:500">Reduced motion</div><div style="font-size:11px;color:var(--c-lo);margin-top:2px">Calms the orb, scan beam and ambient field</div></div>
+                <div style="width:40px;height:22px;border-radius:12px;background:{{ motionTrackBg }};position:relative;flex:none;transition:background .2s"><span style="position:absolute;top:2px;left:{{ motionKnobLeft }};width:18px;height:18px;border-radius:50%;background:{{ motionKnob }};transition:left .2s,background .2s"></span></div>
+              </div>
+              <div onClick="{{ onSound }}" onKeyDown="{{ onSoundKey }}" role="switch" aria-checked="{{ soundChecked }}" aria-label="Interaction sounds" tabindex="0" style="display:flex;align-items:center;justify-content:space-between;padding:13px 15px;border:1px solid var(--line);border-radius:9px;cursor:pointer">
+                <div><div style="font-size:13px;color:var(--c-mid);font-weight:500">Interaction sounds</div><div style="font-size:11px;color:var(--c-lo);margin-top:2px">Subtle tones on actions and voice states</div></div>
+                <div style="width:40px;height:22px;border-radius:12px;background:{{ soundTrackBg }};position:relative;flex:none;transition:background .2s"><span style="position:absolute;top:2px;left:{{ soundKnobLeft }};width:18px;height:18px;border-radius:50%;background:{{ soundKnob }};transition:left .2s,background .2s"></span></div>
+              </div>
+            </div>
+          </section>
+          <section>
+            <div style="font-size:17px;font-weight:600;color:var(--c-hi);margin-bottom:3px">Active config</div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--c-dim);margin-bottom:16px">READ-ONLY · SET IN BACKEND/.ENV</div>
+            <div style="display:flex;flex-direction:column;gap:14px;max-width:720px">
+              <sc-for list="{{ configGroups }}" as="grp" hint-placeholder-count="3">
+                <div style="border:1px solid var(--line);border-radius:9px;overflow:hidden">
+                  <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--accent);padding:11px 16px;border-bottom:1px solid var(--line);background:rgba(var(--accent-rgb),.03)">{{ grp.title }}</div>
+                  <sc-for list="{{ grp.rows }}" as="r" hint-placeholder-count="3">
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 16px;border-bottom:1px solid var(--line)">
+                      <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:1px;color:var(--c-lo)">{{ r.k }}</span>
+                      <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--c-mid)">{{ r.v }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-for>
+            </div>
+          </section>
+          <section style="padding-bottom:20px">
+            <div style="font-size:17px;font-weight:600;color:var(--c-hi);margin-bottom:16px">Security</div>
+            <div style="display:flex;flex-direction:column;gap:8px;max-width:720px">
+              <sc-for list="{{ security }}" as="se" hint-placeholder-count="2">
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 15px;border:1px solid var(--line);border-radius:9px">
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:1.5px;color:var(--c-mid)">{{ se.label }}</span>
+                  <div style="display:flex;align-items:center;gap:10px">
+                    <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:1px;color:{{ se.chipColor }};border:1px solid {{ se.chipBorder }};background:{{ se.chipBg }};border-radius:4px;padding:2px 7px">{{ se.state }}</span>
+                    <span style="font-size:12px;color:var(--c-lo)">{{ se.note }}</span>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </section>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- RIGHT RAIL -->
+    <aside style="width:316px;flex:none;border-left:1px solid var(--line);overflow-y:auto;padding:20px 18px;display:{{ rightDisplay }};flex-direction:column;gap:22px;position:{{ rightPos }};right:0;top:0;bottom:0;background:var(--bg);z-index:5">
+      <section>
+        <div onClick="{{ onToggleConn }}" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;cursor:pointer">
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--c-dim)">CONNECTIONS</span>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="display:flex;align-items:center;gap:6px"><span style="width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 6px var(--accent);animation:zblink 2.4s infinite"></span><span style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--accent)">LIVE</span></div>
+            <span style="display:flex;color:var(--c-lo);transform:{{ connChevron }};transition:transform .2s"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></span>
+          </div>
+        </div>
+        <div style="display:{{ connBody }};flex-direction:column">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:12px;background:var(--panel);border:1px solid var(--line2);border-radius:7px;margin-bottom:10px">
+            <div><div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:1.5px;color:var(--c-mid);margin-bottom:3px">GOOGLE</div><div style="font-size:11px;color:var(--c-lo)">singhakshat1221@gmail.com</div></div>
+            <button onClick="{{ onDisconnect }}" style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--c-dim);background:transparent;border:1px solid var(--line2);border-radius:4px;padding:4px 8px;cursor:pointer;transition:all .2s" style-hover="color:#ffa94d;border-color:rgba(255,169,77,.4)">DISCONNECT</button>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <sc-for list="{{ connections }}" as="c" hint-placeholder-count="4">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 12px;background:var(--panel);border:1px solid {{ c.border }};border-radius:7px;transition:border-color .2s">
+                <div style="display:flex;align-items:center;gap:10px">
+                  <span style="width:7px;height:7px;border-radius:50%;background:{{ c.dot }};box-shadow:{{ c.glow }}"></span>
+                  <div><div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:1.5px;color:var(--c-mid)">{{ c.name }}</div><div style="font-size:11px;color:var(--c-lo);margin-top:2px">{{ c.detail }}</div></div>
+                </div>
+                <button onClick="{{ c.onToggle }}" style="width:40px;height:22px;border-radius:12px;border:none;background:{{ c.trackBg }};cursor:pointer;position:relative;flex:none;transition:background .2s">
+                  <span style="position:absolute;top:2px;left:{{ c.knobLeft }};width:18px;height:18px;border-radius:50%;background:{{ c.knob }};transition:left .2s,background .2s"></span>
+                </button>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div onClick="{{ onToggleFocus }}" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:13px;cursor:pointer">
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--c-dim)">TODAY'S FOCUS</span>
+          <div style="display:flex;align-items:center;gap:10px"><span style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--c-lo)">{{ todoCount }}</span><span style="display:flex;color:var(--c-lo);transform:{{ focusChevron }};transition:transform .2s"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></span></div>
+        </div>
+        <div style="display:{{ focusBody }};border:1px solid var(--line);border-radius:8px;padding:11px">
+          <div style="display:flex;flex-direction:column;gap:7px;margin-bottom:9px">
+            <sc-for list="{{ todos }}" as="t" hint-placeholder-count="3">
+              <div onClick="{{ t.onToggle }}" style="display:flex;align-items:flex-start;gap:10px;padding:8px 9px;background:var(--panel);border:1px solid var(--line);border-radius:6px;cursor:pointer;transition:border-color .2s" style-hover="border-color:rgba(var(--accent-rgb),.25)">
+                <span style="width:15px;height:15px;border-radius:4px;border:1.5px solid {{ t.boxBorder }};background:{{ t.boxBg }};flex:none;display:flex;align-items:center;justify-content:center;color:var(--bg);margin-top:1px;transition:all .2s" dangerouslySetInnerHTML="{{ t.check }}"></span>
+                <span style="font-size:12px;color:{{ t.textColor }};text-decoration:{{ t.strike }};line-height:1.4">{{ t.text }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 9px;border:1px dashed var(--line2);border-radius:6px">
+            <input ref="{{ todoRef }}" onKeyDown="{{ onTodoKey }}" placeholder="add a task…" style="flex:1;background:transparent;border:none;outline:none;color:var(--c-mid);font-family:'IBM Plex Sans',sans-serif;font-size:12px" />
+            <button onClick="{{ onAddTodo }}" style="width:22px;height:22px;border-radius:5px;border:1px solid rgba(var(--accent-rgb),.28);background:rgba(var(--accent-rgb),.08);color:var(--accent);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:15px;line-height:1;flex:none">+</button>
+          </div>
+        </div>
+      </section>
+
+      <section style="flex:1;display:flex;flex-direction:column;min-height:0">
+        <div onClick="{{ onToggleLog }}" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:13px;cursor:pointer">
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--c-dim)">ACTIVITY LOG</span>
+          <span style="display:flex;color:var(--c-lo);transform:{{ logChevron }};transition:transform .2s"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </div>
+        <div style="display:{{ logBody }};flex-direction:column;gap:0;overflow-y:auto;min-height:60px">
+          <sc-if value="{{ hasLog }}" hint-placeholder-val="{{ true }}">
+            <sc-for list="{{ log }}" as="l" hint-placeholder-count="3">
+              <div style="display:flex;gap:11px;padding:8px 0;border-bottom:1px solid var(--line)">
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--c-dim);flex:none;padding-top:1px">{{ l.time }}</span>
+                <span style="font-size:11px;color:var(--c-body);line-height:1.35">{{ l.text }}</span>
+              </div>
+            </sc-for>
+          </sc-if>
+          <sc-if value="{{ noLog }}">
+            <div style="font-size:11px;color:var(--c-dim);font-style:italic;padding:6px 0">No activity yet — your actions appear here.</div>
+          </sc-if>
+        </div>
+      </section>
+    </aside>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:&quot;100%&quot;,&quot;height&quot;:&quot;100%&quot;}}">
+class Component extends DCLogic {
+  rootRef = React.createRef();
+  canvasRef = React.createRef();
+  bgRef = React.createRef();
+  waveRef = React.createRef();
+  cmdRef = React.createRef();
+  todoRef = React.createRef();
+  paletteInputRef = React.createRef();
+  orbMode = 'idle';
+  energy = 0.15;
+  tiltX = 0; tiltY = 0;
+  _mtx = 0; _mty = 0;
+  _ripples = [];
+  _lastRip = 0;
+  _prevMode = 'idle';
+  _timers = [];
+  tk = null;
+  LS_KEY = 'zenith.hud.v7';
+
+  THEMES = {
+    arc: {
+      name: 'ARC',
+      vars: { '--bg':'#05080a','--c-hi':'#e6f2f1','--c-mid':'#c9d6d9','--c-body':'#9fb2b6','--c-lo':'#7e9094','--c-dim':'#4f6166','--c-faint':'#2a3a3d','--panel':'rgba(255,255,255,.02)','--panel-hi':'rgba(255,255,255,.04)','--line':'rgba(120,200,200,.08)','--line2':'rgba(120,200,200,.16)','--accent':'#2ee6d6','--accent-rgb':'46,230,214','--kbd':'rgba(255,255,255,.02)','--scanline-op':'.6','--beam':'linear-gradient(to bottom, rgba(46,230,214,0) 0%, rgba(46,230,214,.05) 50%, rgba(46,230,214,0) 100%)','--vignette':'radial-gradient(ellipse 70% 60% at 50% 48%, rgba(0,0,0,0) 40%, rgba(0,0,0,.5) 100%)' },
+      orbRgb:'46,230,214', gridRgb:'46,230,214', gridA:0.022, nodeRgb:'120,225,212', light:false, style:'sphere',
+    },
+    amethyst: {
+      name: 'AMETHYST',
+      vars: { '--bg':'#0d0618','--c-hi':'#f0e7fb','--c-mid':'#dccdef','--c-body':'#a99cc0','--c-lo':'#897ba2','--c-dim':'#5a4d74','--c-faint':'#332850','--panel':'rgba(176,108,240,.05)','--panel-hi':'rgba(176,108,240,.1)','--line':'rgba(176,108,240,.12)','--line2':'rgba(176,108,240,.24)','--accent':'#b06cf0','--accent-rgb':'176,108,240','--kbd':'rgba(176,108,240,.06)','--scanline-op':'.5','--beam':'linear-gradient(to bottom, rgba(176,108,240,0), rgba(176,108,240,.06) 50%, rgba(176,108,240,0))','--vignette':'radial-gradient(ellipse 70% 60% at 50% 48%, rgba(0,0,0,0) 35%, rgba(0,0,0,.55) 100%)' },
+      orbRgb:'176,108,240', gridRgb:'176,108,240', gridA:0.03, nodeRgb:'190,150,245', light:false, style:'nebula',
+    },
+    light: {
+      name: 'LIGHT',
+      vars: { '--bg':'#eef1f1','--c-hi':'#0e1719','--c-mid':'#26383b','--c-body':'#47595c','--c-lo':'#5f7174','--c-dim':'#8a9a9c','--c-faint':'#bcc8c9','--panel':'rgba(12,32,32,.03)','--panel-hi':'rgba(12,32,32,.06)','--line':'rgba(20,60,58,.12)','--line2':'rgba(20,60,58,.22)','--accent':'#11433d','--accent-rgb':'17,67,61','--kbd':'rgba(12,32,32,.04)','--scanline-op':'0','--beam':'linear-gradient(to bottom, rgba(17,67,61,0), rgba(17,67,61,.025) 50%, rgba(17,67,61,0))','--vignette':'radial-gradient(ellipse 75% 65% at 50% 48%, rgba(0,0,0,0) 55%, rgba(120,140,140,.13) 100%)' },
+      orbRgb:'24,36,38', gridRgb:'20,60,58', gridA:0.05, nodeRgb:'40,72,70', light:true, style:'mesh',
+    },
+  };
+
+  state = {
+    mode: 'idle', statusDisp: 'IDLE',
+    dateStr: '', timeStr: '', monthLabel: '', todayNum: '', todayMon: '', weekday: '',
+    mounted: false, booting: true, bootGone: false, bootTitle: 'ZENITH', bootLines: [],
+    soundOn: true, theme: 'arc', view: 'chat',
+    narrow: false, leftOpen: false, rightOpen: false,
+    selNote: 'todos', selClient: 'vg',
+    collapse: { conn: false, focus: false, log: false },
+    palette: { open: false, query: '', index: 0 },
+    toasts: [],
+    reduceMotion: false,
+    usage: { reqMin: 0, daily: 0, tokens: 0 },
+    usageHist: [],
+    convo: [],
+    ccPage: 0,
+    todos: [
+      { text: 'Fix orb connection nodes sliding when the Command Center collapses', done: false },
+      { text: 'Add WEATHER_LAT / WEATHER_LON to backend/.env (Jangpura)', done: false },
+      { text: 'Merge HUD-fixes branch to main once collapse is confirmed', done: false },
+    ],
+    log: [
+      { time: '23:11', text: 'Calendar synced · 3 events imported' },
+      { time: '23:09', text: 'Telegram bot connected' },
+    ],
+    connections: [
+      { id: 'gmail', name: 'GMAIL', detail: 'singhakshat1221@gmail.com', on: true },
+      { id: 'calendar', name: 'CALENDAR', detail: 'Primary', on: true },
+      { id: 'telegram', name: 'TELEGRAM', detail: '@ZenithMyarc_bot', on: true },
+      { id: 'discord', name: 'DISCORD', detail: 'Zenith#9989', on: false },
+    ],
+  };
+
+  BOOT_LINES = ['LINKING NEURAL CORE', 'MOUNTING CHANNELS', 'GMAIL · OK', 'CALENDAR · OK', 'TELEGRAM · OK', 'LOADING VAULT MEMORY', 'SYSTEM ONLINE'];
+
+  CLIENTS = [
+    { id: 'vg-wa', name: 'Venkata Ganesh — WhatsApp + Call', tag: 'CLIENTS' },
+    { id: 'vg', name: 'Venkata Ganesh', tag: 'CLIENTS' },
+  ];
+  CLIENT_DETAIL = {
+    'vg': { name: 'Venkata Ganesh', loc: 'Hyderabad', project: 'Shadnagar Heights (Telangana)', facts: ['Plots — minimum area 166 sq yd', 'Price — ₹21,000 per sq yd'], notes: ['Shadnagar Heights'] },
+    'vg-wa': { name: 'Venkata Ganesh', loc: 'Hyderabad', project: 'Shadnagar Heights (Telangana)', facts: ['Channel — WhatsApp + Call', 'Follow-up — site visit scheduling'], notes: ['Shadnagar Heights'] },
+  };
+  NOTES = [
+    { id: 'todos', title: 'Todos', tag: 'TODOS', type: 'todo' },
+    { id: 'vg-wa', title: 'Venkata Ganesh — WhatsApp + Call', tag: 'CLIENTS', type: 'text', body: 'Channel: WhatsApp + Call\nFollow-up: site visit scheduling\nPreferred time: weekday evenings' },
+    { id: 'vg', title: 'Venkata Ganesh', tag: 'CLIENTS', type: 'text', body: 'Client: Venkata Ganesh\nLocation: Hyderabad\n\nProject: Shadnagar Heights (Telangana)\n- Plots with minimum area of 166 square yards\n- Price: 21,000 rupees per square yard\n\nLinked notes: [[Shadnagar Heights]]' },
+    { id: 'daily', title: '2026-06-26', tag: 'DAILY', type: 'text', body: 'Morning briefing delivered.\nNo events · inbox clear.\nNo blockers logged.' },
+    { id: 'shad', title: 'Shadnagar Heights', tag: 'NOTES', type: 'text', body: 'Shadnagar Heights (Telangana)\nPlots · minimum area 166 sq yd\nPrice · 21,000 / sq yd\nStatus: active enquiry' },
+    { id: 'welcome', title: 'Welcome', tag: 'WELCOME', type: 'text', body: 'Welcome to Zenith.\nHold Space to talk, or type a command below.\nYour notes, clients and drafts live here.' },
+  ];
+  CONFIG = [
+    { title: 'SPEECH-TO-TEXT', rows: [['ENGINE', 'faster-whisper'], ['MODEL', 'small'], ['DEVICE', 'cpu'], ['COMPUTE', 'int8'], ['LANGUAGE', 'en']] },
+    { title: 'TEXT-TO-SPEECH', rows: [['ENGINE', 'kokoro'], ['VOICE', 'af_heart'], ['DEVICE', 'cuda']] },
+    { title: 'BACKEND', rows: [['VERSION', '0.5.0']] },
+  ];
+  SECURITY = [
+    { label: 'API TOKEN', state: 'ON', note: 'Enforced', on: true },
+    { label: 'DEBUG LOGS', state: 'OFF', note: 'Scrubbed', on: false },
+  ];
+
+  componentDidMount() {
+    this._loadLS();
+    if (!this._lsHadRM && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) this.setState({ reduceMotion: true });
+    this._applyTheme(this.state.theme);
+    this.tick();
+    this._clock = setInterval(() => this.tick(), 1000);
+    this._initBg(); this._initOrb(); this._initWave();
+    this._boot();
+    this._measure();
+
+    this._onKeyDown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) { e.preventDefault(); this.togglePalette(); return; }
+      if (this.state.palette.open) {
+        if (e.key === 'Escape') { e.preventDefault(); this.closePalette(); }
+        else if (e.key === 'ArrowDown') { e.preventDefault(); this.movePalette(1); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); this.movePalette(-1); }
+        else if (e.key === 'Enter') { e.preventDefault(); this.runPaletteSel(); }
+        return;
+      }
+      const tag = (e.target && e.target.tagName) || '';
+      const typing = tag === 'INPUT' || tag === 'TEXTAREA';
+      if (this.state.booting) return;
+      if (e.key === 'Escape' && this.state.narrow && (this.state.leftOpen || this.state.rightOpen)) { this.setState({ leftOpen: false, rightOpen: false }); return; }
+      if (e.code === 'Space' && !typing && !e.repeat && this.state.view === 'chat') { e.preventDefault(); this.setMode('listening'); }
+      else if (!typing && (e.key === '1' || e.key === '2' || e.key === '3' || e.key === '4' || e.key === '5')) {
+        const map = { '1':'chat','2':'memory','3':'clients','4':'drafts','5':'settings' };
+        if (map[e.key]) this.setView(map[e.key]);
+      } else if (e.key === 'ArrowLeft' && !typing && this.state.view === 'chat') { this.ccGo(-1); }
+      else if (e.key === 'ArrowRight' && !typing && this.state.view === 'chat') { this.ccGo(1); }
+    };
+    this._onKeyUp = (e) => {
+      const tag = (e.target && e.target.tagName) || '';
+      if (e.code === 'Space' && tag !== 'INPUT' && tag !== 'TEXTAREA') { e.preventDefault(); if (this.orbMode === 'listening') this.respond('Voice command received'); }
+    };
+    this._onMove = (e) => {
+      const cv = this.canvasRef.current; if (!cv) return;
+      const r = cv.getBoundingClientRect();
+      this._mtx = Math.max(-0.7, Math.min(0.7, (e.clientX - (r.left + r.width/2)) / (r.width || 1)));
+      this._mty = Math.max(-0.5, Math.min(0.5, (e.clientY - (r.top + r.height/2)) / (r.height || 1)));
+    };
+    window.addEventListener('keydown', this._onKeyDown);
+    window.addEventListener('keyup', this._onKeyUp);
+    window.addEventListener('mousemove', this._onMove);
+    if (this.rootRef.current) { this._roRoot = new ResizeObserver(() => this._measure()); this._roRoot.observe(this.rootRef.current); }
+  }
+
+  componentWillUnmount() {
+    clearInterval(this._clock); clearInterval(this._scram); clearInterval(this._ss); clearInterval(this._stream);
+    cancelAnimationFrame(this._raf); cancelAnimationFrame(this._rafBg); cancelAnimationFrame(this._rafW);
+    this._timers.forEach(clearTimeout);
+    window.removeEventListener('keydown', this._onKeyDown);
+    window.removeEventListener('keyup', this._onKeyUp);
+    window.removeEventListener('mousemove', this._onMove);
+    if (this._roRoot) this._roRoot.disconnect();
+  }
+
+  _measure() {
+    const el = this.rootRef.current; if (!el) return;
+    const narrow = el.clientWidth < 1120;
+    if (narrow !== this.state.narrow) this.setState({ narrow });
+  }
+
+  // ---------- persistence ----------
+  _loadLS() {
+    try {
+      const raw = localStorage.getItem(this.LS_KEY);
+      if (!raw) return;
+      const d = JSON.parse(raw);
+      const patch = {};
+      if (Array.isArray(d.convo)) { patch.convo = d.convo; patch.ccPage = Math.max(0, d.convo.length - 1); }
+      if (Array.isArray(d.todos)) patch.todos = d.todos;
+      if (typeof d.theme === 'string' && this.THEMES[d.theme]) patch.theme = d.theme;
+      if (typeof d.soundOn === 'boolean') patch.soundOn = d.soundOn;
+      if (typeof d.reduceMotion === 'boolean') { patch.reduceMotion = d.reduceMotion; this._lsHadRM = true; }
+      if (d.usage) patch.usage = d.usage;
+      if (Array.isArray(d.usageHist)) patch.usageHist = d.usageHist;
+      if (Array.isArray(d.log)) patch.log = d.log;
+      this.state = { ...this.state, ...patch };
+    } catch (e) {}
+  }
+  _saveLS() {
+    try {
+      const s = this.state;
+      localStorage.setItem(this.LS_KEY, JSON.stringify({ convo: s.convo, todos: s.todos, theme: s.theme, soundOn: s.soundOn, reduceMotion: s.reduceMotion, usage: s.usage, usageHist: s.usageHist, log: s.log }));
+    } catch (e) {}
+  }
+
+  // ---------- theme ----------
+  _applyTheme(id) {
+    const t = this.THEMES[id] || this.THEMES.arc;
+    this.tk = t;
+    const el = this.rootRef.current;
+    if (el) Object.keys(t.vars).forEach((k) => el.style.setProperty(k, t.vars[k]));
+  }
+  cycleTheme() {
+    const order = ['arc', 'light', 'amethyst'];
+    const next = order[(order.indexOf(this.state.theme) + 1) % order.length];
+    this.setTheme(next);
+  }
+  setTheme(id) {
+    if (!this.THEMES[id]) return;
+    this.setState({ theme: id }, () => { this._applyTheme(id); this._saveLS(); });
+    this._blip('toggle');
+    this.pushLog('Skin · ' + this.THEMES[id].name); this.pushToast('Skin · ' + this.THEMES[id].name);
+  }
+
+  _boot() {
+    const target = 'ZENITH';
+    const chars = '▚▞█▌▐ACEHKMNTXZ0249';
+    let f = 0;
+    this._scram = setInterval(() => {
+      f++;
+      let out = '';
+      for (let i = 0; i < target.length; i++) out += (i < f/3) ? target[i] : chars[Math.floor(Math.random()*chars.length)];
+      this.setState({ bootTitle: out });
+      if (f/3 >= target.length) { clearInterval(this._scram); this.setState({ bootTitle: target }); }
+    }, 55);
+    this.BOOT_LINES.forEach((ln, i) => this.later(() => { this.setState((s) => ({ bootLines: [...s.bootLines, ln] })); this._blip('tick'); }, 300 + i*200));
+    this.later(() => this._finishBoot(), 300 + this.BOOT_LINES.length*200 + 450);
+  }
+  _finishBoot() {
+    if (!this.state.booting) return;
+    clearInterval(this._scram);
+    this.setState({ booting: false, bootTitle: 'ZENITH', mounted: true });
+    this.later(() => this.setState({ bootGone: true }), 850);
+    this.setMode('speaking');
+    this.later(() => this.setMode('idle'), 1700);
+  }
+
+  tick() {
+    const d = new Date();
+    const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    const wkFull = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    const mon = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const monFull = ['JANUARY','FEBRUARY','MARCH','APRIL','MAY','JUNE','JULY','AUGUST','SEPTEMBER','OCTOBER','NOVEMBER','DECEMBER'];
+    const p = (n) => String(n).padStart(2, '0');
+    this.setState({
+      dateStr: `${days[d.getDay()]}, ${p(d.getDate())} ${mon[d.getMonth()]} ${d.getFullYear()}`,
+      timeStr: `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`,
+      monthLabel: `${mon[d.getMonth()].toUpperCase()} ${d.getFullYear()}`,
+      todayNum: p(d.getDate()), todayMon: mon[d.getMonth()].toUpperCase(), weekday: wkFull[d.getDay()],
+    });
+  }
+
+  setView(v) {
+    this.setState({ view: v, leftOpen: false, rightOpen: false });
+    this.pushLog('Opened ' + v);
+    this._blip('tick');
+  }
+  selectNote(id) { this.setState({ selNote: id }); }
+  selectClient(id) { this.setState({ selClient: id }); }
+  openVault(id) { this.setState({ view: 'drafts', selNote: id }); this._blip('tick'); }
+
+  setMode(m) { this.orbMode = m; this.setState({ mode: m }); this._scrambleStatus(m); if (m !== 'idle') this._blip(m); }
+  _scrambleStatus(m) {
+    const target = m === 'speaking' ? 'SPEAKING' : m === 'listening' ? 'LISTENING' : m === 'processing' ? 'PROCESSING' : 'IDLE';
+    clearInterval(this._ss);
+    const chars = '▚▞█ACEHKMNRTXZ#%';
+    let f = 0;
+    this._ss = setInterval(() => {
+      f++;
+      let out = '';
+      for (let i = 0; i < target.length; i++) out += (i < f/2) ? target[i] : chars[Math.floor(Math.random()*chars.length)];
+      this.setState({ statusDisp: out });
+      if (f/2 >= target.length) { clearInterval(this._ss); this.setState({ statusDisp: target }); }
+    }, 38);
+  }
+  later(fn, ms) { const t = setTimeout(fn, ms); this._timers.push(t); return t; }
+
+  // ---------- command center / convo ----------
+  _push(role, text) {
+    this.setState((s) => { const convo = [...s.convo, { role, text, time: this._now() }]; return { convo, ccPage: convo.length - 1 }; });
+  }
+  _now() { const d = new Date(); const p = (n) => String(n).padStart(2, '0'); return `${p(d.getHours())}:${p(d.getMinutes())}`; }
+
+  _reply(youText) {
+    const t = youText.toLowerCase();
+    if (t.includes('brief')) return 'Here\u2019s your morning briefing. Your calendar is clear today and tomorrow, so you have open focus time to work with. Inbox is at zero unread. One client thread is active — Venkata Ganesh on Shadnagar Heights — and it\u2019s still awaiting a site-visit slot. Three tasks remain open in Today\u2019s Focus, including the WEATHER_LAT / WEATHER_LON setup in backend/.env. Nothing is currently blocking you.';
+    if (t.includes('email') || t.includes('inbox') || t.includes('unread')) return 'Inbox is clear — no unread messages right now. I can draft a reply or summarise the last thread whenever you need.';
+    if (t.includes('meeting') || t.includes('schedule') || t.includes('calendar') || t.includes('event')) return 'Nothing on the calendar today, and tomorrow is open too. Want me to block focus time or add an event?';
+    if (t.includes('venkata') || t.includes('ganesh') || t.includes('client') || t.includes('shadnagar')) return 'Venkata Ganesh — Hyderabad. Project: Shadnagar Heights, plots from 166 sq yd at ₹21,000/sq yd. Linked note [[Shadnagar Heights]] is in your vault.';
+    if (t.includes('note') || t.includes('remember') || t.includes('vault') || t.includes('memory')) return 'Saved to your vault. I keep client facts and project notes linked so I can recall them in context later.';
+    if (t.includes('weather')) return 'I can pull the local forecast once WEATHER_LAT / WEATHER_LON are set in backend/.env — that task is still open in Today\u2019s Focus.';
+    if (t.includes('hello') || t.includes('hi ') || t === 'hi' || t.includes('hey')) return 'Hey — Zenith here. Ask me about your inbox, calendar, clients, or notes, or hold Space to talk.';
+    return 'Got it. I\u2019ve logged that and I\u2019m ready for the next step — ask about your inbox, calendar, clients, or notes anytime.';
+  }
+
+  _streamReply(text) {
+    this.setMode('speaking');
+    this.setState((s) => { const convo = [...s.convo, { role: 'zenith', text: '', time: this._now() }]; return { convo, ccPage: convo.length - 1 }; });
+    let i = 0;
+    clearInterval(this._stream);
+    this._stream = setInterval(() => {
+      i += 2;
+      const slice = text.slice(0, i);
+      this.setState((s) => { const convo = s.convo.slice(); const last = convo.length - 1; if (last >= 0) convo[last] = { ...convo[last], text: slice }; return { convo }; });
+      if (i >= text.length) {
+        clearInterval(this._stream);
+        const tok = Math.round((text.length) / 4);
+        this.setState((s) => ({ usage: { ...s.usage, tokens: s.usage.tokens + tok }, usageHist: [...s.usageHist, s.usage.tokens + tok].slice(-40) }), () => this._saveLS());
+        this.later(() => this.setMode('idle'), 700);
+      }
+    }, 26);
+  }
+
+  respond(youText) {
+    this._push('you', youText);
+    const tok = Math.round(youText.length / 4) + 8;
+    this.setState((s) => ({ usage: { reqMin: Math.min(5, s.usage.reqMin + 1), daily: Math.min(150, s.usage.daily + 1), tokens: s.usage.tokens + tok }, usageHist: [...s.usageHist, s.usage.tokens + tok].slice(-40) }), () => this._saveLS());
+    this.pushLog('› ' + youText);
+    this.setMode('processing');
+    const reply = this._reply(youText);
+    this.later(() => this._streamReply(reply), 950);
+  }
+
+  ccGo(dir) { this.setState((s) => ({ ccPage: Math.max(0, Math.min(s.convo.length - 1, s.ccPage + dir)) })); }
+
+  pushLog(text) { this.setState((s) => ({ log: [{ time: this._now(), text }, ...s.log].slice(0, 12) }), () => this._saveLS()); }
+
+  send() {
+    const el = this.cmdRef.current; if (!el) return;
+    const v = el.value.trim(); if (!v) return;
+    el.value = ''; this.respond(v);
+  }
+  addTodo() {
+    const el = this.todoRef.current; if (!el) return;
+    const v = el.value.trim(); if (!v) return;
+    el.value = '';
+    this.setState((s) => ({ todos: [...s.todos, { text: v, done: false }] }), () => this._saveLS());
+    this.pushLog('Task added · ' + v); this._blip('tick'); this.pushToast('Task added');
+  }
+  toggleTodo(i) { this.setState((s) => ({ todos: s.todos.map((t, idx) => idx === i ? { ...t, done: !t.done } : t) }), () => this._saveLS()); this._blip('tick'); }
+  toggleConn(id) {
+    let now;
+    this.setState((s) => ({ connections: s.connections.map((c) => { if (c.id !== id) return c; now = !c.on; return { ...c, on: now }; }) }),
+      () => { const c = this.state.connections.find((x) => x.id === id); this.pushLog(`${c.name} ${now ? 'enabled' : 'disabled'}`); this.pushToast(`${c.name} ${now ? 'enabled' : 'disabled'}`, now ? 'ok' : 'warn'); });
+    this._blip('toggle');
+  }
+  toggleSection(key) { this.setState((s) => ({ collapse: { ...s.collapse, [key]: !s.collapse[key] } })); }
+
+  toggleMotion() { this.setState((s) => ({ reduceMotion: !s.reduceMotion }), () => { this._saveLS(); this.pushToast('Reduced motion ' + (this.state.reduceMotion ? 'on' : 'off')); }); }
+  toggleSound() { this.setState((s) => ({ soundOn: !s.soundOn }), () => { this._saveLS(); this.pushToast('Sound ' + (this.state.soundOn ? 'on' : 'off')); }); }
+
+  pushToast(text, kind) {
+    const id = Date.now() + Math.random();
+    this.setState((s) => ({ toasts: [...s.toasts, { id, text, kind: kind || 'ok' }] }));
+    this.later(() => this.setState((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })), 3000);
+  }
+
+  togglePalette() {
+    const open = !this.state.palette.open;
+    this.setState({ palette: { open, query: '', index: 0 } }, () => { if (open) this.later(() => { const el = this.paletteInputRef.current; if (el) el.focus(); }, 40); });
+  }
+  closePalette() { this.setState({ palette: { open: false, query: '', index: 0 } }); }
+  setPaletteQuery(q) { this.setState((s) => ({ palette: { ...s.palette, query: q, index: 0 } })); }
+  movePalette(d) { const n = this._paletteItems(this.state.palette.query).length; if (!n) return; this.setState((s) => ({ palette: { ...s.palette, index: (s.palette.index + d + n) % n } })); }
+  runPaletteSel() { const items = this._paletteItems(this.state.palette.query); const it = items[this.state.palette.index]; if (it) { this.closePalette(); this.later(() => it.run(), 10); } }
+  _paletteItems(q) {
+    const ql = (q || '').toLowerCase();
+    const items = [];
+    [['chat','Chat'],['memory','Memory'],['clients','Clients'],['drafts','Notes'],['settings','Settings']].forEach(([id, label]) => items.push({ group: 'GO', icon: this._icSize('<path d="M5 12h14M13 6l6 6-6 6"/>', 14), label: 'Go to ' + label, sub: 'View', run: () => this.setView(id) }));
+    items.push({ group: 'CMD', icon: this._icSize('<circle cx="12" cy="12" r="3.4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>', 14), label: 'Cycle skin', sub: 'Appearance', run: () => this.cycleTheme() });
+    items.push({ group: 'CMD', icon: this._icSize('<path d="M4 6h16M4 12h16M4 18h10"/>', 14), label: 'Daily briefing', sub: 'Ask Zenith', run: () => { this.setView('chat'); this.respond('daily briefing'); } });
+    items.push({ group: 'CMD', icon: this._icSize('<path d="M12 3v18M5 8l7-5 7 5"/>', 14), label: 'Toggle reduced motion', sub: 'Comfort', run: () => this.toggleMotion() });
+    items.push({ group: 'CMD', icon: this._icSize('<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>', 14), label: 'Toggle sound', sub: 'Comfort', run: () => this.toggleSound() });
+    this.CLIENTS.forEach((c) => items.push({ group: 'CLIENT', icon: this._icSize('<circle cx="12" cy="8" r="3.2"/><path d="M5 20a7 7 0 0 1 14 0"/>', 14), label: c.name, sub: 'Client', run: () => this.setState({ view: 'clients', selClient: c.id }) }));
+    this.NOTES.forEach((n) => items.push({ group: 'NOTE', icon: this._icSize('<path d="M14 3v5h5M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>', 14), label: n.title, sub: n.tag, run: () => this.setState({ view: 'drafts', selNote: n.id }) }));
+    if (!ql) return items;
+    return items.filter((it) => (it.label + ' ' + it.sub + ' ' + it.group).toLowerCase().includes(ql));
+  }
+
+  _blip(kind) {
+    if (!this.state.soundOn) return;
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!this._ac) this._ac = new AC();
+      const ac = this._ac;
+      if (ac.state === 'suspended') ac.resume();
+      const now = ac.currentTime;
+      const tone = (f, d, g, type) => {
+        const o = ac.createOscillator(), ga = ac.createGain();
+        o.type = type || 'sine'; o.frequency.value = f;
+        ga.gain.setValueAtTime(0.0001, now);
+        ga.gain.exponentialRampToValueAtTime(g, now + 0.012);
+        ga.gain.exponentialRampToValueAtTime(0.0001, now + d);
+        o.connect(ga); ga.connect(ac.destination);
+        o.start(now); o.stop(now + d + 0.02);
+      };
+      if (kind === 'listening') tone(300, 0.16, 0.05, 'sine');
+      else if (kind === 'processing') tone(440, 0.1, 0.04, 'triangle');
+      else if (kind === 'speaking') tone(620, 0.2, 0.05, 'sine');
+      else if (kind === 'toggle') tone(520, 0.07, 0.04, 'triangle');
+      else if (kind === 'tick') tone(720, 0.06, 0.035, 'sine');
+    } catch (e) {}
+  }
+
+  _initBg() {
+    const cv = this.bgRef.current; if (!cv) return;
+    const ctx = cv.getContext('2d');
+    const DPR = Math.min(window.devicePixelRatio || 1, 2);
+    let W = 0, H = 0, nodes = [];
+    const seed = () => { nodes = []; const n = Math.min(110, Math.round((W * H) / 20000)); for (let i = 0; i < n; i++) nodes.push({ x: Math.random()*W, y: Math.random()*H, vx: (Math.random()-0.5)*0.18, vy: (Math.random()-0.5)*0.18 }); };
+    const resize = () => { const r = cv.getBoundingClientRect(); W = r.width; H = r.height; cv.width = Math.max(1, W*DPR); cv.height = Math.max(1, H*DPR); ctx.setTransform(DPR,0,0,DPR,0,0); seed(); };
+    resize();
+    this._roBg = new ResizeObserver(resize); this._roBg.observe(cv);
+    const D = 130; let t = 0;
+    const loop = () => {
+      this._rafBg = requestAnimationFrame(loop); t += 0.016;
+      const tk = this.tk || this.THEMES.arc;
+      const RM = this.state.reduceMotion;
+      ctx.clearRect(0, 0, W, H);
+      const gap = 52, off = RM ? 0 : (t*5) % gap;
+      ctx.strokeStyle = `rgba(${tk.gridRgb},${tk.gridA})`; ctx.lineWidth = 1; ctx.beginPath();
+      for (let x = -off; x < W; x += gap) { ctx.moveTo(x, 0); ctx.lineTo(x, H); }
+      for (let y = -off; y < H; y += gap) { ctx.moveTo(0, y); ctx.lineTo(W, y); }
+      ctx.stroke();
+      if (!RM) for (const p of nodes) { p.x += p.vx; p.y += p.vy; if (p.x < 0) p.x = W; else if (p.x > W) p.x = 0; if (p.y < 0) p.y = H; else if (p.y > H) p.y = 0; }
+      const na = tk.light ? 0.07 : 0.09;
+      for (let i = 0; i < nodes.length; i++) for (let j = i+1; j < nodes.length; j++) {
+        const dx = nodes[i].x - nodes[j].x, dy = nodes[i].y - nodes[j].y, dist = Math.hypot(dx, dy);
+        if (dist < D) { ctx.strokeStyle = `rgba(${tk.nodeRgb},${(1 - dist/D)*na})`; ctx.beginPath(); ctx.moveTo(nodes[i].x, nodes[i].y); ctx.lineTo(nodes[j].x, nodes[j].y); ctx.stroke(); }
+      }
+      for (const p of nodes) { ctx.fillStyle = `rgba(${tk.nodeRgb},${tk.light ? 0.35 : 0.5})`; ctx.beginPath(); ctx.arc(p.x, p.y, 1.1, 0, 6.283); ctx.fill(); }
+    };
+    loop();
+  }
+
+  _initOrb() {
+    const cv = this.canvasRef.current; if (!cv) return;
+    const ctx = cv.getContext('2d');
+    const DPR = Math.min(window.devicePixelRatio || 1, 2);
+    let W = 0, H = 0;
+    const resize = () => { const r = cv.getBoundingClientRect(); W = r.width; H = r.height; cv.width = Math.max(1, W*DPR); cv.height = Math.max(1, H*DPR); ctx.setTransform(DPR,0,0,DPR,0,0); };
+    resize();
+    this._ro = new ResizeObserver(resize); this._ro.observe(cv);
+    const N = 950, pts = [];
+    const gold = Math.PI * (3 - Math.sqrt(5));
+    for (let i = 0; i < N; i++) { const y = 1 - (i/(N-1))*2; const r = Math.sqrt(Math.max(0, 1 - y*y)); const th = gold*i; pts.push({ x: Math.cos(th)*r, y, z: Math.sin(th)*r }); }
+    const chans = [{ dx: 0, dy: -1, on: true }, { dx: 0, dy: 1, on: true }, { dx: -1, dy: 0, on: false }, { dx: 1, dy: 0, on: true }];
+    // volumetric points for the AMETHYST nebula cloud (denser)
+    const vol = [];
+    for (let i = 0; i < 1180; i++) {
+      const u = Math.random(), v = Math.random();
+      const rr = Math.pow(Math.random(), 0.62);
+      const theta = Math.acos(2*v - 1), phi = 2*Math.PI*u;
+      vol.push({ x: Math.sin(theta)*Math.cos(phi)*rr, y: Math.cos(theta)*rr, z: Math.sin(theta)*Math.sin(phi)*rr, tw: Math.random()*6.28, sp: 0.4 + Math.random()*1.1 });
+    }
+    // GHOST/LIGHT — dense wobbling wireframe mesh + venom tendrils
+    const MN = 210, mpts = [];
+    for (let i = 0; i < MN; i++) { const y = 1 - (i/(MN-1))*2; const r = Math.sqrt(Math.max(0, 1 - y*y)); const th = gold*i; mpts.push({ x: Math.cos(th)*r, y, z: Math.sin(th)*r, ph: Math.random()*6.28, s1: 0.8 + Math.random()*1.7, s2: 1.5 + Math.random()*2.6 }); }
+    const links = [];
+    for (let i = 0; i < mpts.length; i++) for (let j = i+1; j < mpts.length; j++) { const dx = mpts[i].x-mpts[j].x, dy = mpts[i].y-mpts[j].y, dz = mpts[i].z-mpts[j].z; if (Math.sqrt(dx*dx+dy*dy+dz*dz) < 0.36) links.push([i, j]); }
+    const tendrils = [];
+    for (let i = 0; i < 8; i++) tendrils.push({ idx: Math.floor(Math.random()*MN), len: 0.5 + Math.random()*0.8, sp: 1.2 + Math.random()*2.0, ph: Math.random()*6.28, amp: 0.12 + Math.random()*0.18 });
+    let t = 0;
+    const loop = () => {
+      this._raf = requestAnimationFrame(loop); t += 0.016;
+      const tk = this.tk || this.THEMES.arc;
+      const LIGHT = tk.light;
+      const RM = this.state.reduceMotion;
+      const ACC = tk.vars['--accent-rgb'];
+      const ORB = tk.orbRgb;
+      const orbParts = ORB.split(',');
+      const mode = this.orbMode;
+      const targ = mode === 'speaking' ? 0.92 : mode === 'processing' ? 0.72 : mode === 'listening' ? 0.55 : 0.15;
+      this.energy += (targ - this.energy) * 0.06;
+      const e = this.energy;
+      this.tiltX += (this._mtx - this.tiltX) * 0.05;
+      this.tiltY += (this._mty - this.tiltY) * 0.05;
+
+      if (mode === 'speaking' && this._prevMode !== 'speaking') { const br = Math.min(W,H)*0.33; this._ripples.push({ r: br*0.5, a: 0.6 }); this._ripples.push({ r: br*0.2, a: 0.5 }); }
+      this._prevMode = mode;
+
+      let wob;
+      if (RM) wob = 0;
+      else if (mode === 'speaking') wob = (Math.sin(t*9)+Math.sin(t*5.3+1)+Math.sin(t*13.7))/3 * 0.11 * e;
+      else if (mode === 'processing') wob = Math.sin(t*7) * 0.03 * e;
+      else if (mode === 'listening') wob = Math.sin(t*5) * 0.045 * e;
+      else wob = Math.sin(t*1.2) * 0.022;
+
+      const cx = W/2, cy = H/2;
+      const baseR = Math.min(W, H) * 0.33 * (1 + wob);
+      const spin = (mode === 'processing' && !RM) ? 0.85 : 0;
+      const ay = t * (RM ? 0.05 : (0.16 + e*0.45 + spin)) + this.tiltX * 0.9;
+      const ax = 0.42 + this.tiltY * 0.5;
+      const cosA = Math.cos(ay), sinA = Math.sin(ay), cosX = Math.cos(ax), sinX = Math.sin(ax);
+      const warmCol = mode === 'speaking' && (tk.style || 'sphere') === 'sphere';
+      const colStr = warmCol ? '255,169,77' : ACC;
+
+      ctx.clearRect(0, 0, W, H);
+
+      const edge = Math.min(W, H)/2 - 8;
+      for (const ch of chans) {
+        const sx = cx + ch.dx*(baseR+6), sy = cy + ch.dy*(baseR+6);
+        const ex = cx + ch.dx*edge, ey = cy + ch.dy*edge;
+        ctx.strokeStyle = ch.on ? `rgba(${ACC},${LIGHT ? 0.22 : 0.16})` : `rgba(${ACC},0.05)`;
+        ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey); ctx.stroke();
+        if (ch.on) for (let k = 0; k < 3; k++) {
+          let u = ((t * (0.32 + e*0.25)) + k/3) % 1;
+          if (mode === 'processing') u = 1 - u;
+          const px = sx + (ex - sx)*u, py = sy + (ey - sy)*u, aa = Math.sin(u * Math.PI);
+          ctx.fillStyle = `rgba(${colStr},${0.85*aa})`;
+          ctx.beginPath(); ctx.arc(px, py, 2, 0, 6.283); ctx.fill();
+        }
+      }
+
+      if (LIGHT) {
+        // dark core on light bg
+        const coreR = baseR * (1.05 + e*0.45);
+        const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, coreR);
+        g.addColorStop(0, `rgba(${ORB},${0.22 + e*0.2})`);
+        g.addColorStop(0.5, `rgba(${ORB},0.09)`);
+        g.addColorStop(1, `rgba(${ORB},0)`);
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, coreR, 0, Math.PI*2); ctx.fill();
+      } else {
+        ctx.globalCompositeOperation = 'lighter';
+        const coreR = baseR * (1.08 + e*0.6);
+        const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, coreR);
+        const warm = warmCol ? e : 0;
+        const r1 = Math.round(120 + 135*warm), g1 = Math.round(240 - 30*warm), b1 = Math.round(230 - 80*warm);
+        g.addColorStop(0, `rgba(${r1},${g1},${b1},${0.72 + e*0.45})`);
+        g.addColorStop(0.22, `rgba(${ACC},${0.46 + e*0.3})`);
+        g.addColorStop(0.55, `rgba(${ACC},0.16)`);
+        g.addColorStop(1, `rgba(${ACC},0)`);
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, coreR, 0, Math.PI*2); ctx.fill();
+        ctx.globalCompositeOperation = 'source-over';
+      }
+
+      const proj = (p) => { const x = p.x*cosA + p.z*sinA, z = -p.x*sinA + p.z*cosA; const y2 = p.y*cosX - z*sinX, z2 = p.y*sinX + z*cosX; return { px: cx + x*baseR, py: cy + y2*baseR, depth: (z2 + 1) / 2 }; };
+      const ostyle = tk.style || 'sphere';
+
+      if (ostyle === 'mesh') {
+        // GHOST / LIGHT — dense wobbling wireframe + venom tendrils
+        const jit = RM ? 0 : (0.05 + 0.03*e);
+        const mw = mpts.map((p) => ({
+          x: p.x + (0.6*Math.sin(t*p.s1 + p.ph) + 0.4*Math.sin(t*p.s2*1.7 + p.ph*2.3))*jit,
+          y: p.y + (0.6*Math.sin(t*p.s1*1.2 + p.ph*1.6) + 0.4*Math.cos(t*p.s2 + p.ph))*jit,
+          z: p.z + (0.6*Math.cos(t*p.s1*1.4 + p.ph) + 0.4*Math.sin(t*p.s2*2.1 + p.ph))*jit,
+        }));
+        const pr = mw.map(proj);
+        ctx.lineWidth = 1;
+        for (let k = 0; k < links.length; k++) {
+          const a1 = pr[links[k][0]], a2 = pr[links[k][1]];
+          const dep = (a1.depth + a2.depth) / 2;
+          ctx.strokeStyle = `rgba(${ORB},${0.05 + dep*dep*0.5})`;
+          ctx.beginPath(); ctx.moveTo(a1.px, a1.py); ctx.lineTo(a2.px, a2.py); ctx.stroke();
+        }
+        for (let k = 0; k < pr.length; k++) {
+          const a1 = pr[k]; const al = 0.22 + a1.depth*0.6; const sz = 0.9 + a1.depth*1.5;
+          ctx.fillStyle = `rgba(${ORB},${al})`;
+          ctx.beginPath(); ctx.arc(a1.px, a1.py, sz, 0, 6.283); ctx.fill();
+        }
+      } else if (ostyle === 'nebula') {
+        // AMETHYST — volumetric swirling nebula cloud
+        for (let k = 0; k < vol.length; k++) {
+          const pr = proj(vol[k]);
+          const tw = 0.45 + 0.55*Math.sin(t*vol[k].sp*1.8 + vol[k].tw);
+          const al = (0.08 + pr.depth*pr.depth*0.72) * (0.4 + 0.6*tw);
+          const sz = 0.6 + pr.depth*2.1*tw;
+          ctx.fillStyle = `rgba(${colStr},${al})`;
+          ctx.beginPath(); ctx.arc(pr.px, pr.py, sz, 0, 6.283); ctx.fill();
+        }
+        ctx.save(); ctx.translate(cx, cy);
+        for (let r = 0; r < 2; r++) {
+          ctx.rotate(t*0.12 + r*1.3);
+          ctx.strokeStyle = `rgba(${ACC},${0.09 + 0.12*e})`; ctx.lineWidth = 1.2;
+          ctx.beginPath(); ctx.ellipse(0, 0, baseR*1.16, baseR*0.4, 0, 0, Math.PI*2); ctx.stroke();
+        }
+        ctx.restore();
+      } else {
+        // ARC — particle surface sphere + EQ halo + radar sweep
+        for (let i = 0; i < N; i++) {
+          const pr = proj(pts[i]);
+          const a = 0.12 + pr.depth*pr.depth*0.72;
+          const sz = 0.5 + pr.depth*1.4;
+          if (warmCol && pr.depth > 0.7 && ((i*7) % 5 === 0)) ctx.fillStyle = `rgba(255,169,77,${a})`;
+          else ctx.fillStyle = `rgba(${orbParts[0]},${orbParts[1]},${orbParts[2]},${a})`;
+          ctx.fillRect(pr.px - sz/2, pr.py - sz/2, sz, sz);
+        }
+        const bars = 76;
+        for (let i = 0; i < bars; i++) {
+          const ang = (i/bars)*Math.PI*2 + t*0.18;
+          const v = Math.abs(Math.sin(i*0.5 + t*(mode === 'speaking' ? 6 : mode === 'processing' ? 4.5 : 3)));
+          const len = mode === 'idle' ? (1.5 + v*2) : (3 + v * (mode === 'speaking' ? 17 : 9) * e);
+          const r0 = baseR * 1.5;
+          const x0 = cx + Math.cos(ang)*r0, y0 = cy + Math.sin(ang)*r0;
+          const x1 = cx + Math.cos(ang)*(r0+len), y1 = cy + Math.sin(ang)*(r0+len);
+          ctx.strokeStyle = `rgba(${colStr},${0.12 + 0.4*e})`; ctx.lineWidth = 1.4;
+          ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+        }
+        ctx.save(); ctx.translate(cx, cy); ctx.rotate(t * 0.85);
+        const lg = ctx.createLinearGradient(0, 0, baseR, 0);
+        lg.addColorStop(0, `rgba(${ACC},0)`); lg.addColorStop(1, `rgba(${ACC},${0.45 + e*0.35})`);
+        ctx.strokeStyle = lg; ctx.lineWidth = 1.4;
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(baseR, 0); ctx.stroke();
+        ctx.fillStyle = `rgba(${ACC},0.045)`;
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, baseR, -0.55, 0); ctx.closePath(); ctx.fill();
+        ctx.restore();
+      }
+
+      if (mode === 'listening' && t - this._lastRip > 0.5) { this._lastRip = t; this._ripples.push({ r: baseR*0.9, a: 0.5 }); }
+      for (let i = this._ripples.length - 1; i >= 0; i--) {
+        const rp = this._ripples[i]; rp.r += 2.6; rp.a *= 0.965;
+        if (rp.a < 0.02) { this._ripples.splice(i, 1); continue; }
+        ctx.strokeStyle = `rgba(${colStr},${rp.a})`; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.arc(cx, cy, rp.r, 0, Math.PI*2); ctx.stroke();
+      }
+
+      ctx.lineWidth = 1;
+      const ring = (rad, rot, alpha, gp) => { ctx.strokeStyle = `rgba(${ACC},${alpha})`; ctx.beginPath(); ctx.arc(cx, cy, rad, rot, rot + Math.PI*2 - gp); ctx.stroke(); };
+      ring(baseR*1.22, t*0.3, LIGHT ? 0.22 : 0.16, 1.1);
+      ring(baseR*1.4, -t*0.22, LIGHT ? 0.14 : 0.10, 2.0);
+    };
+    loop();
+  }
+
+  _initWave() {
+    const cv = this.waveRef.current; if (!cv) return;
+    const ctx = cv.getContext('2d');
+    const DPR = Math.min(window.devicePixelRatio || 1, 2);
+    let W = 0, H = 0;
+    const resize = () => { const r = cv.getBoundingClientRect(); W = r.width; H = r.height; cv.width = Math.max(1, W*DPR); cv.height = Math.max(1, H*DPR); ctx.setTransform(DPR,0,0,DPR,0,0); };
+    resize();
+    this._roW = new ResizeObserver(resize); this._roW.observe(cv);
+    const Nb = 30, vals = new Array(Nb).fill(0); let t = 0;
+    const loop = () => {
+      this._rafW = requestAnimationFrame(loop); t += 0.05;
+      const tk = this.tk || this.THEMES.arc;
+      const mode = this.orbMode, e = this.energy;
+      ctx.clearRect(0, 0, W, H);
+      const mid = H/2, bw = W/Nb;
+      const col = (mode === 'speaking' && (tk.style||'sphere') === 'sphere') ? '255,169,77' : tk.vars['--accent-rgb'];
+      for (let i = 0; i < Nb; i++) {
+        let tv;
+        if (mode === 'speaking') tv = (0.25 + 0.75*Math.abs(Math.sin(i*0.6 + t*4) + Math.sin(i*0.27 + t*2.3))*0.6) * e;
+        else if (mode === 'processing') tv = (0.12 + 0.28*Math.abs(Math.sin(i*0.8 + t*5))) * e;
+        else if (mode === 'listening') tv = (0.12 + 0.3*Math.abs(Math.sin(i*0.5 + t*3))) * e;
+        else tv = 0.04 + 0.018*Math.sin(i*0.7 + t);
+        vals[i] += (tv - vals[i]) * 0.25;
+        const h = Math.max(1.5, vals[i]*H*0.95), x = i*bw + bw/2;
+        ctx.fillStyle = `rgba(${col},${0.3 + vals[i]})`;
+        ctx.fillRect(x - bw*0.26, mid - h/2, bw*0.52, h);
+      }
+    };
+    loop();
+  }
+
+  _ic(path) { return { __html: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${path}</svg>` }; }
+  _icSize(path, sz) { return { __html: `<svg width="${sz}" height="${sz}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${path}</svg>` }; }
+  _fmtTok(n) { return n >= 1000 ? (n/1000).toFixed(1) + 'K' : String(n); }
+
+  renderVals() {
+    const s = this.state;
+    const mode = s.mode;
+    const tk = this.tk || this.THEMES.arc;
+    const A = tk.vars['--accent'];
+    const accentSpeak = mode === 'speaking' && !tk.light ? '#ffa94d' : A;
+    const statusColor = mode === 'speaking' ? ((tk.style||'sphere') === 'sphere' ? '#ffa94d' : A) : mode === 'processing' ? A : mode === 'listening' ? A : 'var(--c-dim)';
+    const listening = mode === 'listening';
+    const active = mode !== 'idle';
+
+    const d = new Date();
+    const todayN = d.getDate();
+    const days = [];
+    for (let i = 1; i <= 30; i++) { const today = i === todayN; days.push({ label: String(i).padStart(2,'0'), color: today ? '#ffa94d' : 'var(--c-faint)', tick: today ? '9px' : '4px' }); }
+
+    const navIcons = {
+      chat: this._ic('<rect x="3" y="4" width="18" height="13" rx="3"/><path d="M8 17v3l4-3"/>'),
+      memory: this._ic('<circle cx="6" cy="7" r="2.4"/><circle cx="18" cy="7" r="2.4"/><circle cx="12" cy="17" r="2.4"/><path d="M7.7 8.6l3 6.8M16.3 8.6l-3 6.8M8.4 7h7.2"/>'),
+      clients: this._ic('<circle cx="9" cy="9" r="3"/><circle cx="16" cy="11" r="2.4"/><path d="M4 19a5 5 0 0 1 10 0"/>'),
+      drafts: this._ic('<path d="M14 3v5h5"/><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>'),
+      settings: this._ic('<circle cx="12" cy="12" r="3.2"/><line x1="12" y1="3" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="21"/><line x1="3" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="21" y2="12"/>'),
+    };
+    const navDef = [['chat','CHAT'], ['memory','MEMORY'], ['clients','CLIENTS'], ['drafts','NOTES'], ['settings','SETTINGS']];
+    const navItems = navDef.map(([id, label]) => {
+      const on = s.view === id;
+      return { label, icon: navIcons[id], bg: on ? 'rgba(var(--accent-rgb),.1)' : 'transparent', color: on ? 'var(--accent)' : 'var(--c-dim)', barH: on ? '26px' : '0px', onClick: () => this.setView(id) };
+    });
+
+    const actions = [
+      { id: 'brief', label: 'Daily briefing', icon: this._ic('<path d="M4 6h16M4 12h16M4 18h10"/>') },
+      { id: 'email', label: 'New email', icon: this._ic('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>') },
+      { id: 'event', label: 'Add event', icon: this._ic('<rect x="3" y="4" width="18" height="17" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="12" y1="13" x2="12" y2="17"/><line x1="10" y1="15" x2="14" y2="15"/>') },
+      { id: 'note', label: 'Log note', icon: this._ic('<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>') },
+    ].map((a) => ({ label: a.label, icon: a.icon, onClick: () => { this.setState({ view: 'chat' }); this.pushToast('Action · ' + a.label); this.respond(a.label); } }));
+
+    const u = s.usage;
+    const meters = [
+      { label: 'REQ / MIN', value: u.reqMin + ' / 5', pct: (u.reqMin/5*100) + '%', color: 'var(--accent)' },
+      { label: 'DAILY', value: u.daily + ' / 150', pct: (u.daily/150*100) + '%', color: 'var(--accent)' },
+      { label: 'TOKENS', value: this._fmtTok(u.tokens) + ' / 300K', pct: Math.min(100, u.tokens/300000*100) + '%', color: '#ffa94d' },
+    ];
+    const inr = (u.tokens / 1000 * 0.18).toFixed(2);
+    const usd = (u.tokens / 1000 * 0.003).toFixed(3);
+    const costStr = '~₹' + inr + ' · $' + usd;
+    const usageState = u.daily > 120 ? 'HIGH' : 'OK';
+
+    const shortcuts = [{ key: 'Space', act: 'hold to talk' }, { key: 'Enter', act: 'send' }, { key: '← →', act: 'flip turns' }, { key: '1–5', act: 'switch view' }];
+
+    const connections = s.connections.map((c) => ({
+      name: c.name, detail: c.detail,
+      dot: c.on ? 'var(--accent)' : 'var(--c-faint)', glow: c.on ? '0 0 6px var(--accent)' : 'none',
+      border: c.on ? 'rgba(var(--accent-rgb),.16)' : 'var(--line)',
+      trackBg: c.on ? 'rgba(var(--accent-rgb),.3)' : 'var(--line2)',
+      knob: c.on ? 'var(--accent)' : 'var(--c-lo)', knobLeft: c.on ? '20px' : '2px',
+      onToggle: () => this.toggleConn(c.id),
+    }));
+
+    const todos = s.todos.map((t, i) => ({
+      text: t.text,
+      textColor: t.done ? 'var(--c-dim)' : 'var(--c-mid)', strike: t.done ? 'line-through' : 'none',
+      boxBorder: t.done ? 'var(--accent)' : 'var(--line2)', boxBg: t.done ? 'var(--accent)' : 'transparent',
+      check: t.done ? { __html: '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' } : { __html: '' },
+      onToggle: () => this.toggleTodo(i),
+    }));
+    const pendingCount = s.todos.filter((t) => !t.done).length;
+
+    // command center page
+    const convo = s.convo;
+    const page = Math.max(0, Math.min(convo.length - 1, s.ccPage));
+    const cur = convo[page];
+    const ccEmpty = convo.length === 0;
+    const isYou = cur && cur.role === 'you';
+    const streamingNow = mode === 'speaking' && page === convo.length - 1 && cur && cur.role === 'zenith';
+    const ccBig = !!(cur && cur.text && cur.text.length > 120);
+
+    // notes
+    const notes = this.NOTES.map((n) => {
+      const sel = n.id === s.selNote;
+      return { title: n.title, tag: n.tag, bg: sel ? 'rgba(var(--accent-rgb),.07)' : 'transparent', border: sel ? 'rgba(var(--accent-rgb),.18)' : 'var(--line)', bar: sel ? A : 'transparent', titleColor: sel ? 'var(--c-hi)' : 'var(--c-body)', onSelect: () => this.selectNote(n.id) };
+    });
+    const curNote = this.NOTES.find((n) => n.id === s.selNote) || this.NOTES[0];
+    const noteIsTodo = curNote.type === 'todo';
+
+    // clients
+    const clients = this.CLIENTS.map((c) => {
+      const sel = c.id === s.selClient;
+      return { name: c.name, tag: c.tag, bg: sel ? 'rgba(var(--accent-rgb),.07)' : 'transparent', border: sel ? 'rgba(var(--accent-rgb),.18)' : 'var(--line)', bar: sel ? A : 'transparent', titleColor: sel ? 'var(--c-hi)' : 'var(--c-body)', onSelect: () => this.selectClient(c.id) };
+    });
+    const cd = this.CLIENT_DETAIL[s.selClient] || this.CLIENT_DETAIL['vg'];
+
+    // memory
+    const pinned = [
+      { title: 'Venkata Ganesh', icon: this._icSize('<circle cx="12" cy="8" r="3.4"/><path d="M5 20a7 7 0 0 1 14 0"/>', 16), facts: ['Hyderabad · active enquiry', 'Project: Shadnagar Heights', '166 sq yd min · ₹21,000/sq yd'], links: ['Shadnagar Heights'] },
+      { title: 'Shadnagar Heights', icon: this._icSize('<path d="M3 21h18M5 21V8l7-5 7 5v13"/><path d="M9 21v-6h6v6"/>', 16), facts: ['Telangana plot project', 'Min area 166 sq yd', 'Linked client: Venkata Ganesh'], links: ['Venkata Ganesh'] },
+    ];
+    const vault = this.NOTES.filter((n) => n.type === 'text').map((n) => {
+      const links = (n.body.match(/\[\[(.*?)\]\]/g) || []).length;
+      return { title: n.title, tag: n.tag, preview: n.body.replace(/\n/g, ' ').replace(/\[\[|\]\]/g, '').slice(0, 84) + '…', linkText: links + ' linked', onSelect: () => this.openVault(n.id) };
+    });
+    const vaultCount = vault.length;
+    const linkCount = this.NOTES.reduce((a, n) => a + ((n.body || '').match(/\[\[(.*?)\]\]/g) || []).length, 0);
+
+    // settings themes
+    const themes = ['arc','light','amethyst'].map((id) => {
+      const meta = { arc: { name: 'ARC', dot: '#2ee6d6', frameBg: '#0a1416', bar: '#2ee6d6' }, light: { name: 'LIGHT', dot: '#16242a', frameBg: '#eef1f1', bar: '#16242a' }, amethyst: { name: 'AMETHYST', dot: '#b06cf0', frameBg: '#150a1e', bar: '#b06cf0' } }[id];
+      const on = s.theme === id;
+      return { name: meta.name, dot: meta.dot, frameBg: meta.frameBg, bar: meta.bar, border: on ? 'rgba(var(--accent-rgb),.5)' : 'var(--line2)', activeLabel: on ? '● ACTIVE' : '', activeColor: on ? 'var(--accent)' : 'transparent', onSelect: () => this.setTheme(id) };
+    });
+    const configGroups = this.CONFIG.map((g) => ({ title: g.title, rows: g.rows.map(([k, v]) => ({ k, v })) }));
+    const security = this.SECURITY.map((se) => ({
+      label: se.label, state: se.state, note: se.note,
+      chipColor: se.on ? 'var(--accent)' : 'var(--c-lo)',
+      chipBorder: se.on ? 'rgba(var(--accent-rgb),.3)' : 'var(--line2)',
+      chipBg: se.on ? 'rgba(var(--accent-rgb),.08)' : 'transparent',
+    }));
+
+    const soundIcon = s.soundOn
+      ? this._icSize('<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18 6a8 8 0 0 1 0 12"/>', 14)
+      : this._icSize('<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="22" y1="9" x2="16" y2="15"/><line x1="16" y1="9" x2="22" y2="15"/>', 14);
+
+    const narrow = s.narrow;
+    const leftVisible = !narrow || s.leftOpen;
+    const rightVisible = !narrow || s.rightOpen;
+
+    const pItems = (s.palette.open ? this._paletteItems(s.palette.query) : []).map((it, i) => ({ group: it.group, icon: it.icon, label: it.label, sub: it.sub, run: it.run, bg: i === s.palette.index ? 'rgba(var(--accent-rgb),.12)' : 'transparent' }));
+    const hist = s.usageHist;
+    let spark = { has: false, points: '', area: '', total: this._fmtTok(s.usage.tokens) };
+    if (hist.length > 1) {
+      const Wp = 120, Hp = 26, maxT = Math.max.apply(null, hist) || 1;
+      const pts = hist.map((v, i) => `${(i/(hist.length-1)*Wp).toFixed(1)},${(Hp - (v/maxT)*(Hp-4) - 2).toFixed(1)}`).join(' ');
+      spark = { has: true, points: pts, area: `${pts} ${Wp},${Hp} 0,${Hp}`, total: this._fmtTok(s.usage.tokens) };
+    }
+    return {
+      rootRef: this.rootRef, bgRef: this.bgRef, canvasRef: this.canvasRef, waveRef: this.waveRef, cmdRef: this.cmdRef, todoRef: this.todoRef,
+      dateStr: s.dateStr, timeStr: s.timeStr, monthLabel: s.monthLabel, todayNum: s.todayNum, todayMon: s.todayMon, weekday: s.weekday,
+      days, navItems, actions, meters, costStr, usageState, shortcuts, connections, todos, pendingCount,
+      todoCount: pendingCount + ' OPEN',
+      statusDisp: s.statusDisp, statusColor,
+      themeName: tk.name,
+      barBorder: active ? (mode === 'speaking' ? (tk.light ? 'rgba(var(--accent-rgb),.45)' : 'rgba(255,169,77,.4)') : 'rgba(var(--accent-rgb),.45)') : 'var(--line2)',
+      barGlow: active ? (mode === 'speaking' && !tk.light ? '0 0 22px rgba(255,169,77,.12)' : '0 0 22px rgba(var(--accent-rgb),.1)') : 'none',
+      micBorder: listening ? 'rgba(var(--accent-rgb),.6)' : 'var(--line2)',
+      micBg: listening ? 'rgba(var(--accent-rgb),.18)' : 'transparent',
+      micColor: listening ? 'var(--accent)' : 'var(--c-lo)',
+      log: s.log, hasLog: s.log.length > 0, noLog: s.log.length === 0,
+      booting: s.booting, bootTitle: s.bootTitle, bootLines: s.bootLines,
+      bootOpacity: s.booting ? '1' : '0', bootPE: s.booting ? 'auto' : 'none', bootDisplay: s.bootGone ? 'none' : 'flex',
+      bootPct: Math.round((s.bootLines.length / this.BOOT_LINES.length) * 100) + '%',
+      soundIcon, soundBorder: s.soundOn ? 'rgba(var(--accent-rgb),.35)' : 'var(--line2)', soundBg: s.soundOn ? 'rgba(var(--accent-rgb),.08)' : 'transparent', soundColor: s.soundOn ? 'var(--accent)' : 'var(--c-lo)',
+      chatDisplay: s.view === 'chat' ? 'flex' : 'none',
+      draftsDisplay: s.view === 'drafts' ? 'flex' : 'none',
+      clientsDisplay: s.view === 'clients' ? 'flex' : 'none',
+      memoryDisplay: s.view === 'memory' ? 'flex' : 'none',
+      settingsDisplay: s.view === 'settings' ? 'flex' : 'none',
+      // command center
+      ccEmpty, ccHasMsg: !ccEmpty,
+      ccPageLabel: ccEmpty ? '—' : (page + 1) + ' / ' + convo.length,
+      ccRoleLabel: isYou ? 'YOU' : 'ZENITH',
+      ccRoleColor: isYou ? 'var(--c-mid)' : (mode === 'speaking' && !tk.light ? '#ffa94d' : 'var(--accent)'),
+      ccRoleBorder: isYou ? 'var(--line2)' : 'rgba(var(--accent-rgb),.35)',
+      ccRoleBg: isYou ? 'var(--panel)' : 'rgba(var(--accent-rgb),.08)',
+      ccTime: cur ? cur.time : '',
+      ccText: cur ? cur.text : '',
+      ccCaretDisplay: streamingNow ? 'inline' : 'none',
+      orbW: ccBig ? '350px' : '520px', orbMax: ccBig ? '31%' : '52%', ccBodyMax: ccBig ? '320px' : '148px',
+      ccPrev: () => this.ccGo(-1), ccNext: () => this.ccGo(1),
+      ccPrevColor: page > 0 ? 'var(--c-mid)' : 'var(--c-faint)', ccPrevCursor: page > 0 ? 'pointer' : 'default',
+      ccNextColor: page < convo.length - 1 ? 'var(--c-mid)' : 'var(--c-faint)', ccNextCursor: page < convo.length - 1 ? 'pointer' : 'default',
+      // notes / clients / memory / settings
+      notes, noteTitle: curNote.title, noteTag: curNote.tag, noteIsTodo, noteIsText: !noteIsTodo,
+      noteTasks: s.todos.map((t) => t.text), noteBody: curNote.body || '',
+      clients, clientInitial: (cd.name || 'C')[0], clientName: cd.name, clientLoc: cd.loc, clientProject: cd.project, clientFacts: cd.facts, clientNotes: cd.notes,
+      pinned, vault, vaultCount, linkCount,
+      themes, configGroups, security,
+      paletteInputRef: this.paletteInputRef,
+      paletteOpen: s.palette.open, paletteQuery: s.palette.query,
+      paletteItems: pItems, paletteEmpty: s.palette.open && pItems.length === 0,
+      onPaletteInput: (e) => this.setPaletteQuery(e.target.value),
+      onPaletteBackdrop: () => this.closePalette(),
+      stopProp: (e) => e.stopPropagation(),
+      onOpenPalette: () => this.togglePalette(),
+      toasts: s.toasts.map((tt) => ({ text: tt.text, accent: tt.kind === 'warn' ? '#ffa94d' : 'var(--accent)', border: tt.kind === 'warn' ? 'rgba(255,169,77,.35)' : 'rgba(var(--accent-rgb),.3)' })),
+      beamOpacity: s.reduceMotion ? '0' : '1', beamAnim: s.reduceMotion ? 'none' : 'zscan 7s linear infinite',
+      motionChecked: s.reduceMotion ? 'true' : 'false', soundChecked: s.soundOn ? 'true' : 'false',
+      motionTrackBg: s.reduceMotion ? 'rgba(var(--accent-rgb),.3)' : 'var(--line2)', motionKnob: s.reduceMotion ? 'var(--accent)' : 'var(--c-lo)', motionKnobLeft: s.reduceMotion ? '20px' : '2px',
+      soundTrackBg: s.soundOn ? 'rgba(var(--accent-rgb),.3)' : 'var(--line2)', soundKnob: s.soundOn ? 'var(--accent)' : 'var(--c-lo)', soundKnobLeft: s.soundOn ? '20px' : '2px',
+      onToggleMotion: () => this.toggleMotion(),
+      onToggleMotionKey: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.toggleMotion(); } },
+      onSoundKey: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.setState((st) => ({ soundOn: !st.soundOn }), () => this._saveLS()); } },
+      sparkHas: spark.has, sparkPoints: spark.points, sparkArea: spark.area, sparkTotal: spark.total,
+      // collapse + responsive
+      connBody: s.collapse.conn ? 'none' : 'flex', focusBody: s.collapse.focus ? 'none' : 'block', logBody: s.collapse.log ? 'none' : 'flex',
+      connChevron: s.collapse.conn ? 'rotate(-90deg)' : 'rotate(0deg)', focusChevron: s.collapse.focus ? 'rotate(-90deg)' : 'rotate(0deg)', logChevron: s.collapse.log ? 'rotate(-90deg)' : 'rotate(0deg)',
+      onToggleConn: () => this.toggleSection('conn'), onToggleFocus: () => this.toggleSection('focus'), onToggleLog: () => this.toggleSection('log'),
+      menuBtnDisplay: narrow ? 'flex' : 'none',
+      leftDisplay: leftVisible ? 'flex' : 'none', leftPos: narrow ? 'absolute' : 'static',
+      rightDisplay: rightVisible ? 'flex' : 'none', rightPos: narrow ? 'absolute' : 'static',
+      onMenu: () => this.setState((st) => ({ leftOpen: !st.leftOpen, rightOpen: false })),
+      // handlers
+      onCmdKey: (e) => { if (e.key === 'Enter') this.send(); },
+      onSend: () => this.send(),
+      onTodoKey: (e) => { if (e.key === 'Enter') this.addTodo(); },
+      onAddTodo: () => this.addTodo(),
+      onMicDown: () => this.setMode('listening'),
+      onMicUp: () => { if (this.orbMode === 'listening') this.respond('Voice command received'); },
+      onChipGmail: () => { this.setState({ view: 'chat' }); this.respond('Summarise my inbox'); },
+      onDisconnect: () => { this.pushLog('Google account disconnected'); this.pushToast('Google account disconnected', 'warn'); },
+      onSound: () => { this.setState((st) => ({ soundOn: !st.soundOn }), () => this._saveLS()); },
+      onSkipBoot: () => this._finishBoot(),
+      onCycleTheme: () => this.cycleTheme(),
+    };
+  }
+}
+</script>
+</body>
+</html>

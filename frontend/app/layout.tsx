@@ -1,15 +1,13 @@
 import type { Metadata } from "next";
-import { Space_Grotesk, Inter, JetBrains_Mono } from "next/font/google";
+import { IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 import { SkinProvider } from "../components/SkinProvider";
 
-// Self-hosted at build time (no runtime/Google fetch). Exposed as CSS vars; the Arc skin opts in
-// via globals.css ([data-skin="arc"] maps --font-display/body/mono to these). Other skins keep
-// system fonts, so they're unaffected.
-const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], display: "swap", variable: "--font-space-grotesk" });
-const inter = Inter({ subsets: ["latin"], display: "swap", variable: "--font-inter" });
-const jetbrainsMono = JetBrains_Mono({ subsets: ["latin"], display: "swap", variable: "--font-jetbrains-mono" });
-const fontVars = `${spaceGrotesk.variable} ${inter.variable} ${jetbrainsMono.variable}`;
+// Self-hosted at build time (no runtime/Google fetch). IBM Plex is the shared font for every skin
+// (v7 redesign): Plex Sans → display+body, Plex Mono → mono, mapped to --font-* in globals.css :root.
+const plexSans = IBM_Plex_Sans({ subsets: ["latin"], weight: ["400", "500", "600"], display: "swap", variable: "--font-plex-sans" });
+const plexMono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500", "600"], display: "swap", variable: "--font-plex-mono" });
+const fontVars = `${plexSans.variable} ${plexMono.variable}`;
 
 export const metadata: Metadata = {
   title: "Zenith — HUD",

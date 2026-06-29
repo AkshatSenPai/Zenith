@@ -6,13 +6,13 @@ import gsap from "gsap";
 import { DUR, EASE, prefersReducedMotion } from "../lib/anim";
 import { apiFetch, getGoogleStatus, getDiscordStatus, getTelegramStatus } from "../lib/api";
 
-/** Cinematic boot overlay. The real HUD mounts underneath immediately (so its WebGL orb
- *  warms up hidden), this covers it, plays a GSAP boot sequence, then dissolves to reveal
- *  the live HUD. Status lines are REAL (pings /health, reads the connection state) — no
- *  fake telemetry. Click / any key skips; prefers-reduced-motion → instant. */
+/** v7 boot overlay. The real HUD mounts underneath immediately (so its WebGL orb warms up
+ *  hidden), this covers it, plays a GSAP boot sequence (diamond fade-in + typewriter + progress),
+ *  then dissolves to reveal the live HUD. Status lines are REAL (pings /health, reads the
+ *  connection state) — no fake telemetry. Click / any key skips; prefers-reduced-motion → instant. */
 export function BootScreen({ onDone }: { onDone: () => void }) {
   const root = useRef<HTMLDivElement>(null);
-  const orb = useRef<HTMLDivElement>(null);
+  const mark = useRef<HTMLDivElement>(null);
   const bar = useRef<HTMLDivElement>(null);
   const lineEls = useRef<(HTMLSpanElement | null)[]>([]);
   const tl = useRef<gsap.core.Timeline | null>(null);
@@ -25,11 +25,11 @@ export function BootScreen({ onDone }: { onDone: () => void }) {
   const TOTAL = 4;
 
   const lines = [
-    "> INITIALIZING ZENITH",
-    "> INTERFACE .......... ok",
-    `> BACKEND :8000 ...... ${health ?? "...."}`,
-    `> CONNECTIONS ........ ${linked}/${TOTAL} linked`,
-    "> READY",
+    "INITIALIZING ZENITH",
+    "INTERFACE .......... ok",
+    `BACKEND :8000 ...... ${health ?? "...."}`,
+    `CONNECTIONS ........ ${linked}/${TOTAL} linked`,
+    "READY",
   ];
 
   function finish() {
@@ -62,11 +62,11 @@ export function BootScreen({ onDone }: { onDone: () => void }) {
     return () => { settled = true; clearTimeout(t); };
   }, []);
 
-  // Orb + frame fade in immediately (covers the wait for /health).
+  // Diamond + wordmark fade in immediately (covers the wait for /health).
   useGSAP(
     () => {
       if (prefersReducedMotion()) return;
-      gsap.from(orb.current, { opacity: 0, scale: 0.6, duration: DUR.boot, ease: EASE });
+      gsap.from(mark.current, { opacity: 0, scale: 0.6, duration: DUR.boot, ease: EASE });
     },
     { scope: root },
   );
@@ -121,53 +121,34 @@ export function BootScreen({ onDone }: { onDone: () => void }) {
     <div
       ref={root}
       onClick={() => { tl.current?.kill(); if (!done.current) gsap.to(root.current, { opacity: 0, duration: 0.25, onComplete: finish }); }}
-      className="fixed inset-0 z-[60] flex cursor-pointer flex-col items-center justify-center bg-zenith-bg"
+      className="fixed inset-0 z-[60] flex cursor-pointer flex-col items-center justify-center gap-6 bg-zenith-bg"
       role="status"
       aria-label="Zenith is starting up"
     >
-      <div className="bg-aura" />
-      <div className="bg-grain" />
-
-      {/* stylized boot orb (lightweight SVG — the real WebGL orb is revealed on dissolve) */}
-      <div ref={orb} className="relative mb-11">
-        <BootOrb />
-      </div>
-
-      {/* boot log */}
-      <div className="w-[min(88vw,520px)] font-mono text-[14px] leading-[1.9] text-zenith-cyan/85">
-        {lines.map((_, i) => (
-          <div key={i} className="whitespace-pre">
-            <span ref={(el) => { lineEls.current[i] = el; }} />
-          </div>
-        ))}
-        <span className="blink text-zenith-cyan">▮</span>
+      {/* diamond + spaced wordmark */}
+      <div ref={mark} className="flex flex-col items-center gap-6">
+        <span className="h-7 w-7 rotate-45 border-[1.5px] border-zenith-cyan shadow-[0_0_22px_rgb(var(--zenith-cyan)/0.6)]" />
+        <span className="pl-[14px] font-mono text-[38px] font-semibold tracking-[0.38em] text-zenith-hi [text-shadow:0_0_20px_rgb(var(--zenith-cyan)/0.45)]">
+          ZENITH
+        </span>
       </div>
 
       {/* progress line */}
-      <div className="mt-7 h-[2px] w-[min(88vw,520px)] overflow-hidden bg-zenith-cyan/12">
-        <div ref={bar} className="h-full w-0 bg-zenith-cyan/70" />
+      <div className="h-[2px] w-[300px] overflow-hidden rounded-sm bg-zenith-line2">
+        <div ref={bar} className="h-full w-0 bg-zenith-cyan shadow-[0_0_10px_rgb(var(--zenith-cyan)/0.9)]" />
       </div>
 
-      <div className="absolute bottom-6 font-mono text-[10px] uppercase tracking-[0.3em] text-zenith-text/30">
-        click or press any key to skip
+      {/* boot log (real status lines) */}
+      <div className="flex h-[128px] w-[320px] flex-col gap-1.5 font-mono text-[10px] leading-relaxed tracking-wide text-zenith-lo">
+        {lines.map((_, i) => (
+          <div key={i} className="flex items-center gap-2.5 whitespace-pre">
+            <span className="text-zenith-cyan">›</span>
+            <span ref={(el) => { lineEls.current[i] = el; }} />
+          </div>
+        ))}
       </div>
+
+      <div className="font-mono text-[9px] uppercase tracking-[0.25em] text-zenith-dim">click to skip</div>
     </div>
-  );
-}
-
-function BootOrb() {
-  return (
-    <svg viewBox="0 0 160 160" className="h-48 w-48 glow-cyan text-zenith-cyan" fill="none">
-      <circle cx="80" cy="80" r="58" stroke="currentColor" strokeOpacity="0.12" />
-      <circle cx="80" cy="80" r="44" stroke="currentColor" strokeOpacity="0.18" strokeDasharray="3 7" className="spin-vslow" />
-      <circle cx="80" cy="80" r="30" stroke="currentColor" strokeOpacity="0.3" />
-      <circle cx="80" cy="80" r="9" fill="currentColor" className="core-bloom" />
-      {/* scattered points for the particle-sphere hint */}
-      {[
-        [80, 22], [128, 56], [120, 116], [58, 134], [26, 92], [34, 40], [110, 30], [136, 88],
-      ].map(([x, y], i) => (
-        <circle key={i} cx={x} cy={y} r="1.6" fill="currentColor" className="twinkle" style={{ animationDelay: `${i * 0.4}s` }} />
-      ))}
-    </svg>
   );
 }

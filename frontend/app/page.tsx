@@ -67,6 +67,7 @@ export default function Home() {
   const [voiceState, setVoiceState] = useState<OrbState>("idle");
   const [bars, setBars] = useState<number[]>([]);
   const [usage, setUsage] = useState<Usage | null>(null);
+  const [usageHistory, setUsageHistory] = useState<number[]>([]);
   const [usageError, setUsageError] = useState(false);
   const [ccMinimized, setCcMinimized] = useState(false);
   const [gstatus, setGstatus] = useState<GoogleStatus | null>(null);
@@ -95,6 +96,8 @@ export default function Home() {
     if (u) {
       setUsage(u);
       setUsageError(false);
+      // session token series for the usage sparkline (append on change, cap at 60 samples)
+      setUsageHistory((h) => (h.length && h[h.length - 1] === u.tokens_today ? h : [...h, u.tokens_today].slice(-60)));
     } else {
       setUsageError(true); // keep last-known usage; flag the error (panel shows it only when no usage yet)
     }
@@ -397,7 +400,7 @@ export default function Home() {
         <aside className="hud-scroll flex w-[288px] flex-none flex-col overflow-y-auto border-r border-zenith-line">
           <CalendarPanel />
           <QuickActions onPrefill={prefillInput} onBriefing={() => void runBriefing()} />
-          <UsagePanel usage={usage} error={usageError} onRetry={refreshUsage} />
+          <UsagePanel usage={usage} error={usageError} onRetry={refreshUsage} history={usageHistory} />
           <LeftRailExtras />
         </aside>
 

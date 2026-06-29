@@ -16,7 +16,7 @@ import { ConnectionsPanel } from "../components/ConnectionsPanel";
 import { FocusCard } from "../components/FocusCard";
 import { ActivityLog } from "../components/ActivityLog";
 import { CommandCenter, type Message } from "../components/CommandCenter";
-import { PlaceholderView } from "../components/PlaceholderView";
+import { MemoryView } from "../components/MemoryView";
 import { UsagePanel } from "../components/UsagePanel";
 import { StatusCard } from "../components/StatusCard";
 import { HexCorners } from "../components/hud/primitives";
@@ -438,7 +438,7 @@ export default function Home() {
               </div>
             </div>
           ) : view === "memory" ? (
-            <PlaceholderView view="memory" />
+            <MemoryView />
           ) : view === "clients" ? (
             <VaultView mode="clients" title="Clients" />
           ) : view === "notes" ? (

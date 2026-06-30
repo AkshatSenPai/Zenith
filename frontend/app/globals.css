@@ -195,6 +195,38 @@
 [data-skin="amethyst"] .bento-activity { grid-area: activity; }
 [data-skin="amethyst"] .bento-cc { grid-area: cc; }
 
+/* ---------- Reduced motion (in-app toggle — Settings → Motion; lib/prefs.ts) ----------
+   <html data-reduce-motion="true"> is set by the toggle (persisted; applied pre-paint in
+   layout.tsx). Declared AFTER every skin block so it overrides their --motion-scale / --scanline-op.
+   The class list mirrors the two @media (prefers-reduced-motion) kill-lists below, so the in-app
+   toggle calms exactly what the OS setting does. (The WebGL orb + ambient canvas are JS-driven and
+   additionally re-read this live — OrbScene / AmbientBackground via lib/prefs.) */
+[data-reduce-motion="true"] {
+  --motion-scale: 0;
+  --scanline-op: 0;
+}
+[data-reduce-motion="true"] .spin-slow,
+[data-reduce-motion="true"] .spin-rev-slow,
+[data-reduce-motion="true"] .spin-mid,
+[data-reduce-motion="true"] .spin-fast,
+[data-reduce-motion="true"] .orbit,
+[data-reduce-motion="true"] .ripple,
+[data-reduce-motion="true"] .wave-pulse,
+[data-reduce-motion="true"] .orb-idle-pulse,
+[data-reduce-motion="true"] .wave-scroll,
+[data-reduce-motion="true"] .blink,
+[data-reduce-motion="true"] .node-pulse,
+[data-reduce-motion="true"] .core-bloom,
+[data-reduce-motion="true"] .flow-dash,
+[data-reduce-motion="true"] .spin-vslow,
+[data-reduce-motion="true"] .rise-in,
+[data-reduce-motion="true"] .stagger > *,
+[data-reduce-motion="true"] .bar-idle,
+[data-reduce-motion="true"] .twinkle,
+[data-reduce-motion="true"] .emanate {
+  animation: none !important;
+}
+
 /* v7 ambient overlays (scanline + vignette), token-driven so each skin tunes/disables them.
    Parked at z-index -10 so they sit above the -20 ambient canvas but behind all HUD content. */
 .amb-scanline {

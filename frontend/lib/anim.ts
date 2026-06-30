@@ -1,5 +1,7 @@
 // Shared GSAP motion config for the HUD, so timings/eases stay consistent and every
-// animation can bail out cleanly under `prefers-reduced-motion`.
+// animation can bail out cleanly under reduced motion.
+
+import { getReduceMotion } from "./prefs";
 
 // power3.out ≈ the CSS --ease-out cubic-bezier(0.23, 1, 0.32, 1) used elsewhere.
 export const EASE = "power3.out";
@@ -11,8 +13,9 @@ export const DUR = {
   dissolve: 0.6, // boot overlay dissolve
 } as const;
 
-/** True when the OS asks for reduced motion — callers skip/instant their animations. */
+/** True when motion should be reduced — the OS setting OR the in-app toggle (Settings → Motion,
+ *  lib/prefs). Callers skip/instant their animations. */
 export function prefersReducedMotion(): boolean {
   if (typeof window === "undefined" || !window.matchMedia) return false;
-  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches || getReduceMotion();
 }

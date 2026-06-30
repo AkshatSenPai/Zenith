@@ -17,6 +17,7 @@ import { EffectComposer, Bloom } from "@react-three/postprocessing";
 import * as THREE from "three";
 import type { OrbState, ZenithOrbProps } from "./ZenithOrb";
 import { useSkin } from "./SkinProvider";
+import { useReducedMotion } from "../lib/prefs";
 
 const SHELL_RATIO = 0.6; // mostly a soft surface shell; the rest concentrate toward the centre
 
@@ -338,12 +339,11 @@ function NetworkOrb({ state, bars }: { state: OrbState; bars: number[] }) {
   extAmp.current = ampFromBars(bars);
   const stateRef = useRef(state);
   stateRef.current = state;
-  const reduceMotion = useMemo(
-    () =>
-      typeof window !== "undefined" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches,
-    [],
-  );
+  // Reduced motion = OS setting OR the in-app toggle; reactive so a toggle calms the orb live.
+  // Read through a ref in the frame loop (matches stateRef/extAmp above).
+  const reduceMotion = useReducedMotion();
+  const reduceRef = useRef(reduceMotion);
+  reduceRef.current = reduceMotion;
   useEffect(() => {
     const pr = Math.min(gl.getPixelRatio(), 2);
     nodeMat.uniforms.uPixelRatio.value = pr;
@@ -363,7 +363,7 @@ function NetworkOrb({ state, bars }: { state: OrbState; bars: number[] }) {
     const t = performance.now() / 1000;
     const st = stateRef.current;
     let target = extAmp.current;
-    if (!reduceMotion) {
+    if (!reduceRef.current) {
       if (st === "idle") target = Math.max(target, 0.05 + 0.04 * Math.sin(t * 1.0));
       else if (st === "thinking") target = Math.max(target, 0.1 + 0.08 * Math.sin(t * 2.2));
     }
@@ -378,7 +378,7 @@ function NetworkOrb({ state, bars }: { state: OrbState; bars: number[] }) {
     const lineOp = tk.linkAlpha * (st === "speaking" ? 1.25 : st === "listening" ? 1.12 : 1.0);
     nu.uOpacity.value += (nodeOp - nu.uOpacity.value) * Math.min(1, dt * 4);
     lu.uOpacity.value += (lineOp - lu.uOpacity.value) * Math.min(1, dt * 4);
-    if (group.current && !reduceMotion) {
+    if (group.current && !reduceRef.current) {
       group.current.rotation.y += dt * 0.04;
       group.current.rotation.x = Math.sin(t * 0.1) * 0.1;
       const s = 1 + nu.uAmp.value * 0.06;
@@ -453,12 +453,11 @@ function SceneContents({ state = "idle", bars = [] }: ZenithOrbProps) {
   const stateRef = useRef<OrbState>(state);
   stateRef.current = state;
 
-  const reduceMotion = useMemo(
-    () =>
-      typeof window !== "undefined" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches,
-    [],
-  );
+  // Reduced motion = OS setting OR the in-app toggle; reactive so a toggle calms the orb live.
+  // Read through a ref in the frame loop (matches stateRef/extAmp above).
+  const reduceMotion = useReducedMotion();
+  const reduceRef = useRef(reduceMotion);
+  reduceRef.current = reduceMotion;
 
   useEffect(() => {
     material.uniforms.uPixelRatio.value = Math.min(gl.getPixelRatio(), 2);
@@ -472,7 +471,7 @@ function SceneContents({ state = "idle", bars = [] }: ZenithOrbProps) {
 
     // Target amplitude: voice drives listening/speaking; idle/thinking get a gentle pulse.
     let target = extAmp.current;
-    if (!reduceMotion) {
+    if (!reduceRef.current) {
       if (st === "idle") target = Math.max(target, 0.05 + 0.04 * Math.sin(t * 1.1));
       else if (st === "thinking") target = Math.max(target, 0.1 + 0.09 * Math.sin(t * 2.4));
     }
@@ -486,7 +485,7 @@ function SceneContents({ state = "idle", bars = [] }: ZenithOrbProps) {
     u.uCoolMix.value += (coolTarget - u.uCoolMix.value) * Math.min(1, dt * 4);
     u.uBright.value += (brightTarget - u.uBright.value) * Math.min(1, dt * 4);
 
-    if (points.current && !reduceMotion) {
+    if (points.current && !reduceRef.current) {
       points.current.rotation.y += dt * 0.05;
       points.current.rotation.x = Math.sin(t * 0.12) * 0.12;
     }

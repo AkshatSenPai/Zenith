@@ -2,6 +2,8 @@
 
 import { useEffect, useRef } from "react";
 
+import { REDUCE_MOTION_EVENT } from "../lib/prefs";
+
 // v7 ambient field: a calm drifting particle + faint grid layer behind the HUD. Reads --orb-color
 // so it re-tints per skin, and damps to a single static frame under reduced motion. Pointer-events
 // none and parked at -z-20 so it never intercepts clicks or sits over content. See the v7 reference
@@ -15,9 +17,10 @@ export function AmbientBackground() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const reduce =
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches ||
-      document.documentElement.dataset.reduceMotion === "true";
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    // Reduced motion = OS setting OR the in-app toggle (data-reduce-motion on <html>). `let` so a
+    // runtime toggle can freeze/resume the drift without re-mounting the canvas.
+    let reduce = mq.matches || document.documentElement.dataset.reduceMotion === "true";
 
     let w = 0;
     let h = 0;
@@ -84,17 +87,33 @@ export function AmbientBackground() {
     }
 
     let raf = 0;
-    if (reduce) {
-      draw();
-    } else {
+    function start() {
+      cancelAnimationFrame(raf);
+      raf = 0;
+      if (reduce) {
+        draw(); // single static frame — no rAF
+        return;
+      }
       const loop = () => {
         draw();
         raf = requestAnimationFrame(loop);
       };
       raf = requestAnimationFrame(loop);
     }
+    start();
+
+    // Re-read on an OS change or the in-app toggle, and freeze/resume the drift immediately.
+    const onReduceChange = () => {
+      reduce = mq.matches || document.documentElement.dataset.reduceMotion === "true";
+      start();
+    };
+    mq.addEventListener("change", onReduceChange);
+    window.addEventListener(REDUCE_MOTION_EVENT, onReduceChange);
+
     return () => {
       window.removeEventListener("resize", resize);
+      mq.removeEventListener("change", onReduceChange);
+      window.removeEventListener(REDUCE_MOTION_EVENT, onReduceChange);
       if (raf) cancelAnimationFrame(raf);
     };
   }, []);

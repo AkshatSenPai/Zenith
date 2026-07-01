@@ -39,7 +39,7 @@ function ampFromBars(bars: number[]): number {
 }
 
 export type OrbTokens = {
-  mode: "sphere" | "network";
+  mode: "sphere" | "network" | "nebula";
   color: string;
   cool: string;
   core: string;
@@ -62,7 +62,7 @@ export function readOrbTokens(): OrbTokens {
     return v ? `rgb(${v.split(/\s+/).join(",")})` : d;
   };
   return {
-    mode: str("--orb-mode", "sphere") as "sphere" | "network",
+    mode: str("--orb-mode", "sphere") as "sphere" | "network" | "nebula",
     color: str("--orb-color", "#00ffe5"),
     cool: str("--orb-cool", "#39d6ff"),
     core: rgb("--orb-core", "rgb(190,255,250)"),
@@ -145,6 +145,38 @@ function buildSphereGeometry(count: number): THREE.BufferGeometry {
     positions[i * 3 + 2] = (z + (Math.random() - 0.5) * j) * r;
     radii[i] = r;
     scales[i] = shell ? 0.35 + Math.random() * 0.5 : 0.55 + Math.random() * 0.7;
+    phases[i] = Math.random() * Math.PI * 2;
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  g.setAttribute("aScale", new THREE.BufferAttribute(scales, 1));
+  g.setAttribute("aPhase", new THREE.BufferAttribute(phases, 1));
+  g.setAttribute("aRadius", new THREE.BufferAttribute(radii, 1));
+  return g;
+}
+
+/** Build a flat oblate particle disc for the Amethyst nebula: particles spread in the XY plane
+ *  (a dense centre + a soft outer band that forms the rim) with a thin, lens-shaped Z thickness
+ *  (thicker at the centre). Reuses the sphere's attribute names (position/aScale/aPhase/aRadius)
+ *  so the SAME shaders drive it; aRadius = in-plane distance so the shared radial-brightness
+ *  falloff keeps the centre bright. The disc is tilted for perspective by the caller. */
+function buildNebula(count: number): THREE.BufferGeometry {
+  const positions = new Float32Array(count * 3);
+  const scales = new Float32Array(count);
+  const phases = new Float32Array(count);
+  const radii = new Float32Array(count);
+  const GA = Math.PI * (3 - Math.sqrt(5)); // golden angle → even azimuthal spread
+  for (let i = 0; i < count; i++) {
+    const rim = Math.random() < SHELL_RATIO;
+    // in-plane radius: a soft outer band (rim) vs a dense centre concentrated with ^1.7
+    const rp = rim ? 0.62 + Math.random() * 0.3 : Math.pow(Math.random(), 1.7) * 0.68;
+    const az = GA * i + Math.random() * 0.4;
+    const thick = 0.075 * (1 - rp) + 0.012; // lens: thicker centre, thinning to the rim
+    positions[i * 3] = Math.cos(az) * rp;
+    positions[i * 3 + 1] = Math.sin(az) * rp;
+    positions[i * 3 + 2] = (Math.random() - 0.5) * 2 * thick;
+    radii[i] = rp;
+    scales[i] = rim ? 0.35 + Math.random() * 0.5 : 0.55 + Math.random() * 0.7;
     phases[i] = Math.random() * Math.PI * 2;
   }
   const g = new THREE.BufferGeometry();
@@ -393,6 +425,147 @@ function NetworkOrb({ state, bars }: { state: OrbState; bars: number[] }) {
   );
 }
 
+const NEBULA_TILT = -1.2; // radians — tilt the disc so the ring reads as the mock's flat ellipse
+
+/** Amethyst nebula orb: a flat oblate particle disc + a faint orbital ring, tilted for
+ *  perspective. Reuses the sphere's shaders, bright core sprite, Bloom, and audio-reactivity
+ *  (the core breathes/brightens on mic + Zenith's voice); the disc spins slowly around its
+ *  normal while the ring stays a static ellipse. Its own EffectComposer so the violet core
+ *  glows. Mounted only under [data-skin="amethyst"] (--orb-mode: nebula); disposes on unmount. */
+function NebulaOrb({ state = "idle", bars = [] }: ZenithOrbProps) {
+  const { gl } = useThree();
+  const tk = useMemo(readOrbTokens, []);
+
+  const geometry = useMemo(() => buildNebula(tk.count), [tk.count]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+
+  const coreTex = useMemo(() => makeGlowTexture(tk.color, tk.core), [tk.color, tk.core]);
+  useEffect(() => () => coreTex.dispose(), [coreTex]);
+
+  const material = useMemo(
+    () =>
+      new THREE.ShaderMaterial({
+        uniforms: {
+          uTime: { value: 0 },
+          uAmp: { value: 0 },
+          uSize: { value: 9 },
+          uPixelRatio: { value: 1 },
+          uColor: { value: new THREE.Color(tk.color) },
+          uCool: { value: new THREE.Color(tk.cool) },
+          uCoolMix: { value: 0 },
+          uBright: { value: 1 },
+        },
+        vertexShader: VERTEX,
+        fragmentShader: FRAGMENT,
+        transparent: true,
+        depthWrite: false,
+        depthTest: false,
+        blending: THREE.AdditiveBlending,
+      }),
+    [tk.color, tk.cool],
+  );
+  useEffect(() => () => material.dispose(), [material]);
+
+  // Faint orbital ring: a thin additive annulus coplanar with the disc; opacity ramps in the loop.
+  const ringGeo = useMemo(() => new THREE.RingGeometry(0.96, 1.0, 128), []);
+  useEffect(() => () => ringGeo.dispose(), [ringGeo]);
+  const ringMat = useMemo(
+    () =>
+      new THREE.MeshBasicMaterial({
+        color: new THREE.Color(tk.color),
+        transparent: true,
+        opacity: 0,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+        depthTest: false,
+        blending: THREE.AdditiveBlending,
+      }),
+    [tk.color],
+  );
+  useEffect(() => () => ringMat.dispose(), [ringMat]);
+
+  const spinner = useRef<THREE.Group>(null);
+  const core = useRef<THREE.Sprite>(null);
+  const coreMat = useRef<THREE.SpriteMaterial>(null);
+
+  const extAmp = useRef(0);
+  extAmp.current = ampFromBars(bars);
+  const stateRef = useRef<OrbState>(state);
+  stateRef.current = state;
+  const reduceMotion = useReducedMotion();
+  const reduceRef = useRef(reduceMotion);
+  reduceRef.current = reduceMotion;
+
+  useEffect(() => {
+    material.uniforms.uPixelRatio.value = Math.min(gl.getPixelRatio(), 2);
+  }, [gl, material]);
+
+  useFrame((_, dtRaw) => {
+    const dt = Math.min(dtRaw, 0.05);
+    const t = performance.now() / 1000;
+    const st = stateRef.current;
+    const u = material.uniforms;
+
+    let target = extAmp.current;
+    if (!reduceRef.current) {
+      if (st === "idle") target = Math.max(target, 0.05 + 0.04 * Math.sin(t * 1.1));
+      else if (st === "thinking") target = Math.max(target, 0.1 + 0.09 * Math.sin(t * 2.4));
+    }
+    u.uTime.value = t;
+    u.uAmp.value += (target - u.uAmp.value) * Math.min(1, dt * 6);
+
+    const coolTarget = st === "thinking" ? 0.6 : 0.0; // cooler tone, never orange
+    const brightTarget =
+      st === "speaking" ? 1.35 : st === "listening" ? 1.18 : st === "thinking" ? 0.95 : 1.0;
+    u.uCoolMix.value += (coolTarget - u.uCoolMix.value) * Math.min(1, dt * 4);
+    u.uBright.value += (brightTarget - u.uBright.value) * Math.min(1, dt * 4);
+
+    if (spinner.current && !reduceRef.current) {
+      spinner.current.rotation.z += dt * 0.06; // slow galaxy spin around the disc normal
+    }
+
+    const amp = u.uAmp.value;
+    const ringOp = (st === "speaking" ? 0.5 : st === "listening" ? 0.42 : 0.32) + amp * 0.15;
+    ringMat.opacity += (ringOp - ringMat.opacity) * Math.min(1, dt * 4);
+    if (core.current) {
+      const ct = 0.8 + amp * 0.5;
+      const cur = core.current.scale.x;
+      const nx = cur + (ct - cur) * Math.min(1, dt * 6);
+      core.current.scale.set(nx, nx, nx);
+    }
+    if (coreMat.current) {
+      const op = (st === "speaking" ? 0.85 : 0.5) + amp * 0.3;
+      coreMat.current.opacity += (op - coreMat.current.opacity) * Math.min(1, dt * 5);
+    }
+  });
+
+  return (
+    <>
+      {/* static perspective tilt; the ring is a fixed ellipse, the galaxy spins inside it */}
+      <group rotation={[NEBULA_TILT, 0, 0]}>
+        <mesh geometry={ringGeo} material={ringMat} />
+        <group ref={spinner}>
+          <points geometry={geometry} material={material} />
+        </group>
+      </group>
+      <sprite ref={core} scale={[0.8, 0.8, 0.8]}>
+        <spriteMaterial
+          ref={coreMat}
+          map={coreTex}
+          transparent
+          depthWrite={false}
+          depthTest={false}
+          blending={THREE.AdditiveBlending}
+          opacity={0.55}
+        />
+      </sprite>
+      <EffectComposer>
+        <Bloom intensity={tk.bloom} luminanceThreshold={0.32} luminanceSmoothing={0.2} mipmapBlur />
+      </EffectComposer>
+    </>
+  );
+}
+
 function SceneContents({ state = "idle", bars = [] }: ZenithOrbProps) {
   const { gl } = useThree();
   const { skin } = useSkin();
@@ -502,6 +675,12 @@ function SceneContents({ state = "idle", bars = [] }: ZenithOrbProps) {
       coreMat.current.opacity += (op - coreMat.current.opacity) * Math.min(1, dt * 5);
     }
   });
+
+  // nebula mode (Amethyst): a flat disc + orbital ring in a separate component (its own
+  // geometry/ring/loop, keeps Bloom). Arc's sphere path below is left untouched.
+  if (tokens.mode === "nebula") {
+    return <NebulaOrb state={state} bars={bars} />;
+  }
 
   // network mode (Ghost ink web): a separate component with its own geometry/shaders/loop.
   // No EffectComposer/Bloom here — bloom must be OFF (not just 0) so it can't lift the ink.

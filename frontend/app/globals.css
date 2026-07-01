@@ -151,7 +151,7 @@
   --motion-scale: 1;
   --bloom: 0.7;
   --particle-count: 28000;
-  --orb-mode: sphere;
+  --orb-mode: nebula;
   --orb-link-dist: 0;
   --orb-link-alpha: 0;
 }

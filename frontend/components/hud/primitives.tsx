@@ -104,16 +104,6 @@ export function Crosshair({
   );
 }
 
-function HexCluster() {
-  return (
-    <svg viewBox="0 0 60 60" className="h-14 w-14 stroke-zenith-cyan/30" fill="none" strokeWidth={1}>
-      <Hex cx={20} cy={22} size={11} />
-      <Hex cx={39} cy={22} size={11} />
-      <Hex cx={29.5} cy={39} size={11} />
-    </svg>
-  );
-}
-
 // Small L-shaped corner brackets for cards (premium HUD accent). Absolute-positioned;
 // the parent must be `relative`. Subtle by default; pass a brighter `cls` for emphasis.
 export function CardBrackets({ cls = "border-zenith-cyan/25", size = 8 }: { cls?: string; size?: number }) {
@@ -128,21 +118,16 @@ export function CardBrackets({ cls = "border-zenith-cyan/25", size = 8 }: { cls?
   );
 }
 
+// Thin L-shaped corner ticks framing the viewport (v7 design): a 1px hairline accent bracket
+// inset from each corner. Replaces the old hex-cluster accents; tints/dims per skin via --zenith-cyan.
 export function HexCorners() {
+  const tick = "pointer-events-none fixed z-30 h-4 w-4 border-zenith-cyan/40";
   return (
-    <div className="pointer-events-none fixed inset-0 z-0">
-      <div className="absolute left-2 top-2">
-        <HexCluster />
-      </div>
-      <div className="absolute right-2 top-2 rotate-90">
-        <HexCluster />
-      </div>
-      <div className="absolute bottom-2 left-2 -rotate-90">
-        <HexCluster />
-      </div>
-      <div className="absolute bottom-2 right-2 rotate-180">
-        <HexCluster />
-      </div>
-    </div>
+    <>
+      <span className={`${tick} left-2 top-2 border-l border-t`} />
+      <span className={`${tick} right-2 top-2 border-r border-t`} />
+      <span className={`${tick} bottom-2 left-2 border-b border-l`} />
+      <span className={`${tick} bottom-2 right-2 border-b border-r`} />
+    </>
   );
 }

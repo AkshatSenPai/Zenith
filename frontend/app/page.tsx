@@ -438,7 +438,7 @@ export default function Home() {
         {/* center router */}
         <main className="relative z-10 flex min-h-0 min-w-0 flex-1 flex-col">
           {view === "chat" ? (
-            <div className="flex min-h-0 flex-1 flex-col items-center px-4 pb-4 pt-2">
+            <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 py-4">
               {/* fixed-size orb — it no longer recedes; the Command Center is paginated, not grown */}
               <div className="aspect-square w-[min(46vw,52vh)] max-w-[520px] shrink-0">
                 <ZenithOrb state={orbState} connections={connections} bars={bars} />

@@ -52,6 +52,42 @@ export function CommandCenter({
   const listening = voiceState === "listening";
   const response = msg && msg.role === "assistant" ? msg.content : "";
 
+  // Type-out the latest Zenith reply (client-side; the backend is non-streaming). Reveal characters
+  // over time with a blinking caret, then settle to full. Older turns (paged back) always show full;
+  // under reduced motion the reply appears instantly.
+  const lastIsAssistant = total > 0 && !thinking && pages[total - 1].role === "assistant";
+  const lastAssistant = lastIsAssistant ? pages[total - 1] : null;
+  const revealKey = lastAssistant ? `${total}:${lastAssistant.content.length}` : "";
+  const [reveal, setReveal] = useState(0);
+  useEffect(() => {
+    if (!lastAssistant) return;
+    const full = lastAssistant.content;
+    const reduceNow =
+      typeof window !== "undefined" &&
+      (window.matchMedia("(prefers-reduced-motion: reduce)").matches ||
+        document.documentElement.dataset.reduceMotion === "true");
+    if (reduceNow || !full) {
+      setReveal(full.length);
+      return;
+    }
+    const dur = Math.min(2200, Math.max(350, full.length * 14));
+    const t0 = performance.now();
+    let raf = 0;
+    const tick = (now: number) => {
+      const p = Math.min(1, (now - t0) / dur);
+      setReveal(Math.floor(p * full.length));
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    setReveal(0);
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+    // re-run only when a new/changed Zenith reply arrives
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [revealKey]);
+
+  const onLatestAssistant = !!lastAssistant && clamped === total - 1;
+  const typing = onLatestAssistant && reveal < (lastAssistant?.content.length ?? 0);
+
   // Copy / Save / Share — preserved (the owner leans on Copy for the Copy Factory). Shown only
   // on a Zenith answer that has content.
   const [flash, setFlash] = useState<string | null>(null);
@@ -123,8 +159,8 @@ export function CommandCenter({
             </div>
             {msg.role === "assistant" ? (
               <div className="text-[14px] leading-[1.55] text-zenith-mid">
-                <Markdown text={msg.content} />
-                {showCaret && <span className="blink text-zenith-cyan">▋</span>}
+                <Markdown text={onLatestAssistant ? msg.content.slice(0, reveal) : msg.content} />
+                {(showCaret || typing) && <span className="blink text-zenith-cyan">▋</span>}
               </div>
             ) : (
               <div className="whitespace-pre-wrap text-[14px] leading-[1.55] text-zenith-mid">{msg.content}</div>

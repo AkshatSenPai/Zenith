@@ -387,7 +387,7 @@ export default function Home() {
   ) : null;
 
   return (
-    <div className="relative flex h-screen flex-col overflow-hidden text-zenith-text">
+    <div className="relative isolate flex h-screen flex-col overflow-hidden text-zenith-text">
       {booting && <BootScreen onDone={() => setBooting(false)} />}
 
       <CommandPalette
@@ -414,7 +414,11 @@ export default function Home() {
         }}
       />
 
-      {/* ambient depth layers (behind content) — v7 field + scanline + vignette */}
+      {/* ambient depth layers (behind content) — v7 field + scanline + vignette.
+          The root div above carries `isolate` (isolation: isolate) so these -z-20/-z-10 layers
+          form a stacking context here and paint ABOVE the page background. Without it they fall
+          behind body's opaque background-color and only flash into view during the skin-swap
+          (body opacity <1 temporarily makes body a stacking context). */}
       <AmbientBackground />
       <div className="amb-scanline" />
       <div className="amb-vignette" />
@@ -428,7 +432,8 @@ export default function Home() {
         <IconNav view={view} onChange={setView} />
 
         {/* left rail */}
-        <aside className="hud-scroll flex w-[288px] flex-none flex-col overflow-y-auto border-r border-zenith-line">
+        {/* rails are opaque (mock: background:var(--bg)) so the ambient constellation never shows through them */}
+        <aside className="hud-scroll flex w-[288px] flex-none flex-col overflow-y-auto border-r border-zenith-line bg-zenith-bg">
           <CalendarPanel />
           <QuickActions onPrefill={prefillInput} onBriefing={() => void runBriefing()} />
           <UsagePanel usage={usage} error={usageError} onRetry={refreshUsage} history={usageHistory} />
@@ -500,7 +505,7 @@ export default function Home() {
         </main>
 
         {/* right rail */}
-        <aside className="hud-scroll flex w-[316px] flex-none flex-col overflow-y-auto border-l border-zenith-line">
+        <aside className="hud-scroll flex w-[316px] flex-none flex-col overflow-y-auto border-l border-zenith-line bg-zenith-bg">
           <ConnectionsPanel connections={connections} status={gstatus} onConnect={onConnectGoogle} onDisconnect={onDisconnectGoogle} connectError={connectError} backendState={backendState} />
           <FocusCard />
           <ActivityLog />

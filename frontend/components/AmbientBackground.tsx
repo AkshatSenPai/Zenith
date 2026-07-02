@@ -28,15 +28,14 @@ export function AmbientBackground() {
     type Pt = { x: number; y: number; vx: number; vy: number };
     let nodes: Pt[] = [];
     function seed() {
-      // Denser + a touch faster than the v7 mock: the mock's ~90 faint 1.1px dots drifting
-      // ~11px/s were imperceptible at rest on a real display. This reads as constant gentle
-      // motion in the dark field while staying ambient (behind content, low alpha).
-      const n = Math.min(240, Math.round((w * h) / 7000));
+      // HUD-mock (_initBg) values — the authority. The 2026-07-02 denser/faster experiment read
+      // as noise at the mock's link/dot alphas; the owner chose exact mock fidelity instead.
+      const n = Math.min(110, Math.round((w * h) / 20000));
       nodes = Array.from({ length: n }, () => ({
         x: Math.random() * w,
         y: Math.random() * h,
-        vx: (Math.random() - 0.5) * 0.32,
-        vy: (Math.random() - 0.5) * 0.32,
+        vx: (Math.random() - 0.5) * 0.18,
+        vy: (Math.random() - 0.5) * 0.18,
       }));
     }
     function resize() {
@@ -65,7 +64,7 @@ export function AmbientBackground() {
     }
 
     const GAP = 52; // grid spacing
-    const LINK = 150; // node-link distance
+    const LINK = 130; // node-link distance
     let t = 0;
 
     function draw() {
@@ -73,9 +72,10 @@ export function AmbientBackground() {
       const col = channels();
       const light = document.documentElement.dataset.skin === "ghost";
 
-      // scrolling grid
+      // scrolling grid — alpha is a per-skin token (mock: arc .022 / amethyst .03 / ghost .05)
       const off = reduce ? 0 : (t * 5) % GAP;
-      ctx!.strokeStyle = `rgba(${col},${light ? 0.045 : 0.06})`;
+      const gridA = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--amb-grid-a")) || 0.022;
+      ctx!.strokeStyle = `rgba(${col},${gridA})`;
       ctx!.lineWidth = 1;
       ctx!.beginPath();
       for (let x = -off; x < w; x += GAP) {
@@ -101,7 +101,7 @@ export function AmbientBackground() {
       }
 
       // constellation links — a hairline between nodes closer than LINK, fading with distance
-      const na = light ? 0.14 : 0.2;
+      const na = light ? 0.07 : 0.09;
       for (let i = 0; i < nodes.length; i++) {
         for (let j = i + 1; j < nodes.length; j++) {
           const dx = nodes[i].x - nodes[j].x;
@@ -118,10 +118,10 @@ export function AmbientBackground() {
       }
 
       // node dots
-      ctx!.fillStyle = `rgba(${col},${light ? 0.42 : 0.62})`;
+      ctx!.fillStyle = `rgba(${col},${light ? 0.35 : 0.5})`;
       for (const p of nodes) {
         ctx!.beginPath();
-        ctx!.arc(p.x, p.y, 1.5, 0, Math.PI * 2);
+        ctx!.arc(p.x, p.y, 1.1, 0, Math.PI * 2);
         ctx!.fill();
       }
     }

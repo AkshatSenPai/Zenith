@@ -53,6 +53,7 @@
   --radius: 0px;
   --motion-scale: 1;
   --orb-mode: sphere;
+  --amb-grid-a: 0.022;
 }
 
 /* (Arc's font-trio remap removed — IBM Plex is the shared font in :root above, v7 redesign.) */
@@ -93,6 +94,7 @@
   --radius: 0px;
   --motion-scale: 1.35;
   --orb-mode: mesh;
+  --amb-grid-a: 0.05;
 }
 
 /* Ghost light surfaces — with --panel-tint 0 the cyan fills vanish, so give cards a white
@@ -142,6 +144,7 @@
   --radius: 18px;
   --motion-scale: 1;
   --orb-mode: nebula;
+  --amb-grid-a: 0.03;
 }
 
 /* Amethyst rounded-glass: drop the notch clip, round the corners, frost the surface. */

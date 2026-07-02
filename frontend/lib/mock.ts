@@ -39,7 +39,7 @@ export const quickActions: QuickAction[] = [
 
 // --- Connections (drives the orb nodes AND the Connections panel) ---
 // "WhatsApp" is PARKED (unofficial bridge = account-ban risk) — Telegram took its slot. Not deleted:
-// to bring WhatsApp back, restore "WhatsApp" here + the ANCHORS slot in OrbScene + /whatsapp status.
+// to bring WhatsApp back, restore "WhatsApp" here + the channel/chip slots in OrbCanvas/ZenithOrb + /whatsapp status.
 export type Channel = "Gmail" | "Calendar" | "Telegram" | "Discord";
 export type Connection = { channel: Channel; account: string; connected: boolean };
 

@@ -52,11 +52,7 @@
   --notch: 14px;
   --radius: 0px;
   --motion-scale: 1;
-  --bloom: 0.7;
-  --particle-count: 28000;
   --orb-mode: sphere;
-  --orb-link-dist: 0;
-  --orb-link-alpha: 0;
 }
 
 /* (Arc's font-trio remap removed — IBM Plex is the shared font in :root above, v7 redesign.) */
@@ -96,11 +92,7 @@
   --notch: 0px;
   --radius: 0px;
   --motion-scale: 1.35;
-  --bloom: 0;
-  --particle-count: 1100;
   --orb-mode: mesh;
-  --orb-link-dist: 0.34;
-  --orb-link-alpha: 0.42;
 }
 
 /* Ghost light surfaces — with --panel-tint 0 the cyan fills vanish, so give cards a white
@@ -149,11 +141,7 @@
   --notch: 0px;
   --radius: 18px;
   --motion-scale: 1;
-  --bloom: 0.7;
-  --particle-count: 28000;
   --orb-mode: nebula;
-  --orb-link-dist: 0;
-  --orb-link-alpha: 0;
 }
 
 /* Amethyst rounded-glass: drop the notch clip, round the corners, frost the surface. */
@@ -199,8 +187,8 @@
    <html data-reduce-motion="true"> is set by the toggle (persisted; applied pre-paint in
    layout.tsx). Declared AFTER every skin block so it overrides their --motion-scale / --scanline-op.
    The class list mirrors the two @media (prefers-reduced-motion) kill-lists below, so the in-app
-   toggle calms exactly what the OS setting does. (The WebGL orb + ambient canvas are JS-driven and
-   additionally re-read this live — OrbScene / AmbientBackground via lib/prefs.) */
+   toggle calms exactly what the OS setting does. (The orb + ambient canvases are JS-driven and
+   additionally re-read this live — OrbCanvas / AmbientBackground via lib/prefs.) */
 [data-reduce-motion="true"] {
   --motion-scale: 0;
   --scanline-op: 0;
@@ -271,14 +259,6 @@ body {
   .skin-swapping {
     filter: none;
   }
-}
-
-/* Orb: feather the WebGL canvas's rectangular edges to transparent so the additive/bloom
-   pass can't clip into a visible "square" around the sphere. Masks ONLY the <canvas>, so
-   the connection-node labels (separate DOM siblings) stay crisp and un-faded. */
-.orb-canvas canvas {
-  -webkit-mask-image: radial-gradient(circle closest-side at 50% 50%, #000 72%, transparent 94%);
-  mask-image: radial-gradient(circle closest-side at 50% 50%, #000 72%, transparent 94%);
 }
 
 /* ---------- HUD keyframes ---------- */
@@ -528,22 +508,6 @@ body {
 }
 .press:active {
   transform: scale(0.97);
-}
-
-/* The orb's WebGL canvas must visually FILL its (animating) wrapper. three.js's gl.setSize writes
-   explicit px sizes on the r3f container divs AND the <canvas>, updated only by a lagging
-   ResizeObserver — so during the orb's width transition the fixed-size canvas rode the wrapper's left
-   edge and then SNAPPED to full size (the "drifts left, then enlarges" jank). Forcing the whole r3f
-   chain to 100% lets CSS scale it smoothly with the wrapper; the GL buffer resolution catches up a
-   frame later (a momentary softness, no position jump or drift). */
-.orb-canvas,
-.orb-canvas > div:has(> canvas), /* ONLY the canvas container — NOT the drei <Html> node-label
-                                    portals (also .orb-canvas > div, z-index ~16M): forcing those to
-                                    100% turned them into full-size overlays that covered the Command
-                                    Center and ate clicks (the collapse icon went dead). */
-.orb-canvas canvas {
-  width: 100% !important;
-  height: 100% !important;
 }
 
 /* ---------- motion keyframes ---------- */

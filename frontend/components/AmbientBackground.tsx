@@ -28,24 +28,32 @@ export function AmbientBackground() {
     type Pt = { x: number; y: number; vx: number; vy: number };
     let nodes: Pt[] = [];
     function seed() {
-      const n = Math.min(110, Math.round((w * h) / 20000));
+      // Denser + a touch faster than the v7 mock: the mock's ~90 faint 1.1px dots drifting
+      // ~11px/s were imperceptible at rest on a real display. This reads as constant gentle
+      // motion in the dark field while staying ambient (behind content, low alpha).
+      const n = Math.min(240, Math.round((w * h) / 7000));
       nodes = Array.from({ length: n }, () => ({
         x: Math.random() * w,
         y: Math.random() * h,
-        vx: (Math.random() - 0.5) * 0.18,
-        vy: (Math.random() - 0.5) * 0.18,
+        vx: (Math.random() - 0.5) * 0.32,
+        vy: (Math.random() - 0.5) * 0.32,
       }));
     }
     function resize() {
-      w = canvas!.clientWidth;
-      h = canvas!.clientHeight;
+      const r = canvas!.getBoundingClientRect();
+      w = r.width;
+      h = r.height;
       canvas!.width = Math.max(1, Math.floor(w * dpr));
       canvas!.height = Math.max(1, Math.floor(h * dpr));
       ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
       seed();
     }
     resize();
-    window.addEventListener("resize", resize);
+    // ResizeObserver (matches the v7 reference _initBg) re-seeds whenever the canvas box changes
+    // size — including 0→full when the HUD first lays out after boot — so the field never gets
+    // stuck blank until a later reflow. More robust than a window 'resize' listener.
+    const ro = new ResizeObserver(resize);
+    ro.observe(canvas);
 
     // Accent of the active skin as "r,g,b" channels (re-read each frame so a skin switch re-tints).
     function channels(): string {
@@ -57,7 +65,7 @@ export function AmbientBackground() {
     }
 
     const GAP = 52; // grid spacing
-    const LINK = 130; // node-link distance
+    const LINK = 150; // node-link distance
     let t = 0;
 
     function draw() {
@@ -67,7 +75,7 @@ export function AmbientBackground() {
 
       // scrolling grid
       const off = reduce ? 0 : (t * 5) % GAP;
-      ctx!.strokeStyle = `rgba(${col},${light ? 0.04 : 0.05})`;
+      ctx!.strokeStyle = `rgba(${col},${light ? 0.045 : 0.06})`;
       ctx!.lineWidth = 1;
       ctx!.beginPath();
       for (let x = -off; x < w; x += GAP) {
@@ -93,7 +101,7 @@ export function AmbientBackground() {
       }
 
       // constellation links — a hairline between nodes closer than LINK, fading with distance
-      const na = light ? 0.07 : 0.09;
+      const na = light ? 0.14 : 0.2;
       for (let i = 0; i < nodes.length; i++) {
         for (let j = i + 1; j < nodes.length; j++) {
           const dx = nodes[i].x - nodes[j].x;
@@ -110,10 +118,10 @@ export function AmbientBackground() {
       }
 
       // node dots
-      ctx!.fillStyle = `rgba(${col},${light ? 0.35 : 0.5})`;
+      ctx!.fillStyle = `rgba(${col},${light ? 0.42 : 0.62})`;
       for (const p of nodes) {
         ctx!.beginPath();
-        ctx!.arc(p.x, p.y, 1.1, 0, Math.PI * 2);
+        ctx!.arc(p.x, p.y, 1.5, 0, Math.PI * 2);
         ctx!.fill();
       }
     }
@@ -144,7 +152,7 @@ export function AmbientBackground() {
     window.addEventListener(REDUCE_MOTION_EVENT, onReduceChange);
 
     return () => {
-      window.removeEventListener("resize", resize);
+      ro.disconnect();
       mq.removeEventListener("change", onReduceChange);
       window.removeEventListener(REDUCE_MOTION_EVENT, onReduceChange);
       if (raf) cancelAnimationFrame(raf);

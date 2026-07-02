@@ -1,7 +1,7 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import type { Connection } from "../lib/mock";
+import OrbCanvas from "./OrbCanvas";
 
 export type OrbState = "idle" | "listening" | "thinking" | "speaking";
 
@@ -12,27 +12,9 @@ export type ZenithOrbProps = {
   bars?: number[];
 };
 
-// The orb is a WebGL particle sphere — load it client-only (no SSR) so we never try to hydrate a
-// canvas / WebGL context on the server. Until it mounts, show a calm cyan glow so there's no blank
-// flash. The 4 connection-node chips are CSS-positioned around the orb box (NOT drei <Html> 3D
-// anchors), so they track the orb smoothly as it resizes — fixing the old drift/snap. See OrbScene.tsx.
-const OrbScene = dynamic(() => import("./OrbScene"), {
-  ssr: false,
-  loading: () => <OrbFallback />,
-});
-
-function OrbFallback() {
-  return (
-    <div
-      aria-hidden
-      className="h-full w-full"
-      style={{
-        background:
-          "radial-gradient(circle at 50% 50%, rgb(var(--zenith-cyan) / 0.16), rgb(var(--zenith-cyan) / 0.04) 38%, transparent 66%)",
-      }}
-    />
-  );
-}
+// The orb is the 2D-canvas HUD-mock port (OrbCanvas.tsx) — per-skin sphere/mesh/nebula styles,
+// initialized in a client effect so there's nothing to hydrate. The 4 connection-node chips stay
+// CSS-positioned around the orb box, so they track the orb smoothly as it resizes.
 
 // v7 node chips at the four edge-midpoints of the orb box; lit when the channel is connected.
 const NODES: { channel: Connection["channel"]; label: string; cls: string }[] = [
@@ -67,7 +49,7 @@ export function ZenithOrb(props: ZenithOrbProps) {
   const on = (ch: Connection["channel"]) => !!props.connections?.find((c) => c.channel === ch)?.connected;
   return (
     <div className="relative h-full w-full">
-      <OrbScene {...props} />
+      <OrbCanvas {...props} />
       {NODES.map((n) => (
         <NodeChip key={n.channel} label={n.label} on={on(n.channel)} cls={n.cls} />
       ))}

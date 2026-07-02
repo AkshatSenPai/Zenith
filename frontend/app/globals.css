@@ -98,7 +98,7 @@
   --motion-scale: 1.35;
   --bloom: 0;
   --particle-count: 1100;
-  --orb-mode: network;
+  --orb-mode: mesh;
   --orb-link-dist: 0.34;
   --orb-link-alpha: 0.42;
 }

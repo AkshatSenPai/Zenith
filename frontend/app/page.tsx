@@ -444,8 +444,9 @@ export default function Home() {
         <main className="relative z-10 flex min-h-0 min-w-0 flex-1 flex-col">
           {view === "chat" ? (
             <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 py-4">
-              {/* fixed-size orb — it no longer recedes; the Command Center is paginated, not grown */}
-              <div className="aspect-square w-[min(46vw,52vh)] max-w-[520px] shrink-0">
+              {/* height-sized orb — flex can shrink it when a long reply grows the Command Center,
+                  so the CC never presses the viewport edge (width follows via aspect-square) */}
+              <div className="aspect-square h-[min(46vw,52vh)] max-h-[520px] min-h-[200px] w-auto shrink">
                 <ZenithOrb state={orbState} connections={connections} bars={bars} />
               </div>
 

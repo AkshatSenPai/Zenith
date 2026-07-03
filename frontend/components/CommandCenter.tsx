@@ -133,7 +133,7 @@ export function CommandCenter({
       </div>
 
       {/* body: empty hint OR one turn (role chip + actions, then the text) */}
-      <div className="hud-scroll min-h-[84px] max-h-[240px] overflow-y-auto px-4 py-3.5">
+      <div className="hud-scroll min-h-[84px] max-h-[min(240px,28vh)] overflow-y-auto px-4 py-3.5">
         {!msg ? (
           <div className="flex h-[54px] flex-col items-center justify-center gap-1.5 text-center">
             <div className="text-[13px] text-zenith-lo">

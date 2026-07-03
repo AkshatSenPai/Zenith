@@ -34,9 +34,16 @@ app = FastAPI(
     title="Zenith — Milestone 1 (The Brain)",
     dependencies=[Depends(auth.require_token)],  # shared-secret gate on every route (see auth.py)
 )
+# CORS allowlist. The HUD's Next dev server normally runs on :3000, but it falls back to :3001
+# (or higher) when another local project already holds :3000 — e.g. the owner runs Arkquen's
+# desktop app on :3000 alongside Zenith. So the default allows both common dev ports; override
+# via ZENITH_ALLOWED_ORIGINS (comma-separated) for anything else. A disallowed origin makes the
+# CORS preflight return "400 Bad Request", which surfaces in the HUD as a blanket "backend offline".
+_DEFAULT_ORIGINS = "http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001"
+_ALLOWED_ORIGINS = [o.strip() for o in os.getenv("ZENITH_ALLOWED_ORIGINS", _DEFAULT_ORIGINS).split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=_ALLOWED_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )

@@ -21,3 +21,9 @@ def _isolate_memory(tmp_path, monkeypatch):
     import memory_service
     monkeypatch.setattr(memory_service, "_STORE", tmp_path / "history.json", raising=False)
     memory_service._history.clear()
+
+
+@pytest.fixture(autouse=True)
+def _isolate_notion_status(monkeypatch):
+    import notion_service
+    monkeypatch.setattr(notion_service, "_status_cache", {"at": 0.0, "value": None})

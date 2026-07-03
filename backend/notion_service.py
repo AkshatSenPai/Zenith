@@ -86,3 +86,103 @@ def status() -> dict:
     _status_cache["at"] = now
     _status_cache["value"] = value
     return value
+
+
+# ---------- read helpers ----------
+
+def _search(query: str, obj_filter: str | None, limit: int) -> list[dict]:
+    body: dict = {"page_size": min(limit, 100)}
+    if query:
+        body["query"] = query
+    if obj_filter:
+        body["filter"] = {"property": "object", "value": obj_filter}
+    return _request("POST", "/search", json=body).get("results", [])
+
+
+def list_pages(limit: int = 25) -> list[dict]:
+    return [{"id": r["id"], "title": _title_of(r), "last_edited": r.get("last_edited_time", "")}
+            for r in _search("", "page", limit)]
+
+
+def list_databases(limit: int = 25) -> list[dict]:
+    return [{"id": r["id"], "title": _title_of(r), "last_edited": r.get("last_edited_time", "")}
+            for r in _search("", "database", limit)]
+
+
+def search(query: str, limit: int = 25) -> list[dict]:
+    return [{"id": r["id"], "object": r.get("object", ""), "title": _title_of(r)}
+            for r in _search(query, None, limit)]
+
+
+_TEXT_BLOCKS = {
+    "paragraph", "heading_1", "heading_2", "heading_3",
+    "bulleted_list_item", "numbered_list_item", "to_do", "quote", "callout", "code",
+}
+
+
+def _block_text(block: dict) -> str:
+    btype = block.get("type", "")
+    if btype not in _TEXT_BLOCKS:
+        return ""
+    payload = block.get(btype, {})
+    text = _rich_text_to_plain(payload.get("rich_text", []))
+    if btype == "to_do":
+        return f"[{'x' if payload.get('checked') else ' '}] {text}"
+    if btype in ("bulleted_list_item", "numbered_list_item"):
+        return f"- {text}"
+    return text
+
+
+def read_page(page_id: str, max_blocks: int = 300) -> str:
+    page = _request("GET", f"/pages/{page_id}")
+    title = _title_of(page)
+    lines: list[str] = []
+    cursor: str | None = None
+    while len(lines) < max_blocks:
+        params: dict = {"page_size": 100}
+        if cursor:
+            params["start_cursor"] = cursor
+        data = _request("GET", f"/blocks/{page_id}/children", params=params)
+        for b in data.get("results", []):
+            t = _block_text(b)
+            if t:
+                lines.append(t)
+        if not data.get("has_more"):
+            break
+        cursor = data.get("next_cursor")
+    body = "\n".join(lines) if lines else "(no readable text content)"
+    return f"# {title}\n\n{body}"
+
+
+def _prop_to_text(prop: dict) -> str:
+    ptype = prop.get("type", "")
+    val = prop.get(ptype)
+    if ptype in ("title", "rich_text"):
+        return _rich_text_to_plain(val)
+    if ptype == "number":
+        return "" if val is None else str(val)
+    if ptype in ("select", "status"):
+        return val.get("name", "") if val else ""
+    if ptype == "multi_select":
+        return ", ".join(o.get("name", "") for o in (val or []))
+    if ptype == "date":
+        return (val or {}).get("start", "") if val else ""
+    if ptype == "checkbox":
+        return "yes" if val else "no"
+    if ptype in ("url", "email", "phone_number"):
+        return val or ""
+    if ptype == "people":
+        return ", ".join(p.get("name", "") for p in (val or []))
+    return ""
+
+
+def query_database(database_id: str, filter: dict | None = None, limit: int = 25) -> list[dict]:
+    body: dict = {"page_size": min(limit, 100)}
+    if filter:
+        body["filter"] = filter
+    data = _request("POST", f"/databases/{database_id}/query", json=body)
+    rows = []
+    for r in data.get("results", []):
+        props = {name: _prop_to_text(p) for name, p in r.get("properties", {}).items()}
+        rows.append({"id": r["id"], "title": _title_of(r), "properties": props})
+    return rows

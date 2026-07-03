@@ -58,3 +58,50 @@ def test_request_raises_on_error(monkeypatch):
         assert False, "expected NotionError"
     except notion_service.NotionError as exc:
         assert "401" in str(exc)
+
+
+def test_list_pages_parses(monkeypatch):
+    monkeypatch.setenv("NOTION_API_KEY", "secret")
+    results = {"results": [
+        {"object": "page", "id": "p1", "last_edited_time": "2026-07-03T00:00:00Z",
+         "properties": {"Name": {"type": "title", "title": [{"plain_text": "My Page"}]}}},
+    ]}
+    _mock_request(monkeypatch, lambda m, u, **k: _Resp(results))
+    pages = notion_service.list_pages()
+    assert pages == [{"id": "p1", "title": "My Page", "last_edited": "2026-07-03T00:00:00Z"}]
+
+
+def test_read_page_extracts_text(monkeypatch):
+    monkeypatch.setenv("NOTION_API_KEY", "secret")
+
+    def handler(method, url, **kw):
+        if url.endswith("/pages/pg"):
+            return _Resp({"object": "page", "properties": {"Name": {"type": "title", "title": [{"plain_text": "Notes"}]}}})
+        if "/blocks/pg/children" in url:
+            return _Resp({"results": [
+                {"type": "heading_1", "heading_1": {"rich_text": [{"plain_text": "Heading"}]}},
+                {"type": "paragraph", "paragraph": {"rich_text": [{"plain_text": "Body line."}]}},
+                {"type": "to_do", "to_do": {"rich_text": [{"plain_text": "task"}], "checked": True}},
+                {"type": "unsupported_widget", "unsupported_widget": {}},
+            ], "has_more": False})
+        raise AssertionError(url)
+
+    _mock_request(monkeypatch, handler)
+    text = notion_service.read_page("pg")
+    assert "# Notes" in text and "Heading" in text and "Body line." in text and "[x] task" in text
+    assert "unsupported" not in text
+
+
+def test_query_database_flattens(monkeypatch):
+    monkeypatch.setenv("NOTION_API_KEY", "secret")
+    rows = {"results": [
+        {"id": "r1", "properties": {
+            "Name": {"type": "title", "title": [{"plain_text": "Row one"}]},
+            "Status": {"type": "select", "select": {"name": "Done"}},
+            "Count": {"type": "number", "number": 3},
+        }},
+    ]}
+    _mock_request(monkeypatch, lambda m, u, **k: _Resp(rows))
+    out = notion_service.query_database("db")
+    assert out[0]["id"] == "r1" and out[0]["title"] == "Row one"
+    assert out[0]["properties"]["Status"] == "Done" and out[0]["properties"]["Count"] == "3"

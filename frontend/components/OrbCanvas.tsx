@@ -40,10 +40,9 @@ function fibSphere(n: number): Vec3[] {
   return out;
 }
 
-/** Active skin's --orb-color as "r,g,b" channels (same parser as AmbientBackground). */
-function orbChannels(): string {
-  const v = getComputedStyle(document.documentElement).getPropertyValue("--orb-color").trim() || "#00ffe5";
-  let hex = v.replace("#", "");
+/** Parse a hex color ("#rrggbb" or "#rgb") to "r,g,b" channels. Same shape as AmbientBackground. */
+function hexChannels(v: string): string {
+  let hex = (v || "#00ffe5").replace("#", "");
   if (hex.length === 3) hex = hex.split("").map((c) => c + c).join("");
   const num = parseInt(hex, 16);
   return `${(num >> 16) & 255},${(num >> 8) & 255},${num & 255}`;
@@ -147,9 +146,13 @@ export default function OrbCanvas({ state = "idle", connections, bars }: ZenithO
       const RM = reduceRef.current;
       const mode = modeRef.current;
       const liveBars = barsRef.current;
-      const light = document.documentElement.dataset.skin === "ghost";
-      const style = getComputedStyle(document.documentElement).getPropertyValue("--orb-mode").trim() || "sphere";
-      const acc = orbChannels();
+      const root = document.documentElement;
+      const light = root.dataset.skin === "ghost";
+      // One style resolution per frame, shared by both reads (kept per-frame so a live skin switch
+      // re-styles instantly): --orb-mode selects the render style, --orb-color is the accent.
+      const cs = getComputedStyle(root);
+      const style = cs.getPropertyValue("--orb-mode").trim() || "sphere";
+      const acc = hexChannels(cs.getPropertyValue("--orb-color").trim());
 
       // energy eases to the mode target (mock: speaking .92 / processing .72 / listening .55 / idle .15)
       const targ = mode === "speaking" ? 0.92 : mode === "thinking" ? 0.72 : mode === "listening" ? 0.55 : 0.15;
@@ -324,6 +327,11 @@ export default function OrbCanvas({ state = "idle", connections, bars }: ZenithO
         }
         const bcount = 76;
         const spd = mode === "speaking" ? 6 : mode === "thinking" ? 4.5 : 3;
+        // Every bar shares one color + width → set once, batch all 76 spokes into a single path and
+        // stroke once (the spokes are radial and never overlap, so this stays pixel-identical).
+        ctx.strokeStyle = `rgba(${colStr},${0.12 + 0.4 * e})`;
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
         for (let i = 0; i < bcount; i++) {
           const ang = (i / bcount) * Math.PI * 2 + t * 0.18;
           let v = Math.abs(Math.sin(i * 0.5 + t * spd));
@@ -334,13 +342,10 @@ export default function OrbCanvas({ state = "idle", connections, bars }: ZenithO
           const y0 = cy + Math.sin(ang) * r0;
           const x1 = cx + Math.cos(ang) * (r0 + len);
           const y1 = cy + Math.sin(ang) * (r0 + len);
-          ctx.strokeStyle = `rgba(${colStr},${0.12 + 0.4 * e})`;
-          ctx.lineWidth = 1.4;
-          ctx.beginPath();
           ctx.moveTo(x0, y0);
           ctx.lineTo(x1, y1);
-          ctx.stroke();
         }
+        ctx.stroke();
         ctx.save();
         ctx.translate(cx, cy);
         ctx.rotate(t * 0.85);

@@ -54,10 +54,9 @@ export function AmbientBackground() {
     const ro = new ResizeObserver(resize);
     ro.observe(canvas);
 
-    // Accent of the active skin as "r,g,b" channels (re-read each frame so a skin switch re-tints).
-    function channels(): string {
-      const v = getComputedStyle(document.documentElement).getPropertyValue("--orb-color").trim() || "#2ee6d6";
-      let hex = v.replace("#", "");
+    // Parse a hex color ("#rrggbb" or "#rgb") to "r,g,b" channels.
+    function hexChannels(v: string): string {
+      let hex = (v || "#2ee6d6").replace("#", "");
       if (hex.length === 3) hex = hex.split("").map((c) => c + c).join("");
       const num = parseInt(hex, 16);
       return `${(num >> 16) & 255},${(num >> 8) & 255},${num & 255}`;
@@ -69,12 +68,15 @@ export function AmbientBackground() {
 
     function draw() {
       ctx!.clearRect(0, 0, w, h);
-      const col = channels();
+      // One style resolution per frame, shared by both reads (kept per-frame so a live skin switch
+      // re-tints instantly): --orb-color is the accent, --amb-grid-a the grid alpha.
+      const cs = getComputedStyle(document.documentElement);
+      const col = hexChannels(cs.getPropertyValue("--orb-color").trim());
       const light = document.documentElement.dataset.skin === "ghost";
 
       // scrolling grid — alpha is a per-skin token (mock: arc .022 / amethyst .03 / ghost .05)
       const off = reduce ? 0 : (t * 5) % GAP;
-      const gridA = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--amb-grid-a")) || 0.022;
+      const gridA = parseFloat(cs.getPropertyValue("--amb-grid-a")) || 0.022;
       ctx!.strokeStyle = `rgba(${col},${gridA})`;
       ctx!.lineWidth = 1;
       ctx!.beginPath();
@@ -100,14 +102,18 @@ export function AmbientBackground() {
         }
       }
 
-      // constellation links — a hairline between nodes closer than LINK, fading with distance
+      // constellation links — a hairline between nodes closer than LINK, fading with distance.
+      // Threshold on squared distance first; the sqrt (needed only for the alpha falloff) runs for
+      // actual links, not for every one of the ~n²/2 pairs.
       const na = light ? 0.07 : 0.09;
+      const LINK2 = LINK * LINK;
       for (let i = 0; i < nodes.length; i++) {
         for (let j = i + 1; j < nodes.length; j++) {
           const dx = nodes[i].x - nodes[j].x;
           const dy = nodes[i].y - nodes[j].y;
-          const dist = Math.hypot(dx, dy);
-          if (dist < LINK) {
+          const d2 = dx * dx + dy * dy;
+          if (d2 < LINK2) {
+            const dist = Math.sqrt(d2);
             ctx!.strokeStyle = `rgba(${col},${(1 - dist / LINK) * na})`;
             ctx!.beginPath();
             ctx!.moveTo(nodes[i].x, nodes[i].y);

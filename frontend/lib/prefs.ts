@@ -2,7 +2,7 @@
 //
 // The flag is mirrored onto <html data-reduce-motion="true"> — set pre-paint by the no-flash
 // script in app/layout.tsx so the HUD boots calm with no flash of motion, and toggled at runtime
-// by setReduceMotion. CSS reads the attribute (globals.css); the JS-driven motion (the WebGL orb
+// by setReduceMotion. CSS reads the attribute (globals.css); the JS-driven motion (the 2D-canvas orb
 // + the ambient canvas) re-reads it live via useReducedMotion / the REDUCE_MOTION_EVENT, so a
 // toggle calms everything immediately without a reload.
 

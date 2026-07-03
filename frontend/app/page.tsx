@@ -32,8 +32,9 @@ import { briefingGreeting } from "../lib/greeting";
 
 type PendingAction = { id: string; tool: string; input: Record<string, unknown>; untrusted?: boolean };
 
-// Gmail + Calendar reflect the live Google status; WhatsApp + Discord stay mock (M4).
-// Order is preserved — the orb places its nodes in this sequence.
+// All four connections reflect LIVE backend status: Gmail + Calendar from Google, Telegram + Discord
+// from their bot status endpoints. (WhatsApp is parked — Telegram took its orb slot.) mock.ts only
+// supplies the channel list + order here — the orb places its nodes in this sequence.
 function buildConnections(g: GoogleStatus | null, d: DiscordStatus | null, t: TelegramStatus | null): Connection[] {
   const email = g?.accounts?.[0]?.email;
   const guilds = d?.guilds?.length ?? 0;
@@ -269,6 +270,7 @@ export default function Home() {
     if (!handle) return;
     recordingRef.current = null;
     setVoiceState("thinking");
+    let reply: string | null = null;
     try {
       const blob = await handle.stop();
       // Accidental tap / no audio → a header-only clip. Skip the round-trip entirely.
@@ -281,13 +283,24 @@ export default function Home() {
         setVoiceState("idle");
         return;
       }
-      const reply = await sendMessage(text);
-      if (reply) {
-        setVoiceState("speaking");
-        await speak(reply);
-      }
+      reply = await sendMessage(text); // swallows its own network/API errors, returns null
     } catch {
+      // Only reached if recording.stop() or transcribe() throws — this label is accurate here.
       setError("Voice failed — could not transcribe. Is the backend running on :8000?");
+      setVoiceState("idle");
+      return;
+    }
+    if (!reply) {
+      setVoiceState("idle");
+      return;
+    }
+    // The reply is already on screen; speak it. A TTS failure here must NOT surface as a
+    // transcription error — the written answer stands on its own.
+    setVoiceState("speaking");
+    try {
+      await speak(reply);
+    } catch {
+      /* playback failed (e.g. TTS engine error) — keep the rendered reply, show no error strip */
     } finally {
       setVoiceState("idle");
     }
@@ -309,7 +322,10 @@ export default function Home() {
     }
     function onKeyUp(e: KeyboardEvent) {
       if (e.code !== "Space") return;
-      if (isTyping()) return;
+      // Unconditional (no isTyping guard): if a recording is live, releasing Space MUST stop it even
+      // when focus has moved into a text field mid-hold (e.g. ⌘K opened the palette, which autofocuses
+      // its input). stopListening() no-ops when nothing is recording, so a real space typed in a field
+      // is unaffected — otherwise the mic could stay hot and the orb stuck on LISTENING.
       void stopListening();
     }
     window.addEventListener("keydown", onKeyDown);
@@ -351,6 +367,11 @@ export default function Home() {
       }
       applyData(await res.json());
     } catch {
+      // Network-level failure: the request never reached the backend, so the action is still pending
+      // there (process_confirm pops the id only once the request arrives). Restore the card so the
+      // owner can retry — after a *lost response* a retry harmlessly 404s instead of double-running,
+      // because the backend pops-first. On an !res.ok above the id is already consumed → stays cleared.
+      setPending(cur);
       setError("Can't reach Zenith's backend. Is it running on :8000?");
     } finally {
       setLoading(false);

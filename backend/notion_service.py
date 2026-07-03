@@ -147,7 +147,9 @@ def read_page(page_id: str, max_blocks: int = 300) -> str:
             t = _block_text(b)
             if t:
                 lines.append(t)
-        if not data.get("has_more"):
+                if len(lines) >= max_blocks:
+                    break
+        if len(lines) >= max_blocks or not data.get("has_more"):
             break
         cursor = data.get("next_cursor")
     body = "\n".join(lines) if lines else "(no readable text content)"
@@ -166,7 +168,7 @@ def _prop_to_text(prop: dict) -> str:
     if ptype == "multi_select":
         return ", ".join(o.get("name", "") for o in (val or []))
     if ptype == "date":
-        return (val or {}).get("start", "") if val else ""
+        return (val or {}).get("start", "")
     if ptype == "checkbox":
         return "yes" if val else "no"
     if ptype in ("url", "email", "phone_number"):

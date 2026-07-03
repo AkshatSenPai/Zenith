@@ -92,6 +92,23 @@ def test_read_page_extracts_text(monkeypatch):
     assert "unsupported" not in text
 
 
+def test_read_page_respects_max_blocks(monkeypatch):
+    monkeypatch.setenv("NOTION_API_KEY", "secret")
+    many = [{"type": "paragraph", "paragraph": {"rich_text": [{"plain_text": f"line {i}"}]}} for i in range(100)]
+
+    def handler(method, url, **kw):
+        if url.endswith("/pages/pg"):
+            return _Resp({"object": "page", "properties": {"Name": {"type": "title", "title": [{"plain_text": "T"}]}}})
+        if "/blocks/pg/children" in url:
+            return _Resp({"results": many, "has_more": True, "next_cursor": "c"})
+        raise AssertionError(url)
+
+    _mock_request(monkeypatch, handler)
+    text = notion_service.read_page("pg", max_blocks=10)
+    body = text.split("\n\n", 1)[1]
+    assert len(body.splitlines()) == 10  # capped at max_blocks, not 100
+
+
 def test_query_database_flattens(monkeypatch):
     monkeypatch.setenv("NOTION_API_KEY", "secret")
     rows = {"results": [

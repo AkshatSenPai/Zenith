@@ -801,6 +801,24 @@ TOOLS = [
             "blocks": {"type": "array", "description": "Optional structured blocks (see create_notion_page.blocks)"},
         }, "required": ["page"]},
     },
+    {
+        "name": "update_notion_page",
+        "description": "Update an existing Notion page or database row by id: change its title and/or its "
+        "database field values. Get the id from query_notion_database / read results. Cannot create fields.",
+        "input_schema": {"type": "object", "properties": {
+            "page_id": {"type": "string", "description": "Page or row id"},
+            "title": {"type": "string", "description": "New title (optional)"},
+            "properties": {"type": "object", "description": "Field name -> new value map (rows only)"},
+        }, "required": ["page_id"]},
+    },
+    {
+        "name": "archive_notion_page",
+        "description": "Archive (delete) a Notion page or database row by id — moves it to Notion's trash, "
+        "recoverable. Use for 'delete/remove that page/row'. Confirm-gated.",
+        "input_schema": {"type": "object", "properties": {
+            "page_id": {"type": "string", "description": "Page or row id to archive"},
+        }, "required": ["page_id"]},
+    },
 ]
 
 # Action tools require user confirmation before running (the existing confirm gate).
@@ -867,6 +885,8 @@ _EXECUTORS = {
     "create_notion_page": _create_notion_page,
     "create_notion_database_item": _create_notion_database_item,
     "append_to_notion_page": _append_to_notion_page,
+    "update_notion_page": _update_notion_page,
+    "archive_notion_page": _archive_notion_page,
 }
 
 

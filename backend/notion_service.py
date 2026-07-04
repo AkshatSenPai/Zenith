@@ -361,3 +361,37 @@ def create_database_item(database_id: str, properties: dict) -> str:
     page = _request("POST", "/pages", json={"parent": _db_parent(db_id), "properties": payload})
     note = f" (skipped: {', '.join(skipped)})" if skipped else ""
     return f"Added a row to the database ({page.get('url', page.get('id', ''))}).{note}"
+
+
+# ---------- edit / archive (gated upstream) ----------
+
+def _title_prop_name(page: dict) -> str:
+    for name, prop in page.get("properties", {}).items():
+        if prop.get("type") == "title":
+            return name
+    return "title"
+
+
+def update_page(page_id: str, title: str | None = None, properties: dict | None = None) -> str:
+    page = _request("GET", f"/pages/{page_id}")
+    payload: dict = {}
+    skipped: list[str] = []
+    if title is not None:
+        payload[_title_prop_name(page)] = {"title": _rich(title)}
+    if properties:
+        db_id = page.get("parent", {}).get("database_id")
+        if db_id:
+            coerced, skipped = _coerce_properties(_db_schema(db_id), properties)
+            payload.update(coerced)
+        else:
+            skipped = list(properties.keys())  # a plain page has no database columns to set
+    if not payload:
+        return "Nothing to update — give a new title and/or properties."
+    _request("PATCH", f"/pages/{page_id}", json={"properties": payload})
+    note = f" (skipped: {', '.join(skipped)})" if skipped else ""
+    return f"Updated the page.{note}"
+
+
+def archive_page(page_id: str) -> str:
+    _request("PATCH", f"/pages/{page_id}", json={"archived": True})
+    return "Archived (moved to Notion trash — recoverable)."

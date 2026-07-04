@@ -271,3 +271,34 @@ def test_append_to_page(monkeypatch):
     msg = notion_service.append_to_page("My Page", content="line one\n\nline two")
     assert "2 block" in msg
     assert len(seen["body"]["children"]) == 2
+
+
+def test_update_page_row_properties(monkeypatch):
+    monkeypatch.setenv("NOTION_API_KEY", "secret")
+    seen = {}
+    def handler(method, url, **kw):
+        if url.endswith("/pages/row1") and method == "GET":
+            return _Resp({"object": "page", "parent": {"database_id": "db1"},
+                          "properties": {"Name": {"type": "title"}}})
+        if url.endswith("/databases/db1") and method == "GET":
+            return _Resp({"properties": {"Name": {"type": "title"}, "Status": {"type": "select"}}})
+        if url.endswith("/pages/row1") and method == "PATCH":
+            seen["body"] = kw.get("json")
+            return _Resp({"id": "row1"})
+        raise AssertionError((method, url))
+    _mock_request(monkeypatch, handler)
+    msg = notion_service.update_page("row1", title="Renamed", properties={"Status": "Done", "Ghost": "x"})
+    assert "Updated" in msg and "Ghost" in msg  # skipped reported
+    assert seen["body"]["properties"]["Name"]["title"][0]["text"]["content"] == "Renamed"
+    assert seen["body"]["properties"]["Status"]["select"]["name"] == "Done"
+
+
+def test_archive_page(monkeypatch):
+    monkeypatch.setenv("NOTION_API_KEY", "secret")
+    seen = {}
+    def handler(method, url, **kw):
+        seen["body"] = kw.get("json")
+        return _Resp({"id": "p"})
+    _mock_request(monkeypatch, handler)
+    msg = notion_service.archive_page("p")
+    assert "Archived" in msg and seen["body"] == {"archived": True}

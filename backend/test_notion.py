@@ -356,3 +356,21 @@ def test_create_database_body(monkeypatch):
     assert "newdb" in msg
     assert seen["body"]["parent"] == {"type": "page_id", "page_id": "par"}
     assert seen["body"]["properties"]["Item"] == {"title": {}}
+
+
+def test_get_and_add_comments(monkeypatch):
+    monkeypatch.setenv("NOTION_API_KEY", "secret")
+    seen = {}
+    def handler(method, url, **kw):
+        if url.endswith("/comments") and method == "GET":
+            return _Resp({"results": [{"id": "c1", "rich_text": [{"plain_text": "looks good"}]}]})
+        if url.endswith("/comments") and method == "POST":
+            seen["body"] = kw.get("json")
+            return _Resp({"id": "c2"})
+        raise AssertionError((method, url))
+    _mock_request(monkeypatch, handler)
+    assert notion_service.get_comments("pg") == [{"id": "c1", "text": "looks good"}]
+    msg = notion_service.add_comment("pg", "nice")
+    assert "added" in msg.lower()
+    assert seen["body"]["parent"] == {"page_id": "pg"}
+    assert seen["body"]["rich_text"][0]["text"]["content"] == "nice"

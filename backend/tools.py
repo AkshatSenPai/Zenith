@@ -869,6 +869,23 @@ TOOLS = [
             "title": {"type": "string", "description": "New database name"},
         }, "required": ["database"]},
     },
+    {
+        "name": "get_notion_comments",
+        "description": "Read the comments on a Notion page by id. (Needs the Notion token's 'Read comments' "
+        "capability enabled.)",
+        "input_schema": {"type": "object", "properties": {
+            "page_id": {"type": "string", "description": "Page id"},
+        }, "required": ["page_id"]},
+    },
+    {
+        "name": "add_notion_comment",
+        "description": "Add a comment to a Notion page by id. Confirm-gated. (Needs the token's 'Insert "
+        "comments' capability enabled.)",
+        "input_schema": {"type": "object", "properties": {
+            "page_id": {"type": "string", "description": "Page id"},
+            "text": {"type": "string", "description": "Comment text"},
+        }, "required": ["page_id", "text"]},
+    },
 ]
 
 # Action tools require user confirmation before running (the existing confirm gate).
@@ -942,6 +959,8 @@ _EXECUTORS = {
     "describe_notion_database": _describe_notion_database,
     "create_notion_database": _create_notion_database,
     "update_notion_database": _update_notion_database,
+    "get_notion_comments": _get_notion_comments,
+    "add_notion_comment": _add_notion_comment,
 }
 
 

@@ -530,3 +530,16 @@ def update_database(database: str, add_columns: dict | None = None, rename: dict
         return "Nothing to change — give add_columns, rename, and/or title."
     _request("PATCH", f"/databases/{db_id}", json=body)
     return f"Updated the database {database!r}."
+
+
+# ---------- comments ----------
+
+def get_comments(page_id: str) -> list[dict]:
+    data = _request("GET", "/comments", params={"block_id": page_id})
+    return [{"id": c.get("id", ""), "text": _rich_text_to_plain(c.get("rich_text", []))}
+            for c in data.get("results", [])]
+
+
+def add_comment(page_id: str, text: str) -> str:
+    _request("POST", "/comments", json={"parent": {"page_id": page_id}, "rich_text": _rich(text)})
+    return "Comment added."

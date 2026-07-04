@@ -13,6 +13,7 @@ import chat_core
 import discord_service
 import google_auth
 import google_service
+import notion_service
 import secure_files
 import telegram_service
 import todo_service
@@ -251,6 +252,12 @@ async def discord_status() -> dict:
 def telegram_status() -> dict:
     """Telegram remote bot status for the orb Telegram node + Connections row."""
     return telegram_service.status()
+
+
+@app.get("/notion/status")
+def notion_status() -> dict:
+    """Notion integration status for the Connections row (no orb node)."""
+    return notion_service.status()
 
 
 # ---------- vault: read-only note browsing for the HUD (shares vault_service; NOT Claude tools) ----------

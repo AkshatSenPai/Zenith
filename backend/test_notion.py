@@ -215,3 +215,9 @@ def test_notion_activity_mapped():
     import activity_log
     for name in ("read_notion_page", "create_notion_page", "create_notion_database_item"):
         assert name in activity_log._MAP
+
+
+def test_notion_status_route(monkeypatch):
+    import main
+    monkeypatch.setattr(main.notion_service, "status", lambda: {"configured": True, "connected": True, "workspace": "W", "last_error": None})
+    assert main.notion_status() == {"configured": True, "connected": True, "workspace": "W", "last_error": None}

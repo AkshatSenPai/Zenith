@@ -111,6 +111,7 @@ def test_read_page_respects_max_blocks(monkeypatch):
 
 def test_query_database_flattens(monkeypatch):
     monkeypatch.setenv("NOTION_API_KEY", "secret")
+    notion_service._ds_cache.clear()
     rows = {"results": [
         {"id": "r1", "properties": {
             "Name": {"type": "title", "title": [{"plain_text": "Row one"}]},
@@ -118,7 +119,13 @@ def test_query_database_flattens(monkeypatch):
             "Count": {"type": "number", "number": 3},
         }},
     ]}
-    _mock_request(monkeypatch, lambda m, u, **k: _Resp(rows))
+    def handler(method, url, **k):
+        if url.endswith("/databases/db") and method == "GET":
+            return _Resp({"data_sources": [{"id": "ds", "name": "Main"}]})
+        if "/data_sources/ds/query" in url:
+            return _Resp(rows)
+        raise AssertionError((method, url))
+    _mock_request(monkeypatch, handler)
     out = notion_service.query_database("db")
     assert out[0]["id"] == "r1" and out[0]["title"] == "Row one"
     assert out[0]["properties"]["Status"] == "Done" and out[0]["properties"]["Count"] == "3"
@@ -169,20 +176,24 @@ def test_create_database_item_coerces(monkeypatch):
     monkeypatch.setenv("NOTION_API_KEY", "secret")
     seen = {}
 
+    notion_service._ds_cache.clear()
+
     def handler(method, url, **kw):
         if url.endswith("/search") and method == "POST":  # name -> id resolution
             return _Resp({"results": [{"object": "database", "id": "db1"}]})
-        if "/databases/db1" in url and method == "GET":
+        if url.endswith("/databases/db1") and method == "GET":
+            return _Resp({"data_sources": [{"id": "ds1", "name": "Main"}]})
+        if url.endswith("/data_sources/ds1") and method == "GET":
             return _Resp({"properties": {"Name": {"type": "title"}, "Count": {"type": "number"}}})
         if url.endswith("/pages") and method == "POST":
             seen["body"] = kw.get("json")
             return _Resp({"id": "row1", "url": "http://n/row1"})
-        raise AssertionError(url)
+        raise AssertionError((method, url))
 
     _mock_request(monkeypatch, handler)
     msg = notion_service.create_database_item("db1", {"Name": "Widget", "Count": 7})
     assert "row1" in msg
-    assert seen["body"]["parent"] == {"database_id": "db1"}
+    assert seen["body"]["parent"] == {"type": "data_source_id", "data_source_id": "ds1"}
     assert seen["body"]["properties"]["Name"]["title"][0]["text"]["content"] == "Widget"
     assert seen["body"]["properties"]["Count"]["number"] == 7.0
 
@@ -226,20 +237,58 @@ def test_notion_status_route(monkeypatch):
 # ---------- Phase 2: edit / delete / structure / comments ----------
 
 
-def test_db_indirection_shapes(monkeypatch):
+def test_data_source_query_path(monkeypatch):
+    monkeypatch.setenv("NOTION_API_KEY", "secret")
+    notion_service._ds_cache.clear()
+    seen = {}
+    def handler(method, url, **kw):
+        if url.endswith("/databases/db") and method == "GET":
+            return _Resp({"data_sources": [{"id": "ds1", "name": "Main"}]})
+        if "/data_sources/ds1/query" in url:
+            seen["queried"] = (method, url)
+            return _Resp({"results": []})
+        raise AssertionError((method, url))
+    _mock_request(monkeypatch, handler)
+    assert notion_service._data_source_id("db") == "ds1"
+    assert notion_service._db_parent("db") == {"type": "data_source_id", "data_source_id": "ds1"}
+    notion_service._db_query("db", {"page_size": 1})
+    assert seen["queried"][0] == "POST" and seen["queried"][1].endswith("/data_sources/ds1/query")
+
+
+def test_search_filter_maps_database_to_data_source(monkeypatch):
     monkeypatch.setenv("NOTION_API_KEY", "secret")
     seen = {}
     def handler(method, url, **kw):
-        seen["last"] = (method, url)
-        if url.endswith("/databases/db/query"):
-            return _Resp({"results": []})
-        return _Resp({"properties": {}})
+        seen["body"] = kw.get("json")
+        return _Resp({"results": []})
     _mock_request(monkeypatch, handler)
-    assert notion_service._db_parent("db") == {"database_id": "db"}
-    notion_service._db_query("db", {"page_size": 1})
-    assert seen["last"] == ("POST", "https://api.notion.com/v1/databases/db/query")
-    notion_service._db_schema("db")
-    assert seen["last"] == ("GET", "https://api.notion.com/v1/databases/db")
+    notion_service._search("x", "database", 5)
+    assert seen["body"]["filter"] == {"property": "object", "value": "data_source"}
+
+
+def test_title_of_data_source():
+    ds = {"object": "data_source", "title": [{"plain_text": "Clients"}]}
+    assert notion_service._title_of(ds) == "Clients"
+
+
+def test_update_database_targets_data_source(monkeypatch):
+    monkeypatch.setenv("NOTION_API_KEY", "secret")
+    notion_service._ds_cache.clear()
+    seen = {}
+    def handler(method, url, **kw):
+        if url.endswith("/search") and method == "POST":
+            return _Resp({"results": [{"object": "data_source", "id": "ds9"}]})
+        if url.endswith("/databases/ds9") and method == "GET":
+            return _Resp({"message": "not found"}, status_code=404)  # ds id -> not a database
+        if url.endswith("/data_sources/ds9") and method == "PATCH":
+            seen["patch"] = (url, kw.get("json"))
+            return _Resp({"id": "ds9"})
+        raise AssertionError((method, url))
+    _mock_request(monkeypatch, handler)
+    msg = notion_service.update_database("My DB", add_columns={"Priority": "select"})
+    assert "Updated" in msg
+    assert seen["patch"][0].endswith("/data_sources/ds9")
+    assert seen["patch"][1]["properties"]["Priority"] == {"select": {}}
 
 
 def test_blocks_from_spec_types():
@@ -275,12 +324,15 @@ def test_append_to_page(monkeypatch):
 
 def test_update_page_row_properties(monkeypatch):
     monkeypatch.setenv("NOTION_API_KEY", "secret")
+    notion_service._ds_cache.clear()
     seen = {}
     def handler(method, url, **kw):
         if url.endswith("/pages/row1") and method == "GET":
             return _Resp({"object": "page", "parent": {"database_id": "db1"},
                           "properties": {"Name": {"type": "title"}}})
         if url.endswith("/databases/db1") and method == "GET":
+            return _Resp({"data_sources": [{"id": "ds1", "name": "Main"}]})
+        if url.endswith("/data_sources/ds1") and method == "GET":
             return _Resp({"properties": {"Name": {"type": "title"}, "Status": {"type": "select"}}})
         if url.endswith("/pages/row1") and method == "PATCH":
             seen["body"] = kw.get("json")
@@ -355,7 +407,7 @@ def test_create_database_body(monkeypatch):
     msg = notion_service.create_database("Home", "Expenses", {"Item": "title", "Amount": "number"})
     assert "newdb" in msg
     assert seen["body"]["parent"] == {"type": "page_id", "page_id": "par"}
-    assert seen["body"]["properties"]["Item"] == {"title": {}}
+    assert seen["body"]["initial_data_source"]["properties"]["Item"] == {"title": {}}
 
 
 def test_get_and_add_comments(monkeypatch):

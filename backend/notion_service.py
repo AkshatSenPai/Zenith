@@ -14,7 +14,7 @@ import time
 import requests
 
 _API = "https://api.notion.com/v1"
-_DEFAULT_VERSION = "2022-06-28"
+_DEFAULT_VERSION = "2025-09-03"  # data-source model — handles single AND multi-source databases
 _TIMEOUT = 10
 
 # status() connectivity cache — the HUD polls every 4s; only re-check Notion every _STATUS_TTL.
@@ -61,9 +61,10 @@ def _rich_text_to_plain(rich: list | None) -> str:
 
 
 def _title_of(obj: dict) -> str:
-    """Best-effort title for a page or database object."""
-    if obj.get("object") == "database":
-        return _rich_text_to_plain(obj.get("title", [])) or "(untitled database)"
+    """Best-effort title for a page, database, or data_source object."""
+    if obj.get("object") in ("database", "data_source"):
+        return (_rich_text_to_plain(obj.get("title", [])) or obj.get("name", "")
+                or "(untitled database)")
     for prop in obj.get("properties", {}).values():
         if prop.get("type") == "title":
             return _rich_text_to_plain(prop.get("title", [])) or "(untitled)"
@@ -95,7 +96,9 @@ def _search(query: str, obj_filter: str | None, limit: int) -> list[dict]:
     if query:
         body["query"] = query
     if obj_filter:
-        body["filter"] = {"property": "object", "value": obj_filter}
+        # 2025-09-03: databases are surfaced as their data source; the filter value is "data_source".
+        api_filter = "data_source" if obj_filter == "database" else obj_filter
+        body["filter"] = {"property": "object", "value": api_filter}
     return _request("POST", "/search", json=body).get("results", [])
 
 
@@ -178,21 +181,49 @@ def _prop_to_text(prop: dict) -> str:
     return ""
 
 
-# ---------- database access indirection (the ONLY seam the 2025-09-03 data-source migration swaps) ----------
+# ---------- database access indirection (2025-09-03 data-source model) ----------
+# A database now wraps one or more data sources; schema + rows live on the data source. These three
+# helpers are the ONLY place that model is encoded — everything else works in terms of a database id.
+
+_ds_cache: dict = {}
+
+
+def _data_source_id(id_: str) -> str | None:
+    """A data source id from either a database_id (resolve to its first data source) or a
+    data_source_id (from search/list — used as-is). Resolves as a database first; a 404 means the id
+    is already a data source id. Cached."""
+    if id_ in _ds_cache:
+        return _ds_cache[id_]
+    try:
+        db = _request("GET", f"/databases/{id_}")
+        sources = db.get("data_sources", [])
+        dsid = sources[0]["id"] if sources else None
+    except NotionError:
+        dsid = id_  # not a database id -> assume it's already a data source id
+    if dsid:
+        _ds_cache[id_] = dsid
+    return dsid
+
 
 def _db_schema(database_id: str) -> dict:
     """The schema object ({'properties': {...}}) for a database — used to coerce writes and list columns."""
-    return _request("GET", f"/databases/{database_id}")
+    dsid = _data_source_id(database_id)
+    if not dsid:
+        return {"properties": {}}
+    return _request("GET", f"/data_sources/{dsid}")
 
 
 def _db_query(database_id: str, body: dict) -> dict:
     """Run a rows query for a database and return the raw Notion response."""
-    return _request("POST", f"/databases/{database_id}/query", json=body)
+    dsid = _data_source_id(database_id)
+    if not dsid:
+        raise NotionError("Notion API: that database has no data source to query.")
+    return _request("POST", f"/data_sources/{dsid}/query", json=body)
 
 
 def _db_parent(database_id: str) -> dict:
     """The `parent` object for creating a row in this database."""
-    return {"database_id": database_id}
+    return {"type": "data_source_id", "data_source_id": _data_source_id(database_id)}
 
 
 def query_database(database_id: str, filter: dict | None = None, limit: int = 25) -> list[dict]:
@@ -504,15 +535,16 @@ def create_database(parent: str, title: str, columns: dict) -> str:
         return f"Couldn't find a shared parent page named {parent!r}."
     body = {"parent": {"type": "page_id", "page_id": pid},
             "title": _rich(title),
-            "properties": _column_defs(columns)}
+            "initial_data_source": {"properties": _column_defs(columns)}}
     db = _request("POST", "/databases", json=body)
     return f"Created database {title!r} ({db.get('url', db.get('id', ''))})."
 
 
 def update_database(database: str, add_columns: dict | None = None, rename: dict | None = None,
                     title: str | None = None) -> str:
-    db_id = _resolve_database_id(database)
-    if not db_id:
+    resolved = _resolve_database_id(database)
+    dsid = _data_source_id(resolved) if resolved else None
+    if not dsid:
         return f"Couldn't find a shared database named {database!r}."
     body: dict = {}
     if title is not None:
@@ -528,7 +560,8 @@ def update_database(database: str, add_columns: dict | None = None, rename: dict
         body["properties"] = props
     if not body:
         return "Nothing to change — give add_columns, rename, and/or title."
-    _request("PATCH", f"/databases/{db_id}", json=body)
+    # 2025-09-03: schema (columns) + the data-source title live on the data source, not the database.
+    _request("PATCH", f"/data_sources/{dsid}", json=body)
     return f"Updated the database {database!r}."
 
 

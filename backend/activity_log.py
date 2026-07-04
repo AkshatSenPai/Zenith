@@ -43,6 +43,16 @@ _MAP: dict[str, tuple[str, str, str]] = {
     "query_notion_database": ("note", "info", "queried Notion DB"),
     "create_notion_page": ("note", "ok", "Notion page created"),
     "create_notion_database_item": ("note", "ok", "Notion row added"),
+    "append_to_notion_page": ("note", "ok", "appended to Notion page"),
+    "update_notion_page": ("note", "ok", "Notion page updated"),
+    "archive_notion_page": ("note", "warn", "Notion page archived"),
+    "update_notion_block": ("note", "ok", "Notion line updated"),
+    "delete_notion_block": ("note", "warn", "Notion line deleted"),
+    "describe_notion_database": ("note", "info", "described Notion DB"),
+    "create_notion_database": ("note", "ok", "Notion database created"),
+    "update_notion_database": ("note", "ok", "Notion database updated"),
+    "get_notion_comments": ("note", "info", "read Notion comments"),
+    "add_notion_comment": ("note", "ok", "Notion comment added"),
 }
 
 

@@ -240,3 +240,34 @@ def test_db_indirection_shapes(monkeypatch):
     assert seen["last"] == ("POST", "https://api.notion.com/v1/databases/db/query")
     notion_service._db_schema("db")
     assert seen["last"] == ("GET", "https://api.notion.com/v1/databases/db")
+
+
+def test_blocks_from_spec_types():
+    blocks = notion_service._blocks_from_spec([
+        {"type": "heading_2", "text": "Plan"},
+        {"type": "to_do", "text": "book flights", "checked": True},
+        {"type": "bulleted_list_item", "text": "pack"},
+        {"type": "divider"},
+        {"type": "weird", "text": "fallback to paragraph"},
+        {"type": "paragraph", "text": ""},  # empty -> dropped
+    ])
+    types = [b["type"] for b in blocks]
+    assert types == ["heading_2", "to_do", "bulleted_list_item", "divider", "paragraph"]
+    assert blocks[1]["to_do"]["checked"] is True
+    assert blocks[0]["heading_2"]["rich_text"][0]["text"]["content"] == "Plan"
+
+
+def test_append_to_page(monkeypatch):
+    monkeypatch.setenv("NOTION_API_KEY", "secret")
+    seen = {}
+    def handler(method, url, **kw):
+        if url.endswith("/search"):
+            return _Resp({"results": [{"object": "page", "id": "pg"}]})
+        if "/blocks/pg/children" in url and method == "PATCH":
+            seen["body"] = kw.get("json")
+            return _Resp({"results": []})
+        raise AssertionError((method, url))
+    _mock_request(monkeypatch, handler)
+    msg = notion_service.append_to_page("My Page", content="line one\n\nline two")
+    assert "2 block" in msg
+    assert len(seen["body"]["children"]) == 2

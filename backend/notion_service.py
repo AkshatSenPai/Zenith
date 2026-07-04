@@ -240,7 +240,40 @@ def _paragraphs(content: str) -> list[dict]:
     return blocks
 
 
-def create_page(parent: str, title: str, content: str = "") -> str:
+def _rich(text) -> list:
+    return [{"type": "text", "text": {"content": str(text)}}]
+
+
+_RICH_BLOCK_TYPES = {
+    "paragraph", "heading_1", "heading_2", "heading_3",
+    "bulleted_list_item", "numbered_list_item", "to_do", "quote", "callout", "code",
+}
+
+
+def _block_from_spec(item: dict) -> dict:
+    """Build a Notion block from a simple spec {type, text, checked?, language?}. Unknown type -> paragraph."""
+    btype = (item.get("type") or "paragraph").strip()
+    if btype == "divider":
+        return {"object": "block", "type": "divider", "divider": {}}
+    if btype not in _RICH_BLOCK_TYPES:
+        btype = "paragraph"
+    payload: dict = {"rich_text": _rich(item.get("text", ""))}
+    if btype == "to_do":
+        payload["checked"] = bool(item.get("checked", False))
+    if btype == "code":
+        payload["language"] = item.get("language", "plain text")
+    return {"object": "block", "type": btype, btype: payload}
+
+
+def _blocks_from_spec(items: list | None) -> list[dict]:
+    out = []
+    for i in (items or []):
+        if i.get("type") == "divider" or str(i.get("text", "")).strip():
+            out.append(_block_from_spec(i))
+    return out
+
+
+def create_page(parent: str, title: str, content: str = "", blocks: list | None = None) -> str:
     page_id = _resolve_page_id(parent)
     if not page_id:
         return (f"Couldn't find a shared page named {parent!r}. Share it with the Zenith integration "
@@ -249,11 +282,23 @@ def create_page(parent: str, title: str, content: str = "") -> str:
         "parent": {"page_id": page_id},
         "properties": {"title": {"title": [{"type": "text", "text": {"content": title}}]}},
     }
-    blocks = _paragraphs(content)
-    if blocks:
-        body["children"] = blocks
+    children = _blocks_from_spec(blocks) if blocks else _paragraphs(content)
+    if children:
+        body["children"] = children
     page = _request("POST", "/pages", json=body)
     return f"Created Notion page {title!r} ({page.get('url', page.get('id', ''))})."
+
+
+def append_to_page(page: str, content: str = "", blocks: list | None = None) -> str:
+    pid = _resolve_page_id(page)
+    if not pid:
+        return (f"Couldn't find a shared page named {page!r}. Share it with the Zenith integration, "
+                f"then try again.")
+    children = _blocks_from_spec(blocks) if blocks else _paragraphs(content)
+    if not children:
+        return "Nothing to append — give some text or blocks."
+    _request("PATCH", f"/blocks/{pid}/children", json={"children": children})
+    return f"Appended {len(children)} block(s) to {page!r}."
 
 
 def _coerce_value(ptype: str, value):

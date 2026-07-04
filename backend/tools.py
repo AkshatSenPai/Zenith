@@ -297,13 +297,76 @@ def _query_notion_database(i: dict) -> str:
 def _create_notion_page(i: dict) -> str:
     if not i.get("parent") or not i.get("title"):
         return "create_notion_page needs a parent and a title."
-    return notion_service.create_page(i["parent"], i["title"], i.get("content", ""))
+    return notion_service.create_page(i["parent"], i["title"], i.get("content", ""), i.get("blocks"))
 
 
 def _create_notion_database_item(i: dict) -> str:
     if not i.get("database_id") or not i.get("properties"):
         return "create_notion_database_item needs a database_id and properties."
     return notion_service.create_database_item(i["database_id"], i["properties"])
+
+
+def _append_to_notion_page(i: dict) -> str:
+    if not i.get("page"):
+        return "append_to_notion_page needs a page."
+    return notion_service.append_to_page(i["page"], i.get("content", ""), i.get("blocks"))
+
+
+def _update_notion_page(i: dict) -> str:
+    if not i.get("page_id"):
+        return "update_notion_page needs a page_id."
+    return notion_service.update_page(i["page_id"], i.get("title"), i.get("properties"))
+
+
+def _archive_notion_page(i: dict) -> str:
+    if not i.get("page_id"):
+        return "archive_notion_page needs a page_id."
+    return notion_service.archive_page(i["page_id"])
+
+
+def _update_notion_block(i: dict) -> str:
+    if not i.get("page") or not i.get("match"):
+        return "update_notion_block needs a page and a match (text to find)."
+    return notion_service.update_block(i["page"], i["match"], i.get("new_text"), i.get("checked"))
+
+
+def _delete_notion_block(i: dict) -> str:
+    if not i.get("page") or not i.get("match"):
+        return "delete_notion_block needs a page and a match (text to find)."
+    return notion_service.delete_block(i["page"], i["match"])
+
+
+def _describe_notion_database(i: dict) -> str:
+    if not i.get("database"):
+        return "describe_notion_database needs a database (id or name)."
+    return notion_service.describe_database(i["database"])
+
+
+def _create_notion_database(i: dict) -> str:
+    if not i.get("parent") or not i.get("title") or not i.get("columns"):
+        return "create_notion_database needs a parent page, a title, and columns."
+    return notion_service.create_database(i["parent"], i["title"], i["columns"])
+
+
+def _update_notion_database(i: dict) -> str:
+    if not i.get("database"):
+        return "update_notion_database needs a database (id or name)."
+    return notion_service.update_database(i["database"], i.get("add_columns"), i.get("rename"), i.get("title"))
+
+
+def _get_notion_comments(i: dict) -> str:
+    if not i.get("page_id"):
+        return "get_notion_comments needs a page_id."
+    comments = notion_service.get_comments(i["page_id"])
+    if not comments:
+        return "No comments on that page."
+    return "Comments:\n" + "\n".join(f"- {c['text']}" for c in comments)
+
+
+def _add_notion_comment(i: dict) -> str:
+    if not i.get("page_id") or not i.get("text"):
+        return "add_notion_comment needs a page_id and text."
+    return notion_service.add_comment(i["page_id"], i["text"])
 
 
 # ---------- registry ----------
@@ -709,11 +772,13 @@ TOOLS = [
     {
         "name": "create_notion_page",
         "description": "Create a new Notion page under a parent page, with a title and optional text "
-        "content. parent is a page id OR the exact name of a shared page. Text content only.",
+        "content or structured blocks. parent is a page id OR the exact name of a shared page.",
         "input_schema": {"type": "object", "properties": {
             "parent": {"type": "string", "description": "Parent page id or exact page name"},
             "title": {"type": "string", "description": "New page title"},
             "content": {"type": "string", "description": "Optional body text (paragraphs split on blank lines)"},
+            "blocks": {"type": "array", "description": "Optional structured blocks instead of plain content: "
+            "[{type:'heading_2'|'to_do'|'bulleted_list_item'|'numbered_list_item'|'paragraph'|'quote'|'callout'|'code'|'divider', text:'...', checked?:bool}]"},
         }, "required": ["parent", "title"]},
     },
     {
@@ -726,11 +791,24 @@ TOOLS = [
             "properties": {"type": "object", "description": "Field name -> value map"},
         }, "required": ["database_id", "properties"]},
     },
+    {
+        "name": "append_to_notion_page",
+        "description": "Add content to the END of an existing Notion page (page id or exact name). Use for "
+        "'add a note to my X page', 'add these lines to X'. Pass plain content OR structured blocks.",
+        "input_schema": {"type": "object", "properties": {
+            "page": {"type": "string", "description": "Page id or exact page name"},
+            "content": {"type": "string", "description": "Text to append (paragraphs split on blank lines)"},
+            "blocks": {"type": "array", "description": "Optional structured blocks (see create_notion_page.blocks)"},
+        }, "required": ["page"]},
+    },
 ]
 
 # Action tools require user confirmation before running (the existing confirm gate).
 ACTION_TOOLS = {"send_message", "create_event", "update_event", "delete_event", "send_email",
-                "send_discord_message", "create_notion_page", "create_notion_database_item"}
+                "send_discord_message", "create_notion_page", "create_notion_database_item",
+                "append_to_notion_page", "update_notion_page", "archive_notion_page",
+                "update_notion_block", "delete_notion_block", "create_notion_database",
+                "update_notion_database", "add_notion_comment"}
 
 # Read-only tools whose results contain third-party content (a prompt-injection vector). Their output
 # is fenced as untrusted DATA before it returns to Claude (see run_tool / _wrap_untrusted).
@@ -740,6 +818,7 @@ UNTRUSTED_TOOLS = {
     "get_calendar_events", "search_calendar", "get_briefing", "get_news",
     "list_notion_pages", "list_notion_databases", "search_notion",
     "read_notion_page", "query_notion_database",
+    "describe_notion_database", "get_notion_comments",
 }
 UNTRUSTED_MARKER = "<external-content"
 
@@ -787,6 +866,7 @@ _EXECUTORS = {
     "query_notion_database": _query_notion_database,
     "create_notion_page": _create_notion_page,
     "create_notion_database_item": _create_notion_database_item,
+    "append_to_notion_page": _append_to_notion_page,
 }
 
 
@@ -829,6 +909,16 @@ def _activity_target(name: str, i: dict) -> str:
     if name in ("query_notion_database", "create_notion_database_item"):
         return i.get("database_id", "")
     if name == "create_notion_page":
+        return i.get("title", "")
+    if name == "append_to_notion_page":
+        return i.get("page", "")
+    if name in ("update_notion_page", "archive_notion_page", "get_notion_comments", "add_notion_comment"):
+        return i.get("page_id", "")
+    if name in ("update_notion_block", "delete_notion_block"):
+        return i.get("page", "")
+    if name in ("describe_notion_database", "update_notion_database"):
+        return i.get("database", "")
+    if name == "create_notion_database":
         return i.get("title", "")
     return ""
 

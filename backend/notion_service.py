@@ -178,11 +178,28 @@ def _prop_to_text(prop: dict) -> str:
     return ""
 
 
+# ---------- database access indirection (the ONLY seam the 2025-09-03 data-source migration swaps) ----------
+
+def _db_schema(database_id: str) -> dict:
+    """The schema object ({'properties': {...}}) for a database — used to coerce writes and list columns."""
+    return _request("GET", f"/databases/{database_id}")
+
+
+def _db_query(database_id: str, body: dict) -> dict:
+    """Run a rows query for a database and return the raw Notion response."""
+    return _request("POST", f"/databases/{database_id}/query", json=body)
+
+
+def _db_parent(database_id: str) -> dict:
+    """The `parent` object for creating a row in this database."""
+    return {"database_id": database_id}
+
+
 def query_database(database_id: str, filter: dict | None = None, limit: int = 25) -> list[dict]:
     body: dict = {"page_size": min(limit, 100)}
     if filter:
         body["filter"] = filter
-    data = _request("POST", f"/databases/{database_id}/query", json=body)
+    data = _db_query(database_id, body)
     rows = []
     for r in data.get("results", []):
         props = {name: _prop_to_text(p) for name, p in r.get("properties", {}).items()}
@@ -292,10 +309,10 @@ def create_database_item(database_id: str, properties: dict) -> str:
     if not db_id:
         return (f"Couldn't find a shared database named {database_id!r}. Share it with the Zenith "
                 f"integration in Notion, then try again.")
-    schema = _request("GET", f"/databases/{db_id}")
+    schema = _db_schema(db_id)
     payload, skipped = _coerce_properties(schema, properties or {})
     if not payload:
         return "No matching properties for that database — check the field names against its columns."
-    page = _request("POST", "/pages", json={"parent": {"database_id": db_id}, "properties": payload})
+    page = _request("POST", "/pages", json={"parent": _db_parent(db_id), "properties": payload})
     note = f" (skipped: {', '.join(skipped)})" if skipped else ""
     return f"Added a row to the database ({page.get('url', page.get('id', ''))}).{note}"

@@ -221,3 +221,22 @@ def test_notion_status_route(monkeypatch):
     import main
     monkeypatch.setattr(main.notion_service, "status", lambda: {"configured": True, "connected": True, "workspace": "W", "last_error": None})
     assert main.notion_status() == {"configured": True, "connected": True, "workspace": "W", "last_error": None}
+
+
+# ---------- Phase 2: edit / delete / structure / comments ----------
+
+
+def test_db_indirection_shapes(monkeypatch):
+    monkeypatch.setenv("NOTION_API_KEY", "secret")
+    seen = {}
+    def handler(method, url, **kw):
+        seen["last"] = (method, url)
+        if url.endswith("/databases/db/query"):
+            return _Resp({"results": []})
+        return _Resp({"properties": {}})
+    _mock_request(monkeypatch, handler)
+    assert notion_service._db_parent("db") == {"database_id": "db"}
+    notion_service._db_query("db", {"page_size": 1})
+    assert seen["last"] == ("POST", "https://api.notion.com/v1/databases/db/query")
+    notion_service._db_schema("db")
+    assert seen["last"] == ("GET", "https://api.notion.com/v1/databases/db")

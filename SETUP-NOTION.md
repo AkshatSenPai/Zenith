@@ -35,3 +35,10 @@ If Zenith says "no pages are shared" or "couldn't find that page", this step is 
 - Writes are text/simple content only (no tables-in-pages/embeds yet).
 - Database rows: give field names that match the database's columns (case-insensitive); unmatched
   fields are skipped and named back to you.
+- Zenith can read, create, **edit, and archive** (soft-delete — recoverable from Notion trash)
+  pages and rows, **append/edit/delete** lines on a page, and **create/alter/describe** databases.
+  Every write/edit/delete goes through the confirm card.
+- Databases use Notion's **2025-09-03 data-source model**, so multi-data-source databases work too.
+- **Comments:** to let Zenith read or add page comments, open the Zenith connection →
+  **Capabilities** → enable **Read comments** + **Insert comments** → Save. (They're off by default,
+  so comment tools return a permissions error until you enable them.)

@@ -819,6 +819,26 @@ TOOLS = [
             "page_id": {"type": "string", "description": "Page or row id to archive"},
         }, "required": ["page_id"]},
     },
+    {
+        "name": "update_notion_block",
+        "description": "Edit one line/block on a Notion page: find the line by a text snippet, then change its "
+        "text and/or check/uncheck it (if it's a to-do). Use for 'tick off X', 'fix the line that says Y'.",
+        "input_schema": {"type": "object", "properties": {
+            "page": {"type": "string", "description": "Page id or exact name"},
+            "match": {"type": "string", "description": "A snippet of the line's current text to find it by"},
+            "new_text": {"type": "string", "description": "Replacement text (optional)"},
+            "checked": {"type": "boolean", "description": "Check/uncheck a to-do line (optional)"},
+        }, "required": ["page", "match"]},
+    },
+    {
+        "name": "delete_notion_block",
+        "description": "Delete one line/block from a Notion page, found by a text snippet (moves it to trash). "
+        "Use for 'remove the line that says X'. Confirm-gated.",
+        "input_schema": {"type": "object", "properties": {
+            "page": {"type": "string", "description": "Page id or exact name"},
+            "match": {"type": "string", "description": "A snippet of the line's text to find it by"},
+        }, "required": ["page", "match"]},
+    },
 ]
 
 # Action tools require user confirmation before running (the existing confirm gate).
@@ -887,6 +907,8 @@ _EXECUTORS = {
     "append_to_notion_page": _append_to_notion_page,
     "update_notion_page": _update_notion_page,
     "archive_notion_page": _archive_notion_page,
+    "update_notion_block": _update_notion_block,
+    "delete_notion_block": _delete_notion_block,
 }
 
 

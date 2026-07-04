@@ -302,3 +302,33 @@ def test_archive_page(monkeypatch):
     _mock_request(monkeypatch, handler)
     msg = notion_service.archive_page("p")
     assert "Archived" in msg and seen["body"] == {"archived": True}
+
+
+def _page_with_blocks(monkeypatch, blocks):
+    monkeypatch.setenv("NOTION_API_KEY", "secret")
+    calls = {}
+    def handler(method, url, **kw):
+        if url.endswith("/search"):
+            return _Resp({"results": [{"object": "page", "id": "pg"}]})
+        if "/blocks/pg/children" in url and method == "GET":
+            return _Resp({"results": blocks, "has_more": False})
+        calls["last"] = (method, url, kw.get("json"))
+        return _Resp({"id": "b"})
+    _mock_request(monkeypatch, handler)
+    return calls
+
+
+def test_update_block_matches_and_checks(monkeypatch):
+    blocks = [{"id": "b1", "type": "to_do", "to_do": {"rich_text": [{"plain_text": "book flights"}], "checked": False}}]
+    calls = _page_with_blocks(monkeypatch, blocks)
+    msg = notion_service.update_block("Trip", "book flights", checked=True)
+    assert "Updated" in msg
+    assert calls["last"][0] == "PATCH" and calls["last"][1].endswith("/blocks/b1")
+    assert calls["last"][2]["to_do"]["checked"] is True
+
+
+def test_delete_block(monkeypatch):
+    blocks = [{"id": "b9", "type": "paragraph", "paragraph": {"rich_text": [{"plain_text": "old note"}]}}]
+    calls = _page_with_blocks(monkeypatch, blocks)
+    msg = notion_service.delete_block("Notes", "old note")
+    assert "Deleted" in msg and calls["last"][0] == "DELETE" and calls["last"][1].endswith("/blocks/b9")

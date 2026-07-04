@@ -395,3 +395,59 @@ def update_page(page_id: str, title: str | None = None, properties: dict | None 
 def archive_page(page_id: str) -> str:
     _request("PATCH", f"/pages/{page_id}", json={"archived": True})
     return "Archived (moved to Notion trash — recoverable)."
+
+
+def _iter_page_blocks(page_id: str, max_blocks: int = 300):
+    cursor = None
+    seen = 0
+    while seen < max_blocks:
+        params: dict = {"page_size": 100}
+        if cursor:
+            params["start_cursor"] = cursor
+        data = _request("GET", f"/blocks/{page_id}/children", params=params)
+        for b in data.get("results", []):
+            yield b
+            seen += 1
+            if seen >= max_blocks:
+                return
+        if not data.get("has_more"):
+            return
+        cursor = data.get("next_cursor")
+
+
+def _find_block(page_id: str, match: str) -> dict | None:
+    m = str(match).strip().lower()
+    for b in _iter_page_blocks(page_id):
+        if m and m in _block_text(b).lower():
+            return b
+    return None
+
+
+def update_block(page: str, match: str, new_text: str | None = None, checked: bool | None = None) -> str:
+    pid = _resolve_page_id(page)
+    if not pid:
+        return f"Couldn't find a shared page named {page!r}."
+    block = _find_block(pid, match)
+    if not block:
+        return f"No line matching {match!r} on that page."
+    btype = block["type"]
+    payload: dict = {}
+    if new_text is not None:
+        payload["rich_text"] = _rich(new_text)
+    if checked is not None and btype == "to_do":
+        payload["checked"] = bool(checked)
+    if not payload:
+        return "Nothing to change — give new_text and/or checked (checked only works on a to-do)."
+    _request("PATCH", f"/blocks/{block['id']}", json={btype: payload})
+    return "Updated the line."
+
+
+def delete_block(page: str, match: str) -> str:
+    pid = _resolve_page_id(page)
+    if not pid:
+        return f"Couldn't find a shared page named {page!r}."
+    block = _find_block(pid, match)
+    if not block:
+        return f"No line matching {match!r} on that page."
+    _request("DELETE", f"/blocks/{block['id']}")
+    return "Deleted the line."

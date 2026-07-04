@@ -839,6 +839,36 @@ TOOLS = [
             "match": {"type": "string", "description": "A snippet of the line's text to find it by"},
         }, "required": ["page", "match"]},
     },
+    {
+        "name": "describe_notion_database",
+        "description": "List a Notion database's columns and their types (id or exact name). Use before adding "
+        "or updating a row so field names + types are correct.",
+        "input_schema": {"type": "object", "properties": {
+            "database": {"type": "string", "description": "Database id or exact name"},
+        }, "required": ["database"]},
+    },
+    {
+        "name": "create_notion_database",
+        "description": "Create a new Notion database (table) under a shared parent page. columns is a map of "
+        "column name -> type (title, text, number, select, multi_select, date, checkbox, url, email, phone). "
+        "Exactly one title column is ensured. Confirm-gated.",
+        "input_schema": {"type": "object", "properties": {
+            "parent": {"type": "string", "description": "Parent page id or exact name"},
+            "title": {"type": "string", "description": "Database name"},
+            "columns": {"type": "object", "description": "Column name -> type map"},
+        }, "required": ["parent", "title", "columns"]},
+    },
+    {
+        "name": "update_notion_database",
+        "description": "Change a Notion database's structure: add columns (add_columns: name->type), rename "
+        "columns (rename: old->new), and/or rename the database (title). Confirm-gated.",
+        "input_schema": {"type": "object", "properties": {
+            "database": {"type": "string", "description": "Database id or exact name"},
+            "add_columns": {"type": "object", "description": "New columns: name -> type"},
+            "rename": {"type": "object", "description": "Rename columns: old name -> new name"},
+            "title": {"type": "string", "description": "New database name"},
+        }, "required": ["database"]},
+    },
 ]
 
 # Action tools require user confirmation before running (the existing confirm gate).
@@ -909,6 +939,9 @@ _EXECUTORS = {
     "archive_notion_page": _archive_notion_page,
     "update_notion_block": _update_notion_block,
     "delete_notion_block": _delete_notion_block,
+    "describe_notion_database": _describe_notion_database,
+    "create_notion_database": _create_notion_database,
+    "update_notion_database": _update_notion_database,
 }
 
 

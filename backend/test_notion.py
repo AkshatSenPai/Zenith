@@ -332,3 +332,27 @@ def test_delete_block(monkeypatch):
     calls = _page_with_blocks(monkeypatch, blocks)
     msg = notion_service.delete_block("Notes", "old note")
     assert "Deleted" in msg and calls["last"][0] == "DELETE" and calls["last"][1].endswith("/blocks/b9")
+
+
+def test_column_defs_ensures_title_and_maps_status():
+    defs = notion_service._column_defs({"Amount": "number", "Stage": "status"})
+    assert defs["Name"] == {"title": {}}            # title injected
+    assert defs["Amount"] == {"number": {"format": "number"}}
+    assert defs["Stage"] == {"select": {}}          # status -> select (not API-creatable)
+
+
+def test_create_database_body(monkeypatch):
+    monkeypatch.setenv("NOTION_API_KEY", "secret")
+    seen = {}
+    def handler(method, url, **kw):
+        if url.endswith("/search"):
+            return _Resp({"results": [{"object": "page", "id": "par"}]})
+        if url.endswith("/databases") and method == "POST":
+            seen["body"] = kw.get("json")
+            return _Resp({"id": "newdb", "url": "http://n/newdb"})
+        raise AssertionError((method, url))
+    _mock_request(monkeypatch, handler)
+    msg = notion_service.create_database("Home", "Expenses", {"Item": "title", "Amount": "number"})
+    assert "newdb" in msg
+    assert seen["body"]["parent"] == {"type": "page_id", "page_id": "par"}
+    assert seen["body"]["properties"]["Item"] == {"title": {}}

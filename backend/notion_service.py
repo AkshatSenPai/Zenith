@@ -451,3 +451,82 @@ def delete_block(page: str, match: str) -> str:
         return f"No line matching {match!r} on that page."
     _request("DELETE", f"/blocks/{block['id']}")
     return "Deleted the line."
+
+
+# ---------- database structure ----------
+
+def _column_defs(columns: dict) -> dict:
+    """Build a Notion property-schema dict from a simple {name: type} map. Ensures exactly one title
+    column. 'status' is not API-creatable -> mapped to 'select'."""
+    defs: dict = {}
+    has_title = False
+    for name, ctype in (columns or {}).items():
+        c = str(ctype).strip().lower()
+        if c == "title":
+            defs[name] = {"title": {}}
+            has_title = True
+        elif c in ("text", "rich_text"):
+            defs[name] = {"rich_text": {}}
+        elif c == "number":
+            defs[name] = {"number": {"format": "number"}}
+        elif c in ("select", "status"):
+            defs[name] = {"select": {}}
+        elif c == "multi_select":
+            defs[name] = {"multi_select": {}}
+        elif c == "date":
+            defs[name] = {"date": {}}
+        elif c == "checkbox":
+            defs[name] = {"checkbox": {}}
+        elif c in ("url", "email"):
+            defs[name] = {c: {}}
+        elif c in ("phone", "phone_number"):
+            defs[name] = {"phone_number": {}}
+        else:
+            defs[name] = {"rich_text": {}}
+    if not has_title:
+        defs = {"Name": {"title": {}}, **defs}
+    return defs
+
+
+def describe_database(database: str) -> str:
+    db_id = _resolve_database_id(database)
+    if not db_id:
+        return f"Couldn't find a shared database named {database!r}."
+    cols = {name: p.get("type", "") for name, p in _db_schema(db_id).get("properties", {}).items()}
+    if not cols:
+        return "That database has no columns."
+    return "Columns:\n" + "\n".join(f"- {name} ({t})" for name, t in cols.items())
+
+
+def create_database(parent: str, title: str, columns: dict) -> str:
+    pid = _resolve_page_id(parent)
+    if not pid:
+        return f"Couldn't find a shared parent page named {parent!r}."
+    body = {"parent": {"type": "page_id", "page_id": pid},
+            "title": _rich(title),
+            "properties": _column_defs(columns)}
+    db = _request("POST", "/databases", json=body)
+    return f"Created database {title!r} ({db.get('url', db.get('id', ''))})."
+
+
+def update_database(database: str, add_columns: dict | None = None, rename: dict | None = None,
+                    title: str | None = None) -> str:
+    db_id = _resolve_database_id(database)
+    if not db_id:
+        return f"Couldn't find a shared database named {database!r}."
+    body: dict = {}
+    if title is not None:
+        body["title"] = _rich(title)
+    props: dict = {}
+    if add_columns:
+        props.update(_column_defs(add_columns))
+        props.pop("Name", None)  # never inject a title column on update
+    if rename:
+        for old, new in rename.items():
+            props[old] = {"name": str(new)}
+    if props:
+        body["properties"] = props
+    if not body:
+        return "Nothing to change — give add_columns, rename, and/or title."
+    _request("PATCH", f"/databases/{db_id}", json=body)
+    return f"Updated the database {database!r}."

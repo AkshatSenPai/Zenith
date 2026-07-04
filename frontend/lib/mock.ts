@@ -40,7 +40,7 @@ export const quickActions: QuickAction[] = [
 // --- Connections (drives the orb nodes AND the Connections panel) ---
 // "WhatsApp" is PARKED (unofficial bridge = account-ban risk) — Telegram took its slot. Not deleted:
 // to bring WhatsApp back, restore "WhatsApp" here + the channel/chip slots in OrbCanvas/ZenithOrb + /whatsapp status.
-export type Channel = "Gmail" | "Calendar" | "Telegram" | "Discord";
+export type Channel = "Gmail" | "Calendar" | "Telegram" | "Discord" | "Notion";
 export type Connection = { channel: Channel; account: string; connected: boolean };
 
 // Order matters: the orb places nodes in this sequence around the core.
@@ -49,6 +49,7 @@ export const connections: Connection[] = [
   { channel: "Calendar", account: "Primary", connected: true },
   { channel: "Telegram", account: "Not linked", connected: false }, // takes WhatsApp's slot (parked)
   { channel: "Discord", account: "Not linked", connected: false },
+  { channel: "Notion", account: "Not linked", connected: false }, // Connections row only — no orb node
 ];
 
 // --- Activity log types (entries now come live from the backend /activity endpoint) ---

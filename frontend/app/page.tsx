@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { startRecording, transcribe, speak, cancelSpeech, getSpeechBars, type RecordingHandle } from "../lib/voice";
 import { connections as mockConnections, type Connection } from "../lib/mock";
-import { apiFetch, getGoogleStatus, connectGoogle, disconnectGoogle, getDiscordStatus, getTelegramStatus, getUsage, type GoogleStatus, type DiscordStatus, type TelegramStatus, type Usage } from "../lib/api";
+import { apiFetch, getGoogleStatus, connectGoogle, disconnectGoogle, getDiscordStatus, getTelegramStatus, getNotionStatus, getUsage, type GoogleStatus, type DiscordStatus, type TelegramStatus, type NotionStatus, type Usage } from "../lib/api";
 import { TopBar } from "../components/TopBar";
 import { IconNav } from "../components/IconNav";
 import { MonthRuler } from "../components/MonthRuler";
@@ -35,7 +35,7 @@ type PendingAction = { id: string; tool: string; input: Record<string, unknown>;
 // All four connections reflect LIVE backend status: Gmail + Calendar from Google, Telegram + Discord
 // from their bot status endpoints. (WhatsApp is parked — Telegram took its orb slot.) mock.ts only
 // supplies the channel list + order here — the orb places its nodes in this sequence.
-function buildConnections(g: GoogleStatus | null, d: DiscordStatus | null, t: TelegramStatus | null): Connection[] {
+function buildConnections(g: GoogleStatus | null, d: DiscordStatus | null, t: TelegramStatus | null, n: NotionStatus | null): Connection[] {
   const email = g?.accounts?.[0]?.email;
   const guilds = d?.guilds?.length ?? 0;
   const discordAccount = d?.connected
@@ -55,6 +55,8 @@ function buildConnections(g: GoogleStatus | null, d: DiscordStatus | null, t: Te
       return { ...c, connected: !!t?.connected, account: telegramAccount };
     if (c.channel === "Discord")
       return { ...c, connected: !!d?.connected, account: discordAccount };
+    if (c.channel === "Notion")
+      return { ...c, connected: !!n?.connected, account: n?.connected ? (n.workspace ?? "Connected") : n?.configured ? "Auth error" : "Not linked" };
     return c;
   });
 }
@@ -77,6 +79,7 @@ export default function Home() {
   const [gstatus, setGstatus] = useState<GoogleStatus | null>(null);
   const [dstatus, setDstatus] = useState<DiscordStatus | null>(null);
   const [tstatus, setTstatus] = useState<TelegramStatus | null>(null);
+  const [nstatus, setNstatus] = useState<NotionStatus | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
   const recordingRef = useRef<RecordingHandle | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -84,7 +87,7 @@ export default function Home() {
 
   // Live voice state wins; otherwise "thinking" while a request is in flight.
   const orbState: OrbState = voiceState !== "idle" ? voiceState : loading ? "thinking" : "idle";
-  const connections = useMemo(() => buildConnections(gstatus, dstatus, tstatus), [gstatus, dstatus, tstatus]);
+  const connections = useMemo(() => buildConnections(gstatus, dstatus, tstatus, nstatus), [gstatus, dstatus, tstatus, nstatus]);
   // Whole-backend reachability from the /usage poll (runs every 5s, config-independent).
   const backendState: "loading" | "offline" | "live" = usageError ? "offline" : usage === null ? "loading" : "live";
 
@@ -160,6 +163,19 @@ export default function Home() {
     const id = setInterval(refreshTelegram, 4000);
     return () => clearInterval(id);
   }, [tstatus, refreshTelegram]);
+
+  // Notion integration status (internal-integration token) → Connections row only (no orb node).
+  const refreshNotion = useCallback(async () => {
+    setNstatus(await getNotionStatus());
+  }, []);
+  useEffect(() => {
+    refreshNotion();
+  }, [refreshNotion]);
+  useEffect(() => {
+    if (nstatus && (nstatus.connected || !nstatus.configured)) return;
+    const id = setInterval(refreshNotion, 4000);
+    return () => clearInterval(id);
+  }, [nstatus, refreshNotion]);
 
   // One rAF loop drives the waveform from whichever source is active (mic or TTS).
   useEffect(() => {

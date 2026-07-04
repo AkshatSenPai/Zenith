@@ -212,6 +212,23 @@ export async function getTelegramStatus(): Promise<TelegramStatus | null> {
   }
 }
 
+export type NotionStatus = {
+  connected: boolean;
+  configured: boolean;
+  workspace: string | null;
+  last_error: string | null;
+};
+
+/** Notion integration status (internal-integration token; Connections row only, no orb node). */
+export async function getNotionStatus(): Promise<NotionStatus | null> {
+  try {
+    const res = await apiFetch("/notion/status");
+    return res.ok ? ((await res.json()) as NotionStatus) : null;
+  } catch {
+    return null;
+  }
+}
+
 export type Todo = { index: number; text: string; done: boolean };
 
 /** The owner's to-do list. null = backend unreachable; [] = none yet. */

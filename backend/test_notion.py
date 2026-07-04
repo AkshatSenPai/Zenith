@@ -185,3 +185,33 @@ def test_create_database_item_coerces(monkeypatch):
     assert seen["body"]["parent"] == {"database_id": "db1"}
     assert seen["body"]["properties"]["Name"]["title"][0]["text"]["content"] == "Widget"
     assert seen["body"]["properties"]["Count"]["number"] == 7.0
+
+
+import tools
+
+
+def test_gate_and_untrusted_membership():
+    assert {"create_notion_page", "create_notion_database_item"} <= tools.ACTION_TOOLS
+    reads = {"list_notion_pages", "list_notion_databases", "search_notion", "read_notion_page", "query_notion_database"}
+    assert reads <= tools.UNTRUSTED_TOOLS
+
+
+def test_all_notion_tools_registered():
+    names = {t["name"] for t in tools.TOOLS}
+    expected = {"list_notion_pages", "list_notion_databases", "search_notion", "read_notion_page",
+                "query_notion_database", "create_notion_page", "create_notion_database_item"}
+    assert expected <= names
+    assert expected <= set(tools._EXECUTORS)
+
+
+def test_read_notion_page_executor(monkeypatch):
+    monkeypatch.setattr(tools.notion_service, "read_page", lambda pid: f"# Page {pid}")
+    out = tools.run_tool("read_notion_page", {"page_id": "abc"})
+    assert "# Page abc" in out                 # executor wired to notion_service.read_page
+    assert out.startswith("<external-content")  # ...and fenced as untrusted (read tool)
+
+
+def test_notion_activity_mapped():
+    import activity_log
+    for name in ("read_notion_page", "create_notion_page", "create_notion_database_item"):
+        assert name in activity_log._MAP

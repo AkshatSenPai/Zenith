@@ -15,6 +15,7 @@ import copy_factory
 import discord_service
 import google_service
 import news_service
+import notion_service
 import todo_service
 import vault_service
 import weather_service
@@ -249,6 +250,60 @@ def _send_discord_message(i: dict) -> str:
         return "send_discord_message needs a channel and text."
     s = discord_service.send_message(i["channel"], i["text"])
     return f"Posted to #{s['channel']} in {s['guild']}."
+
+
+# ---------- Notion executors (reads are UNTRUSTED; creates are GATED) ----------
+
+def _list_notion_pages(_i: dict) -> str:
+    pages = notion_service.list_pages()
+    if not pages:
+        return "No Notion pages are shared with the integration yet (see SETUP-NOTION.md)."
+    return "Notion pages:\n" + "\n".join(f"- {p['title']} [id:{p['id']}]" for p in pages)
+
+
+def _list_notion_databases(_i: dict) -> str:
+    dbs = notion_service.list_databases()
+    if not dbs:
+        return "No Notion databases are shared with the integration yet (see SETUP-NOTION.md)."
+    return "Notion databases:\n" + "\n".join(f"- {d['title']} [id:{d['id']}]" for d in dbs)
+
+
+def _search_notion(i: dict) -> str:
+    hits = notion_service.search(i.get("query", ""))
+    if not hits:
+        return "No Notion results (only pages/databases shared with the integration are searchable)."
+    return "Notion results:\n" + "\n".join(f"- ({h['object']}) {h['title']} [id:{h['id']}]" for h in hits)
+
+
+def _read_notion_page(i: dict) -> str:
+    if not i.get("page_id"):
+        return "read_notion_page needs a page_id."
+    return notion_service.read_page(i["page_id"])
+
+
+def _query_notion_database(i: dict) -> str:
+    if not i.get("database_id"):
+        return "query_notion_database needs a database_id."
+    rows = notion_service.query_database(i["database_id"], i.get("filter"))
+    if not rows:
+        return "No rows."
+    lines = []
+    for r in rows:
+        fields = "; ".join(f"{k}={v}" for k, v in r["properties"].items() if v)
+        lines.append(f"- {r['title']} [id:{r['id']}] {fields}".rstrip())
+    return "Notion rows:\n" + "\n".join(lines)
+
+
+def _create_notion_page(i: dict) -> str:
+    if not i.get("parent") or not i.get("title"):
+        return "create_notion_page needs a parent and a title."
+    return notion_service.create_page(i["parent"], i["title"], i.get("content", ""))
+
+
+def _create_notion_database_item(i: dict) -> str:
+    if not i.get("database_id") or not i.get("properties"):
+        return "create_notion_database_item needs a database_id and properties."
+    return notion_service.create_database_item(i["database_id"], i["properties"])
 
 
 # ---------- registry ----------
@@ -621,10 +676,61 @@ TOOLS = [
         "'mark X done', 'I finished X', 'check off X', 'X is done'.",
         "input_schema": {"type": "object", "properties": {"task": {"type": "string", "description": "A word or phrase identifying which to-do to complete"}}, "required": ["task"]},
     },
+    {
+        "name": "list_notion_pages",
+        "description": "List the Notion pages shared with Zenith's integration. Use for 'what can you "
+        "see in Notion', 'list my Notion pages'.",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "list_notion_databases",
+        "description": "List the Notion databases shared with Zenith's integration.",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "search_notion",
+        "description": "Search the owner's shared Notion pages and databases by keyword.",
+        "input_schema": {"type": "object", "properties": {"query": {"type": "string", "description": "Search text"}}, "required": ["query"]},
+    },
+    {
+        "name": "read_notion_page",
+        "description": "Read a Notion page's text content by id (get the id from list_notion_pages or search_notion first).",
+        "input_schema": {"type": "object", "properties": {"page_id": {"type": "string", "description": "Notion page id"}}, "required": ["page_id"]},
+    },
+    {
+        "name": "query_notion_database",
+        "description": "List rows of a Notion database by id (get the id from list_notion_databases or "
+        "search_notion first). Returns each row's title + fields.",
+        "input_schema": {"type": "object", "properties": {
+            "database_id": {"type": "string", "description": "Notion database id"},
+            "filter": {"type": "object", "description": "Optional Notion filter object"},
+        }, "required": ["database_id"]},
+    },
+    {
+        "name": "create_notion_page",
+        "description": "Create a new Notion page under a parent page, with a title and optional text "
+        "content. parent is a page id OR the exact name of a shared page. Text content only.",
+        "input_schema": {"type": "object", "properties": {
+            "parent": {"type": "string", "description": "Parent page id or exact page name"},
+            "title": {"type": "string", "description": "New page title"},
+            "content": {"type": "string", "description": "Optional body text (paragraphs split on blank lines)"},
+        }, "required": ["parent", "title"]},
+    },
+    {
+        "name": "create_notion_database_item",
+        "description": "Add a row to a Notion database. database_id is an id OR the exact name of a "
+        "shared database. properties is a map of field name -> value (matched to the database's "
+        "columns; include the title field).",
+        "input_schema": {"type": "object", "properties": {
+            "database_id": {"type": "string", "description": "Notion database id or exact name"},
+            "properties": {"type": "object", "description": "Field name -> value map"},
+        }, "required": ["database_id", "properties"]},
+    },
 ]
 
 # Action tools require user confirmation before running (the existing confirm gate).
-ACTION_TOOLS = {"send_message", "create_event", "update_event", "delete_event", "send_email", "send_discord_message"}
+ACTION_TOOLS = {"send_message", "create_event", "update_event", "delete_event", "send_email",
+                "send_discord_message", "create_notion_page", "create_notion_database_item"}
 
 # Read-only tools whose results contain third-party content (a prompt-injection vector). Their output
 # is fenced as untrusted DATA before it returns to Claude (see run_tool / _wrap_untrusted).
@@ -632,6 +738,8 @@ UNTRUSTED_TOOLS = {
     "get_emails", "read_email", "search_emails",
     "get_discord_messages", "search_discord_messages",
     "get_calendar_events", "search_calendar", "get_briefing", "get_news",
+    "list_notion_pages", "list_notion_databases", "search_notion",
+    "read_notion_page", "query_notion_database",
 }
 UNTRUSTED_MARKER = "<external-content"
 
@@ -672,6 +780,13 @@ _EXECUTORS = {
     "add_todo": _add_todo,
     "list_todos": _list_todos,
     "complete_todo": _complete_todo,
+    "list_notion_pages": _list_notion_pages,
+    "list_notion_databases": _list_notion_databases,
+    "search_notion": _search_notion,
+    "read_notion_page": _read_notion_page,
+    "query_notion_database": _query_notion_database,
+    "create_notion_page": _create_notion_page,
+    "create_notion_database_item": _create_notion_database_item,
 }
 
 
@@ -707,6 +822,14 @@ def _activity_target(name: str, i: dict) -> str:
         return (i.get("task", "") or "")[:40]
     if name == "list_todos":
         return ""
+    if name == "read_notion_page":
+        return i.get("page_id", "")
+    if name == "search_notion":
+        return i.get("query", "")
+    if name in ("query_notion_database", "create_notion_database_item"):
+        return i.get("database_id", "")
+    if name == "create_notion_page":
+        return i.get("title", "")
     return ""
 
 
@@ -742,6 +865,8 @@ def run_tool(name: str, tool_input: dict) -> str:
         except news_service.NewsUnavailable as exc:
             result, failed = str(exc), True
         except (discord_service.DiscordNotConnected, discord_service.DiscordChannelNotFound) as exc:
+            result, failed = str(exc), True
+        except (notion_service.NotionNotConnected, notion_service.NotionError) as exc:
             result, failed = str(exc), True
         except Exception as exc:  # noqa: BLE001 — a tool error must never 500 the chat route
             result, failed = f"Sorry, the {name} call failed: {exc}", True

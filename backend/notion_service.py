@@ -188,3 +188,114 @@ def query_database(database_id: str, filter: dict | None = None, limit: int = 25
         props = {name: _prop_to_text(p) for name, p in r.get("properties", {}).items()}
         rows.append({"id": r["id"], "title": _title_of(r), "properties": props})
     return rows
+
+
+# ---------- action helpers (gated upstream) ----------
+
+def _looks_like_id(s: str) -> bool:
+    t = str(s).replace("-", "")
+    return len(t) == 32 and all(c in "0123456789abcdefABCDEF" for c in t)
+
+
+def _resolve_page_id(parent: str) -> str | None:
+    if _looks_like_id(parent):
+        return parent
+    hits = _search(parent, "page", 1)
+    return hits[0]["id"] if hits else None
+
+
+def _resolve_database_id(database: str) -> str | None:
+    if _looks_like_id(database):
+        return database
+    hits = _search(database, "database", 1)
+    return hits[0]["id"] if hits else None
+
+
+def _paragraphs(content: str) -> list[dict]:
+    blocks = []
+    for para in (content or "").split("\n\n"):
+        para = para.strip()
+        if para:
+            blocks.append({
+                "object": "block", "type": "paragraph",
+                "paragraph": {"rich_text": [{"type": "text", "text": {"content": para}}]},
+            })
+    return blocks
+
+
+def create_page(parent: str, title: str, content: str = "") -> str:
+    page_id = _resolve_page_id(parent)
+    if not page_id:
+        return (f"Couldn't find a shared page named {parent!r}. Share it with the Zenith integration "
+                f"in Notion (page -> ... -> Connections), then try again.")
+    body: dict = {
+        "parent": {"page_id": page_id},
+        "properties": {"title": {"title": [{"type": "text", "text": {"content": title}}]}},
+    }
+    blocks = _paragraphs(content)
+    if blocks:
+        body["children"] = blocks
+    page = _request("POST", "/pages", json=body)
+    return f"Created Notion page {title!r} ({page.get('url', page.get('id', ''))})."
+
+
+def _coerce_value(ptype: str, value):
+    """Coerce a plain value into a Notion property payload for the schema type. None = skip."""
+    if value is None:
+        return None
+    if ptype == "title":
+        return {"title": [{"type": "text", "text": {"content": str(value)}}]}
+    if ptype == "rich_text":
+        return {"rich_text": [{"type": "text", "text": {"content": str(value)}}]}
+    if ptype == "number":
+        try:
+            return {"number": float(value)}
+        except (TypeError, ValueError):
+            return None
+    if ptype == "select":
+        return {"select": {"name": str(value)}}
+    if ptype == "status":
+        return {"status": {"name": str(value)}}
+    if ptype == "multi_select":
+        names = value if isinstance(value, list) else [v.strip() for v in str(value).split(",")]
+        return {"multi_select": [{"name": str(n)} for n in names if str(n).strip()]}
+    if ptype == "date":
+        return {"date": {"start": str(value)}}
+    if ptype == "checkbox":
+        checked = value if isinstance(value, bool) else str(value).strip().lower() in {"true", "yes", "1", "done", "checked"}
+        return {"checkbox": checked}
+    if ptype in ("url", "email", "phone_number"):
+        return {ptype: str(value)}
+    return None
+
+
+def _coerce_properties(schema: dict, props: dict) -> tuple[dict, list[str]]:
+    schema_props = schema.get("properties", {})
+    by_lower = {name.lower(): name for name in schema_props}
+    payload: dict = {}
+    skipped: list[str] = []
+    for raw_name, value in (props or {}).items():
+        actual = raw_name if raw_name in schema_props else by_lower.get(str(raw_name).lower())
+        if not actual:
+            skipped.append(str(raw_name))
+            continue
+        coerced = _coerce_value(schema_props[actual].get("type", ""), value)
+        if coerced is None:
+            skipped.append(f"{raw_name} ({schema_props[actual].get('type', 'unknown')})")
+        else:
+            payload[actual] = coerced
+    return payload, skipped
+
+
+def create_database_item(database_id: str, properties: dict) -> str:
+    db_id = _resolve_database_id(database_id)
+    if not db_id:
+        return (f"Couldn't find a shared database named {database_id!r}. Share it with the Zenith "
+                f"integration in Notion, then try again.")
+    schema = _request("GET", f"/databases/{db_id}")
+    payload, skipped = _coerce_properties(schema, properties or {})
+    if not payload:
+        return "No matching properties for that database — check the field names against its columns."
+    page = _request("POST", "/pages", json={"parent": {"database_id": db_id}, "properties": payload})
+    note = f" (skipped: {', '.join(skipped)})" if skipped else ""
+    return f"Added a row to the database ({page.get('url', page.get('id', ''))}).{note}"

@@ -1,5 +1,6 @@
 """Zenith — in-memory rate limiter + daily token-budget kill-switch."""
 
+import os
 import time
 from collections import deque
 from threading import Lock
@@ -7,7 +8,9 @@ from threading import Lock
 MAX_REQUESTS_PER_MINUTE = 5
 MAX_REQUESTS_PER_DAY = 150
 WARNING_THRESHOLD = 120
-DAILY_TOKEN_BUDGET = 300_000   # hard cap — tool results balloon fast (PRD §10)
+# Hard cap — tool results balloon fast (PRD §10). Env-overridable so the owner can tune the
+# ceiling without a code edit (raised to 500k on 2026-07-05 to trial heavier days).
+DAILY_TOKEN_BUDGET = int(os.getenv("ZENITH_DAILY_TOKEN_BUDGET", "500000"))
 
 # Claude Sonnet 4.6 pricing (per 1M tokens) — input/output differ ~5×, so the split matters
 # even for a rough estimate. Kept here so cost lives in ONE place (see stats()).

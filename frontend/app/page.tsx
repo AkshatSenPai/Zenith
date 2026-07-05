@@ -370,6 +370,7 @@ export default function Home() {
     setPending(null);
     setError(null);
     setLoading(true);
+    let spokenReply: string | null = null;
     try {
       const res = await apiFetch("/chat/confirm", {
         method: "POST",
@@ -381,7 +382,14 @@ export default function Home() {
         setError(d.detail ?? `Server error (${res.status}).`);
         return;
       }
-      applyData(await res.json());
+      const data = await res.json();
+      applyData(data);
+      // Capture the result so we can SPEAK it below — after a confirmed action the owner may
+      // not be looking at the tab, and a silent written result gave no signal it finished.
+      // Only a final reply (nothing newly pending) is worth speaking.
+      if (typeof data.reply === "string" && data.reply && !(data.pending && data.tool && data.id)) {
+        spokenReply = data.reply;
+      }
     } catch {
       // Network-level failure: the request never reached the backend, so the action is still pending
       // there (process_confirm pops the id only once the request arrives). Restore the card so the
@@ -392,6 +400,18 @@ export default function Home() {
     } finally {
       setLoading(false);
       refreshUsage();
+    }
+    // Speak the confirmed-action result AFTER loading clears, mirroring the voice path in
+    // stopListening. A TTS failure keeps the written result on screen and shows no error strip.
+    if (spokenReply) {
+      setVoiceState("speaking");
+      try {
+        await speak(spokenReply);
+      } catch {
+        /* playback failed (e.g. TTS engine error) — keep the rendered reply, no error strip */
+      } finally {
+        setVoiceState("idle");
+      }
     }
   }
 

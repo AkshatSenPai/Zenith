@@ -177,3 +177,50 @@ def test_open_app_unknown_raises(wl):
 def test_open_app_blank_raises(wl):
     with pytest.raises(app_launcher.AppNotFound):
         app_launcher.open_app("   ")
+
+
+# ---------- tool registry wiring ----------
+
+import activity_log  # noqa: E402
+import tools  # noqa: E402
+
+
+def test_open_app_is_not_action_or_untrusted():
+    assert "open_app" not in tools.ACTION_TOOLS
+    assert "open_app" not in tools.UNTRUSTED_TOOLS
+    assert "list_apps" not in tools.ACTION_TOOLS
+
+
+def test_tools_registered():
+    names = {t["name"] for t in tools.TOOLS}
+    assert {"open_app", "list_apps"} <= names
+    assert "open_app" in tools._EXECUTORS and "list_apps" in tools._EXECUTORS
+
+
+def test_list_apps_tool_returns_names(wl):
+    out = tools.run_tool("list_apps", {})
+    assert "Browser" in out and "Spotify" in out
+    assert "<external-content" not in out          # owner's own config, never fenced
+
+
+def test_open_app_tool_success_records_activity(monkeypatch, wl):
+    activity_log._entries.clear()
+    monkeypatch.setattr(app_launcher, "_shell_open", lambda t: None)
+    out = tools.run_tool("open_app", {"name": "music"})
+    assert out == "Opening Spotify."
+    entries = activity_log.entries()
+    assert len(entries) == 1
+    assert entries[0]["action"] == "app opened" and entries[0]["target"] == "music"
+
+
+def test_open_app_tool_unknown_refuses_and_is_not_logged(wl):
+    activity_log._entries.clear()
+    out = tools.run_tool("open_app", {"name": "photoshop"})
+    assert "I can open" in out                      # refusal lists options
+    assert activity_log.entries() == []             # NOT recorded as opened
+
+
+def test_list_apps_tool_is_not_logged(wl):
+    activity_log._entries.clear()
+    tools.run_tool("list_apps", {})
+    assert activity_log.entries() == []             # trivial query, unmapped

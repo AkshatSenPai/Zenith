@@ -36,6 +36,7 @@ _MAP: dict[str, tuple[str, str, str]] = {
     "add_todo": ("note", "ok", "to-do added"),
     "complete_todo": ("note", "ok", "to-do done"),
     "list_todos": ("note", "info", "read to-dos"),
+    "open_app": ("note", "ok", "app opened"),
     "list_notion_pages": ("note", "info", "list Notion pages"),
     "list_notion_databases": ("note", "info", "list Notion databases"),
     "search_notion": ("note", "info", "searched Notion"),

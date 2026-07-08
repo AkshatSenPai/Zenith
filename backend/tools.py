@@ -11,6 +11,7 @@ import datetime as dt
 import os
 
 import activity_log
+import app_launcher
 import copy_factory
 import discord_service
 import google_service
@@ -439,6 +440,19 @@ def _complete_todo(i: dict) -> str:
         return "complete_todo needs which task to mark done."
     done = todo_service.complete_by_text(task)
     return f"Marked done: {done['text']}" if done else f"Couldn't find an open to-do matching '{task}'."
+
+
+# ---------- app-launcher executors (whitelist-only; open_app conditionally gated) ----------
+
+def _open_app(i: dict) -> str:
+    return app_launcher.open_app(i.get("name", ""))
+
+
+def _list_apps(i: dict) -> str:
+    names = app_launcher.list_apps()
+    if not names:
+        return "No apps are configured yet — add them to backend/apps.json."
+    return "I can open: " + ", ".join(names) + "."
 
 
 _ISO_HINT = "ISO 8601 local datetime, e.g. 2026-06-26T16:00:00"
@@ -886,6 +900,22 @@ TOOLS = [
             "text": {"type": "string", "description": "Comment text"},
         }, "required": ["page_id", "text"]},
     },
+    {
+        "name": "open_app",
+        "description": "Open (launch) one of the owner's pre-configured apps, files, folders, or "
+        "websites BY NAME — e.g. 'open Spotify', 'open my browser', 'open the projects folder'. "
+        "Only whitelisted entries can be opened. Pass the app NAME, never a file path or command. "
+        "If unsure which the owner means, call list_apps first or ask — never guess.",
+        "input_schema": {"type": "object", "properties": {
+            "name": {"type": "string", "description": "The app/file/site name to open, e.g. 'Spotify', 'VS Code', 'browser'."},
+        }, "required": ["name"]},
+    },
+    {
+        "name": "list_apps",
+        "description": "List the apps, files, folders, and websites Zenith can open. Use when the "
+        "owner asks 'what can you open/launch?' or when you're unsure which app they mean.",
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
 ]
 
 # Action tools require user confirmation before running (the existing confirm gate).
@@ -944,6 +974,8 @@ _EXECUTORS = {
     "add_todo": _add_todo,
     "list_todos": _list_todos,
     "complete_todo": _complete_todo,
+    "open_app": _open_app,
+    "list_apps": _list_apps,
     "list_notion_pages": _list_notion_pages,
     "list_notion_databases": _list_notion_databases,
     "search_notion": _search_notion,
@@ -1014,6 +1046,8 @@ def _activity_target(name: str, i: dict) -> str:
         return i.get("database", "")
     if name == "create_notion_database":
         return i.get("title", "")
+    if name == "open_app":
+        return i.get("name", "")
     return ""
 
 
@@ -1051,6 +1085,8 @@ def run_tool(name: str, tool_input: dict) -> str:
         except (discord_service.DiscordNotConnected, discord_service.DiscordChannelNotFound) as exc:
             result, failed = str(exc), True
         except (notion_service.NotionNotConnected, notion_service.NotionError) as exc:
+            result, failed = str(exc), True
+        except app_launcher.LauncherError as exc:
             result, failed = str(exc), True
         except Exception as exc:  # noqa: BLE001 — a tool error must never 500 the chat route
             result, failed = f"Sorry, the {name} call failed: {exc}", True

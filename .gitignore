@@ -34,3 +34,5 @@ backend/vault/
 
 # graphify knowledge graph output (regenerate with /graphify)
 graphify-out/
+# graphify transient scratch files (written to repo root mid-run, cleaned after)
+.graphify_*

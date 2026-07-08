@@ -925,6 +925,11 @@ ACTION_TOOLS = {"send_message", "create_event", "update_event", "delete_event", 
                 "update_notion_block", "delete_notion_block", "create_notion_database",
                 "update_notion_database", "add_notion_comment"}
 
+# Tools that normally run immediately, but become confirm-gated pending actions when the SAME turn
+# already pulled untrusted <external-content> into context — so a prompt-injected "open X" in an
+# email/message can't auto-launch. See claude_service.run_loop (uses saw_untrusted).
+GATE_IF_UNTRUSTED = {"open_app"}
+
 # Read-only tools whose results contain third-party content (a prompt-injection vector). Their output
 # is fenced as untrusted DATA before it returns to Claude (see run_tool / _wrap_untrusted).
 UNTRUSTED_TOOLS = {

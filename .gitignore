@@ -36,3 +36,6 @@ backend/vault/
 graphify-out/
 # graphify transient scratch files (written to repo root mid-run, cleaned after)
 .graphify_*
+
+# App Launcher whitelist (personal app/file/site list — apps.example.json is the committed template)
+backend/apps.json

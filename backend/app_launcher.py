@@ -105,3 +105,55 @@ def resolve(name: str) -> dict:
     if close:
         return keyed[close[0]]
     raise AppNotFound(_no_match_msg(apps))
+
+
+def _infer_kind(target: str) -> str:
+    t = (target or "").strip()
+    if t.startswith(("http://", "https://")):
+        return "url"
+    if re.match(r"^[a-zA-Z]:[\\/]", t) or t.startswith(("\\\\", "/", "~", ".")) or "/" in t or "\\" in t:
+        return "path"
+    if re.match(r"^[a-zA-Z][a-zA-Z0-9+.\-]*:", t):
+        return "protocol"
+    return "command"
+
+
+def _shell_open(target: str) -> None:
+    """Hand `target` to the OS shell — the single seam tests mock. Windows ShellExecute opens
+    exes, files, folders, and protocols; mac/linux use open/xdg-open."""
+    if sys.platform.startswith("win"):
+        os.startfile(target)  # noqa: S606 — target is a whitelist entry, never caller input
+    elif sys.platform == "darwin":
+        subprocess.Popen(["open", target])
+    else:
+        subprocess.Popen(["xdg-open", target])
+
+
+def launch(entry: dict) -> str:
+    """Launch a resolved whitelist entry. Raises LaunchError on any failure."""
+    target = entry["target"]
+    kind = entry.get("type") or _infer_kind(target)
+    try:
+        if kind == "url":
+            if not webbrowser.open(target):
+                raise LaunchError(f"Couldn't open {entry['name']} in a browser.")
+        elif kind == "command":
+            exe = shutil.which(target)
+            if not exe:
+                raise LaunchError(f"'{target}' isn't installed or not on PATH.")
+            _shell_open(exe)
+        else:  # path or protocol
+            _shell_open(target)
+    except LauncherError:
+        raise
+    except Exception as exc:  # noqa: BLE001 — surface any OS error as a clean LaunchError
+        raise LaunchError(f"Couldn't launch {entry['name']}: {exc}") from exc
+    return f"Opening {entry['name']}."
+
+
+def open_app(name: str) -> str:
+    """resolve + launch. Raises AppNotFound / LaunchError (both caught in tools.run_tool)."""
+    name = (name or "").strip()
+    if not name:
+        raise AppNotFound(_no_match_msg(load_apps()))
+    return launch(resolve(name))

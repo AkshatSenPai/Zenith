@@ -101,3 +101,79 @@ def test_ambiguous_substring_refuses(monkeypatch):
 
 def test_list_apps_returns_names(wl):
     assert app_launcher.list_apps() == ["Browser", "VS Code", "Spotify", "Projects"]
+
+
+# ---------- launch dispatch (OS calls mocked) ----------
+
+def test_infer_kind():
+    assert app_launcher._infer_kind("https://x.com") == "url"
+    assert app_launcher._infer_kind(r"C:\Users\me\Dev") == "path"
+    assert app_launcher._infer_kind("spotify:") == "protocol"
+    assert app_launcher._infer_kind("code") == "command"
+
+
+def test_launch_url_uses_webbrowser(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(app_launcher.webbrowser, "open", lambda t: seen.setdefault("t", t) or True)
+    out = app_launcher.launch({"name": "Browser", "target": "https://x.com", "type": "url"})
+    assert seen["t"] == "https://x.com" and out == "Opening Browser."
+
+
+def test_launch_url_failure_raises(monkeypatch):
+    monkeypatch.setattr(app_launcher.webbrowser, "open", lambda t: False)
+    with pytest.raises(app_launcher.LaunchError):
+        app_launcher.launch({"name": "Browser", "target": "https://x.com", "type": "url"})
+
+
+def test_launch_path_uses_shell_open(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(app_launcher, "_shell_open", lambda t: seen.setdefault("t", t))
+    app_launcher.launch({"name": "Projects", "target": r"C:\Users\me\Dev", "type": "path"})
+    assert seen["t"] == r"C:\Users\me\Dev"
+
+
+def test_launch_protocol_uses_shell_open(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(app_launcher, "_shell_open", lambda t: seen.setdefault("t", t))
+    app_launcher.launch({"name": "Spotify", "target": "spotify:", "type": "protocol"})
+    assert seen["t"] == "spotify:"
+
+
+def test_launch_command_resolves_then_shell_opens(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(app_launcher.shutil, "which", lambda c: r"C:\bin\code.cmd")
+    monkeypatch.setattr(app_launcher, "_shell_open", lambda t: seen.setdefault("t", t))
+    app_launcher.launch({"name": "VS Code", "target": "code", "type": "command"})
+    assert seen["t"] == r"C:\bin\code.cmd"
+
+
+def test_launch_command_not_on_path_raises(monkeypatch):
+    monkeypatch.setattr(app_launcher.shutil, "which", lambda c: None)
+    with pytest.raises(app_launcher.LaunchError):
+        app_launcher.launch({"name": "VS Code", "target": "code", "type": "command"})
+
+
+def test_launch_infers_kind_when_type_omitted(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(app_launcher.webbrowser, "open", lambda t: seen.setdefault("t", t) or True)
+    app_launcher.launch({"name": "Browser", "target": "https://x.com"})   # no "type"
+    assert seen["t"] == "https://x.com"
+
+
+def test_open_app_end_to_end(monkeypatch, wl):
+    seen = {}
+    monkeypatch.setattr(app_launcher.webbrowser, "open", lambda t: True)
+    monkeypatch.setattr(app_launcher, "_shell_open", lambda t: seen.setdefault("t", t))
+    assert app_launcher.open_app("web") == "Opening Browser."
+    assert app_launcher.open_app("music") == "Opening Spotify."
+    assert seen["t"] == "spotify:"
+
+
+def test_open_app_unknown_raises(wl):
+    with pytest.raises(app_launcher.AppNotFound):
+        app_launcher.open_app("nonsuch")
+
+
+def test_open_app_blank_raises(wl):
+    with pytest.raises(app_launcher.AppNotFound):
+        app_launcher.open_app("   ")

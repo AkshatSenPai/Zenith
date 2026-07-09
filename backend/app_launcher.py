@@ -129,6 +129,14 @@ def _shell_open(target: str) -> None:
         subprocess.Popen(["xdg-open", target])
 
 
+def _uwp_open(app_id: str) -> None:
+    """Launch a Windows Store (UWP) app by its AppUserModelID. explorer.exe resolves
+    shell:AppsFolder\\<AppID> to the packaged app — the reliable way when there's no exe path."""
+    if not sys.platform.startswith("win"):
+        raise LaunchError("UWP apps can only be launched on Windows.")
+    subprocess.Popen(["explorer.exe", "shell:AppsFolder\\" + app_id])
+
+
 def launch(entry: dict) -> str:
     """Launch a resolved whitelist entry. Raises LaunchError on any failure."""
     target = entry["target"]
@@ -142,6 +150,8 @@ def launch(entry: dict) -> str:
             if not exe:
                 raise LaunchError(f"'{target}' isn't installed or not on PATH.")
             _shell_open(exe)
+        elif kind == "uwp":
+            _uwp_open(target)
         else:  # path or protocol
             _shell_open(target)
     except LauncherError:

@@ -153,6 +153,13 @@ def test_launch_command_not_on_path_raises(monkeypatch):
         app_launcher.launch({"name": "VS Code", "target": "code", "type": "command"})
 
 
+def test_launch_uwp_opens_by_appid(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(app_launcher, "_uwp_open", lambda a: seen.setdefault("a", a))
+    out = app_launcher.launch({"name": "WhatsApp", "target": "Pkg_abc!App", "type": "uwp"})
+    assert seen["a"] == "Pkg_abc!App" and out == "Opening WhatsApp."
+
+
 def test_launch_infers_kind_when_type_omitted(monkeypatch):
     seen = {}
     monkeypatch.setattr(app_launcher.webbrowser, "open", lambda t: seen.setdefault("t", t) or True)

@@ -1,11 +1,11 @@
 {
   "apps": [
-    { "name": "Browser", "aliases": ["web", "google", "chrome"], "target": "https://www.google.com", "type": "url" },
-    { "name": "Gmail", "aliases": ["mail", "email"], "target": "https://mail.google.com", "type": "url" },
-    { "name": "Calendar", "aliases": ["gcal", "google calendar"], "target": "https://calendar.google.com", "type": "url" },
     { "name": "Claude", "aliases": ["ai", "assistant"], "target": "https://claude.ai", "type": "url" },
+    { "name": "Gmail", "aliases": ["mail", "email"], "target": "https://mail.google.com", "type": "url" },
     { "name": "VS Code", "aliases": ["code", "editor", "vscode"], "target": "code", "type": "command", "note": "Needs the 'code' CLI on PATH" },
+    { "name": "Chrome", "aliases": ["chrome", "browser"], "target": "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Google Chrome.lnk", "type": "path", "note": "A Start Menu .lnk is the robust way to open an installed desktop app" },
     { "name": "Spotify", "aliases": ["music"], "target": "spotify:", "type": "protocol" },
-    { "name": "Projects", "aliases": ["dev folder", "code folder"], "target": "C:\\Users\\Akshat Singh\\Dev Folder", "type": "path" }
+    { "name": "WhatsApp", "aliases": ["whatsapp", "wa"], "target": "5319275A.WhatsAppDesktop_cv1g1gvanyjgm!App", "type": "uwp", "note": "A Windows Store app — find its id with: Get-StartApps | Where Name -match 'whatsapp'" },
+    { "name": "Projects", "aliases": ["dev folder", "code folder"], "target": "C:\\Users\\You\\Dev Folder", "type": "path" }
   ]
 }

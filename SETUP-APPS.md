@@ -24,9 +24,17 @@ path or command, only entries in your list.
 | type | target example | how it opens |
 |------|----------------|--------------|
 | `url` | `https://claude.ai` | default browser |
-| `path` | `C:\Users\You\Dev` | file/folder/exe via the OS (Explorer/Finder) |
+| `path` | `C:\Users\You\Dev` or a `.lnk` | file/folder/exe/shortcut via the OS (Explorer/Finder) |
 | `protocol` | `spotify:` | the app registered for that protocol |
 | `command` | `code` | a CLI on your PATH (resolved with `which`) |
+| `uwp` | `5319275A.WhatsAppDesktop_cv1g1gvanyjgm!App` | a Windows Store app, by its AppUserModelID |
+
+### Tips for installed desktop apps (Windows)
+- **Easiest for any installed app:** point `target` at its **Start Menu shortcut** with `type: "path"`
+  — e.g. `C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Google Chrome.lnk`. Shortcuts are
+  version-independent and carry the app's own launch arguments.
+- **Store / UWP apps** (WhatsApp, Apple Music, …) have no `.lnk` or exe path. Use `type: "uwp"` with
+  the app's **AppUserModelID**. Find it in PowerShell: `Get-StartApps | Where Name -match 'whatsapp'`.
 
 ## Matching
 Say the name, an alias, part of it, or a near-spelling — Zenith normalizes and fuzzy-matches.

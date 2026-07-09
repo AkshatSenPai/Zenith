@@ -926,44 +926,83 @@ git commit -m "feat(proactivity): GET /proactive + POST /proactive/dismiss route
 
 ---
 
-### Task 8: NudgeCard component
+### Task 8: Shared card shell + NudgeCard component
+
+> **Pre-flight decision (2026-07-09):** to avoid duplicating StatusCard's `Corner` + tone map, extract them into a shared `cardShell` module that BOTH StatusCard and NudgeCard import. StatusCard's rendered output is unchanged (identical classes).
 
 **Files:**
+- Create: `frontend/components/cardShell.tsx`
+- Modify: `frontend/components/StatusCard.tsx`
 - Create: `frontend/components/NudgeCard.tsx`
 
 **Interfaces:**
-- Produces: `type Nudge = { id: string; kind: string; tone: "info"|"alert"|"critical"; title: string; body: string; action: { label: string; prefill: string } | null; urgency: number }`; `NudgeCard({ nudge, onAction, onDismiss, onSnooze })`.
+- Produces: `cardShell` exports `Corner`, `TONES`, `type Tone` (`"info"|"alert"|"critical"`); `type Nudge = { id: string; kind: string; tone: Tone; title: string; body: string; action: { label: string; prefill: string } | null; urgency: number }`; `NudgeCard({ nudge, onAction, onDismiss, onSnooze })`.
 
-- [ ] **Step 1: Create the component (reuses StatusCard's notched-corner shell + tone tokens)**
+- [ ] **Step 1: Create the shared shell module**
+
+```tsx
+// frontend/components/cardShell.tsx
+export type Tone = "info" | "alert" | "critical";
+
+export const TONES: Record<Tone, { border: string; text: string; corner: string }> = {
+  info: { border: "border-zenith-cyan/40", text: "text-zenith-cyan", corner: "border-zenith-cyan" },
+  alert: { border: "border-zenith-alert/55", text: "text-zenith-alert", corner: "border-zenith-alert" },
+  critical: { border: "border-zenith-red/60", text: "text-zenith-red", corner: "border-zenith-red" },
+};
+
+/** The notched-corner accent shared by the confirm card and proactive nudge cards. */
+export function Corner({ pos, cls }: { pos: "tl" | "tr" | "bl" | "br"; cls: string }) {
+  const m: Record<string, string> = {
+    tl: "left-0 top-0 border-l border-t",
+    tr: "right-0 top-0 border-r border-t",
+    bl: "bottom-0 left-0 border-b border-l",
+    br: "bottom-0 right-0 border-b border-r",
+  };
+  return <span className={`pointer-events-none absolute h-2.5 w-2.5 ${m[pos]} ${cls}`} />;
+}
+```
+
+- [ ] **Step 2: Refactor StatusCard to use the shared shell (rendered output unchanged)**
+
+In `frontend/components/StatusCard.tsx`: delete the inline `type Tone`, the `const tones` map, and the `function Corner` (lines 1–17); import them from `cardShell` instead; and rename the local lookup `tones[tone]` → `TONES[tone]`.
+
+Add at the top:
+```tsx
+import { Corner, TONES, type Tone } from "./cardShell";
+```
+Then, in the `StatusCard` body, change:
+```tsx
+  const t = tones[tone];
+```
+to:
+```tsx
+  const t = TONES[tone];
+```
+Everything else in StatusCard stays exactly as-is (the class strings are identical, so the confirm card renders the same).
+
+- [ ] **Step 3: Verify StatusCard still compiles**
+
+Run: `cd frontend && npx tsc --noEmit`
+Expected: no errors.
+
+- [ ] **Step 4: Create NudgeCard using the shared shell**
 
 ```tsx
 // frontend/components/NudgeCard.tsx
+import { Corner, TONES, type Tone } from "./cardShell";
+
 export type Nudge = {
   id: string;
   kind: string;
-  tone: "info" | "alert" | "critical";
+  tone: Tone;
   title: string;
   body: string;
   action: { label: string; prefill: string } | null;
   urgency: number;
 };
 
-const tones: Record<Nudge["tone"], { border: string; text: string; corner: string }> = {
-  info: { border: "border-zenith-cyan/40", text: "text-zenith-cyan", corner: "border-zenith-cyan" },
-  alert: { border: "border-zenith-alert/55", text: "text-zenith-alert", corner: "border-zenith-alert" },
-  critical: { border: "border-zenith-red/60", text: "text-zenith-red", corner: "border-zenith-red" },
-};
-
-function Corner({ pos, cls }: { pos: "tl" | "tr" | "bl" | "br"; cls: string }) {
-  const m: Record<string, string> = {
-    tl: "left-0 top-0 border-l border-t", tr: "right-0 top-0 border-r border-t",
-    bl: "bottom-0 left-0 border-b border-l", br: "bottom-0 right-0 border-b border-r",
-  };
-  return <span className={`pointer-events-none absolute h-2.5 w-2.5 ${m[pos]} ${cls}`} />;
-}
-
-/** A single proactive nudge. Same notched-corner shell as StatusCard, but its own footer:
- *  primary action (prefills the Command Center) + Snooze (Tonight/Tomorrow) + Dismiss. */
+/** A single proactive nudge. Same notched shell as StatusCard (shared cardShell), but its own
+ *  footer: primary action (prefills the Command Center) + Snooze (Tonight/Tomorrow) + Dismiss. */
 export function NudgeCard({
   nudge, onAction, onDismiss, onSnooze,
 }: {
@@ -972,7 +1011,7 @@ export function NudgeCard({
   onDismiss: (id: string) => void;
   onSnooze: (id: string, preset: "evening" | "tomorrow") => void;
 }) {
-  const t = tones[nudge.tone] ?? tones.info;
+  const t = TONES[nudge.tone] ?? TONES.info;
   return (
     <div className={`status-surface relative border ${t.border} px-4 py-3`}>
       <Corner pos="tl" cls={t.corner} /><Corner pos="tr" cls={t.corner} />
@@ -1007,16 +1046,16 @@ export function NudgeCard({
 }
 ```
 
-- [ ] **Step 2: Verify types compile**
+- [ ] **Step 5: Verify types compile**
 
 Run: `cd frontend && npx tsc --noEmit`
 Expected: no errors.
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add frontend/components/NudgeCard.tsx
-git commit -m "feat(proactivity): NudgeCard component"
+git add frontend/components/cardShell.tsx frontend/components/StatusCard.tsx frontend/components/NudgeCard.tsx
+git commit -m "feat(proactivity): shared card shell + NudgeCard component"
 ```
 
 ---

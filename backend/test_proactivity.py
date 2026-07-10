@@ -4,7 +4,12 @@ import datetime as dt
 import types
 
 import pytest
+from fastapi.testclient import TestClient
 
+# Imported at module scope, NOT inside the `client` fixture: `auth` calls load_dotenv() at import,
+# which would re-set the real ZENITH_API_TOKEN *after* conftest's autouse delenv and 401 the first
+# route test. Collection-time import lets that autouse fixture clear it. (Same as test_auth_gate.)
+import main
 import proactivity_service as ps
 
 
@@ -229,3 +234,32 @@ def test_dismiss_nudge_with_snooze_preset(store):
     base = dt.datetime(2026, 7, 9, 12, 0, tzinfo=dt.timezone.utc)
     ps.dismiss_nudge("prep:x:1", snooze_preset="tomorrow")
     assert ps.is_suppressed("prep:x:1", base) is True
+
+
+@pytest.fixture
+def client():
+    return TestClient(main.app)
+
+
+def test_get_proactive_returns_nudges(client, monkeypatch):
+    monkeypatch.setattr(main.proactivity_service, "get_nudges",
+                        lambda: [ps.make_nudge("prep", "a", "info", "PREP", "b", None, 50)])
+    r = client.get("/proactive")
+    assert r.status_code == 200
+    assert r.json()["nudges"][0]["kind"] == "prep"
+
+
+def test_get_proactive_stays_200_when_service_raises(client, monkeypatch):
+    monkeypatch.setattr(main.proactivity_service, "get_nudges",
+                        lambda: (_ for _ in ()).throw(RuntimeError("boom")))
+    r = client.get("/proactive")
+    assert r.status_code == 200 and r.json() == {"nudges": []}
+
+
+def test_post_dismiss_calls_service(client, monkeypatch):
+    seen = {}
+    monkeypatch.setattr(main.proactivity_service, "dismiss_nudge",
+                        lambda nudge_id, snooze_preset=None: seen.update(id=nudge_id, s=snooze_preset))
+    r = client.post("/proactive/dismiss", json={"id": "prep:x:1", "snooze": "tomorrow"})
+    assert r.status_code == 200 and r.json() == {"ok": True}
+    assert seen == {"id": "prep:x:1", "s": "tomorrow"}

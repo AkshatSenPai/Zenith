@@ -14,6 +14,7 @@ import discord_service
 import google_auth
 import google_service
 import notion_service
+import proactivity_service
 import secure_files
 import telegram_service
 import todo_service
@@ -240,6 +241,27 @@ def calendar_events(when: str = "today") -> dict:
         return {"connected": True, "events": google_service.get_events(when=when)}
     except google_service.NotConnected:
         return {"connected": False, "events": []}
+
+
+class DismissRequest(BaseModel):
+    id: str
+    snooze: str | None = None      # "evening" | "tomorrow" | None (None = dismiss permanently)
+
+
+@app.get("/proactive")
+def proactive() -> dict:
+    """Proactive nudges (≤3, ranked). Best-effort — never 500s the HUD poll."""
+    try:
+        return {"nudges": proactivity_service.get_nudges()}
+    except Exception as exc:  # noqa: BLE001 — a poll must never error the HUD
+        print(f"[proactive] endpoint error: {exc}", flush=True)
+        return {"nudges": []}
+
+
+@app.post("/proactive/dismiss")
+def proactive_dismiss(req: DismissRequest) -> dict:
+    proactivity_service.dismiss_nudge(req.id, snooze_preset=req.snooze)
+    return {"ok": True}
 
 
 @app.get("/discord/status")

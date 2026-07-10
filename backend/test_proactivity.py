@@ -1,6 +1,7 @@
 """M7 Part 2 — proactivity. All Claude/Google/filesystem seams mocked → offline, cross-platform."""
 
 import datetime as dt
+import types
 
 import pytest
 
@@ -99,3 +100,49 @@ def test_calendar_nudges_wrapper_swallows_errors(monkeypatch):
         raise RuntimeError("google not connected")
     monkeypatch.setattr(ps.google_service, "get_events", boom)
     assert ps.calendar_nudges(dt.datetime.now(dt.timezone.utc)) == []
+
+
+class _Usage:
+    input_tokens = 12
+    output_tokens = 8
+
+
+class _Resp:
+    def __init__(self, text):
+        self.content = [types.SimpleNamespace(type="text", text=text)]
+        self.usage = _Usage()
+
+
+def test_extract_parses_json_and_binds_no_tools(monkeypatch):
+    seen = {}
+
+    def fake_create(**kw):
+        seen.update(kw)
+        return _Resp('[{"what":"send proposal","who":"Rahul","by_when":"Fri","done":false}]')
+
+    monkeypatch.setattr(ps.claude_service.client.messages, "create", fake_create)
+    monkeypatch.setattr(ps.chat_core.limiter, "ensure_budget", lambda: (True, None))
+    rec = {}
+    monkeypatch.setattr(ps.chat_core.limiter, "record_usage", lambda i, o: rec.update(i=i, o=o))
+
+    items = ps._extract_commitments("14:00 promised Rahul the proposal by Fri")
+    assert items == [{"what": "send proposal", "who": "Rahul", "by_when": "Fri", "done": False}]
+    assert "tools" not in seen               # SAFETY: the extraction call can never act
+    assert rec == {"i": 12, "o": 8}          # usage counted against the daily budget
+
+
+def test_extract_skipped_when_killswitch_tripped(monkeypatch):
+    called = {"n": 0}
+    monkeypatch.setattr(ps.claude_service.client.messages, "create",
+                        lambda **k: called.update(n=called["n"] + 1))
+    monkeypatch.setattr(ps.chat_core.limiter, "ensure_budget", lambda: (False, "tripped"))
+    assert ps._extract_commitments("anything") == []
+    assert called["n"] == 0                   # no Claude call when the budget is blown
+
+
+def test_extract_bad_json_returns_empty(monkeypatch):
+    monkeypatch.setattr(ps.claude_service.client.messages, "create",
+                        lambda **k: _Resp("sorry, no JSON here"))
+    monkeypatch.setattr(ps.chat_core.limiter, "ensure_budget", lambda: (True, None))
+    monkeypatch.setattr(ps.chat_core.limiter, "record_usage", lambda i, o: None)
+    assert ps._extract_commitments("x") == []

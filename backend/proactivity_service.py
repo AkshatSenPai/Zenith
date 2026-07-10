@@ -12,6 +12,8 @@ import os
 import re
 from pathlib import Path
 
+import chat_core
+import claude_service
 import google_service
 
 
@@ -197,3 +199,39 @@ def calendar_nudges(now: dt.datetime) -> list[dict]:
         print(f"[proactive] calendar gather skipped: {exc}", flush=True)
         return []
     return _calendar_nudges(now, events)
+
+
+# --- commitment extraction (Claude, NO tools bound → can only return JSON, never act) ---
+_EXTRACT_MAX_TOKENS = 1024
+_EXTRACT_SYSTEM = (
+    "You extract COMMITMENTS the owner made, from their personal daily notes. A commitment is "
+    "something the owner said they would do or send FOR someone — e.g. 'promised Rahul the proposal', "
+    "'told Priya I'd send the invoice', 'need to follow up with Acme'.\n"
+    "Return ONLY a JSON array, no prose, no code fences. Each item: "
+    '{"what": short action phrase, "who": person/org or null, "by_when": deadline phrase or null, '
+    '"done": true if the notes indicate it is already handled else false}.\n'
+    "Ignore anything that is not a commitment BY the owner (general notes, meeting minutes, ideas, "
+    "other people's requests). If there are no commitments, return []."
+)
+
+
+def _extract_commitments(notes_text: str) -> list[dict]:
+    ok, _reason = chat_core.limiter.ensure_budget()
+    if not ok:
+        print("[proactive] commitment extraction skipped — token budget kill-switch engaged.", flush=True)
+        return []
+    try:
+        resp = claude_service.client.messages.create(
+            model=claude_service.MODEL,
+            max_tokens=_EXTRACT_MAX_TOKENS,
+            system=_EXTRACT_SYSTEM,
+            messages=[{"role": "user", "content": notes_text[:12000]}],
+        )  # NOTE: no `tools=` — this call is structurally incapable of acting.
+        chat_core.limiter.record_usage(resp.usage.input_tokens, resp.usage.output_tokens)
+        text = "".join(b.text for b in resp.content if getattr(b, "type", None) == "text").strip()
+        text = re.sub(r"^```(?:json)?|```$", "", text).strip()   # tolerate accidental fences
+        data = json.loads(text)
+        return [d for d in data if isinstance(d, dict) and d.get("what")]
+    except Exception as exc:  # noqa: BLE001 — extraction is best-effort
+        print(f"[proactive] commitment extraction failed: {exc}", flush=True)
+        return []

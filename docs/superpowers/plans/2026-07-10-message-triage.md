@@ -43,6 +43,8 @@
 # backend/test_triage.py
 """M7 Part 3 — message triage. All Google seams mocked → offline, cross-platform, no network."""
 
+import pytest
+
 import google_service
 
 
@@ -122,11 +124,8 @@ def test_thread_summary_reads_the_LAST_message(monkeypatch):
 
 def test_thread_summary_empty_thread_raises(monkeypatch):
     monkeypatch.setattr(google_service, "_gmail", lambda email=None: _Svc(_Threads(thread={"messages": []})))
-    try:
+    with pytest.raises(ValueError):
         google_service.thread_summary("t1")
-    except ValueError:
-        return
-    raise AssertionError("expected ValueError on a thread with no messages")
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -353,9 +352,8 @@ git commit -m "feat(triage): threaded reply_to_thread with derived envelope"
 
 ```python
 # add to backend/test_triage.py
+# NOTE: `pytest` is already imported at the top of this file (Task 1). Do not import it twice.
 import datetime as dt
-
-import pytest
 
 import triage_service as ts
 

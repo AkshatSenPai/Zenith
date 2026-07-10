@@ -18,6 +18,7 @@ import google_service
 import news_service
 import notion_service
 import todo_service
+import triage_service
 import vault_service
 import weather_service
 
@@ -140,6 +141,28 @@ def _send_email(i: dict) -> str:
         return "send_email needs at least 'to' and 'body'."
     s = google_service.send_email(to=i["to"], subject=i.get("subject", ""), body=i["body"])
     return f"Email sent to {s['to']} (subject: {s['subject'] or '(none)'})."
+
+
+def _waiting_line(r: dict) -> str:
+    hours = r["age_hours"]
+    age = f"{hours}h" if hours < 48 else f"{hours // 24}d"
+    snippet = (r.get("snippet") or "")[:90]
+    return (f"{r['from_name']} <{r['from_email']}> — {r['subject']} :: {snippet} "
+            f"(waiting {age}) [thread:{r['thread_id']}]")
+
+
+def _list_waiting_replies(i: dict) -> str:
+    rows = triage_service.waiting_threads(max_results=int(i.get("max", 10)))
+    if not rows:
+        return "Nobody is waiting on a reply."
+    return "Waiting on your reply:\n" + "\n".join(_waiting_line(r) for r in rows)
+
+
+def _reply_email(i: dict) -> str:
+    if not i.get("thread_id") or not i.get("body"):
+        return "reply_email needs 'thread_id' and 'body'."
+    s = google_service.reply_to_thread(thread_id=i["thread_id"], body=i["body"])
+    return f"Reply sent to {s['to']} (subject: {s['subject']})."
 
 
 # ---------- weather + briefing ----------
@@ -588,6 +611,33 @@ TOOLS = [
         },
     },
     {
+        "name": "list_waiting_replies",
+        "description": (
+            "List Gmail threads waiting on a reply from the user — threads whose last message is "
+            "not from them, older than a few hours. Read-only. Use before drafting a reply."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {"max": {"type": "integer", "description": "Max threads to return (default 10)"}},
+            "required": [],
+        },
+    },
+    {
+        "name": "reply_email",
+        "description": (
+            "Reply in-thread to a Gmail conversation. Provide ONLY the reply body — the recipient "
+            "and subject are taken from the thread being answered. The user confirms before it sends."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "thread_id": {"type": "string", "description": "Gmail thread id, from list_waiting_replies"},
+                "body": {"type": "string", "description": "The reply body text"},
+            },
+            "required": ["thread_id", "body"],
+        },
+    },
+    {
         "name": "get_weather",
         "description": "Current weather for a location (defaults to the user's configured location).",
         "input_schema": {
@@ -920,6 +970,7 @@ TOOLS = [
 
 # Action tools require user confirmation before running (the existing confirm gate).
 ACTION_TOOLS = {"send_message", "create_event", "update_event", "delete_event", "send_email",
+                "reply_email",
                 "send_discord_message", "create_notion_page", "create_notion_database_item",
                 "append_to_notion_page", "update_notion_page", "archive_notion_page",
                 "update_notion_block", "delete_notion_block", "create_notion_database",
@@ -933,7 +984,7 @@ GATE_IF_UNTRUSTED = {"open_app"}
 # Read-only tools whose results contain third-party content (a prompt-injection vector). Their output
 # is fenced as untrusted DATA before it returns to Claude (see run_tool / _wrap_untrusted).
 UNTRUSTED_TOOLS = {
-    "get_emails", "read_email", "search_emails",
+    "get_emails", "read_email", "search_emails", "list_waiting_replies",
     "get_discord_messages", "search_discord_messages",
     "get_calendar_events", "search_calendar", "get_briefing", "get_news",
     "list_notion_pages", "list_notion_databases", "search_notion",
@@ -962,6 +1013,8 @@ _EXECUTORS = {
     "search_emails": _search_emails,
     "read_email": _read_email,
     "send_email": _send_email,
+    "list_waiting_replies": _list_waiting_replies,
+    "reply_email": _reply_email,
     "get_weather": _get_weather,
     "get_briefing": _get_briefing,
     "get_news": _get_news,

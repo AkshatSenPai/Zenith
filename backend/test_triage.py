@@ -293,3 +293,61 @@ def test_no_connected_account_raises_not_connected(monkeypatch):
     monkeypatch.setattr(ts.google_service, "me_address", lambda: None)
     with pytest.raises(ts.google_service.NotConnected):
         ts.waiting_threads(now=NOW)
+
+
+# Task 4: tools registration tests
+
+import activity_log
+import tools
+
+
+def _schema(name):
+    return next(t for t in tools.TOOLS if t["name"] == name)
+
+
+def test_reply_email_schema_exposes_no_recipient():
+    # SECURITY: the model must never choose who a reply goes to.
+    props = _schema("reply_email")["input_schema"]["properties"]
+    assert set(props) == {"thread_id", "body"}
+    assert "to" not in props
+
+
+def test_gate_memberships():
+    assert "reply_email" in tools.ACTION_TOOLS              # always confirm-gated
+    assert "list_waiting_replies" in tools.UNTRUSTED_TOOLS  # third-party subjects/snippets → fenced
+    assert "reply_email" not in tools.UNTRUSTED_TOOLS
+
+
+def test_both_tools_are_logged():
+    # activity_log.record() silently no-ops for tools missing from _MAP.
+    assert "reply_email" in activity_log._MAP
+    assert "list_waiting_replies" in activity_log._MAP
+
+
+def test_list_waiting_replies_executor_formats_rows(monkeypatch):
+    monkeypatch.setattr(tools.triage_service, "waiting_threads", lambda max_results: [
+        {"thread_id": "t1", "from_name": "Rahul", "from_email": "rahul@acme.com", "subject": "Proposal",
+         "snippet": "any update?", "last_at": "2026-07-08T11:04:00+00:00", "age_hours": 51, "source": "gmail"},
+    ])
+    out = tools.run_tool("list_waiting_replies", {})
+    assert "Rahul" in out and "Proposal" in out and "thread:t1" in out
+    assert "<external-content" in out          # fenced: it carries third-party text
+
+
+def test_list_waiting_replies_empty(monkeypatch):
+    monkeypatch.setattr(tools.triage_service, "waiting_threads", lambda max_results: [])
+    assert "Nobody is waiting" in tools.run_tool("list_waiting_replies", {})
+
+
+def test_reply_email_executor_passes_only_thread_and_body(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(tools.google_service, "reply_to_thread",
+                        lambda **kw: seen.update(kw) or {"id": "s1", "to": "rahul@acme.com",
+                                                         "subject": "Re: Proposal", "thread_id": "t1"})
+    out = tools.run_tool("reply_email", {"thread_id": "t1", "body": "On it."})
+    assert seen == {"thread_id": "t1", "body": "On it."}
+    assert "Reply sent to rahul@acme.com" in out
+
+
+def test_reply_email_validates_input():
+    assert tools.run_tool("reply_email", {"thread_id": "t1"}) == "reply_email needs 'thread_id' and 'body'."

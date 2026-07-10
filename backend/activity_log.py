@@ -25,6 +25,8 @@ _MAP: dict[str, tuple[str, str, str]] = {
     "search_emails": ("email", "info", "searched mail"),
     "read_email": ("email", "info", "read email"),
     "send_email": ("email", "ok", "email sent"),
+    "list_waiting_replies": ("email", "info", "checked who's waiting"),
+    "reply_email": ("email", "ok", "reply sent"),
     "send_message": ("message", "ok", "message sent"),
     "get_weather": ("note", "info", "weather"),
     "get_briefing": ("note", "info", "briefing"),

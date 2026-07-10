@@ -195,3 +195,37 @@ def test_commitment_cache_reextracts_on_change(store, monkeypatch, tmp_path):
     f.write_text("promised Rahul the proposal AND the invoice", encoding="utf-8")   # signature changes
     ps.commitment_nudges(now)
     assert calls["n"] == 2
+
+
+def test_get_nudges_ranks_and_caps(store, monkeypatch):
+    now = dt.datetime(2026, 7, 9, 12, 0, tzinfo=dt.timezone.utc)
+    many = [ps.make_nudge("prep", f"m{i}", "info", "PREP", f"m{i}", None, i * 10) for i in range(5)]
+    monkeypatch.setattr(ps, "calendar_nudges", lambda now: many)
+    monkeypatch.setattr(ps, "commitment_nudges", lambda now: [])
+    out = ps.get_nudges(now)
+    assert len(out) == ps.MAX_NUDGES
+    assert [n["urgency"] for n in out] == [40, 30, 20]      # top-3 by urgency desc
+
+
+def test_get_nudges_drops_suppressed(store, monkeypatch):
+    now = dt.datetime(2026, 7, 9, 12, 0, tzinfo=dt.timezone.utc)
+    n = ps.make_nudge("commitment", "hide me", "info", "C", "b", None, 90)
+    monkeypatch.setattr(ps, "calendar_nudges", lambda now: [n])
+    monkeypatch.setattr(ps, "commitment_nudges", lambda now: [])
+    ps.dismiss(n["id"])
+    assert ps.get_nudges(now) == []
+
+
+def test_get_nudges_best_effort_when_a_gatherer_raises(store, monkeypatch):
+    now = dt.datetime(2026, 7, 9, 12, 0, tzinfo=dt.timezone.utc)
+    good = ps.make_nudge("commitment", "keep", "info", "C", "b", None, 50)
+    monkeypatch.setattr(ps, "calendar_nudges", lambda now: (_ for _ in ()).throw(RuntimeError("x")))
+    monkeypatch.setattr(ps, "commitment_nudges", lambda now: [good])
+    out = ps.get_nudges(now)
+    assert len(out) == 1 and out[0]["id"] == good["id"]
+
+
+def test_dismiss_nudge_with_snooze_preset(store):
+    base = dt.datetime(2026, 7, 9, 12, 0, tzinfo=dt.timezone.utc)
+    ps.dismiss_nudge("prep:x:1", snooze_preset="tomorrow")
+    assert ps.is_suppressed("prep:x:1", base) is True

@@ -297,3 +297,35 @@ def commitment_nudges(now: dt.datetime) -> list[dict]:
         items = _extract_commitments(text)
         set_cache(signature, items)
     return _commitment_nudges(now, items)
+
+
+# --- compose: gather → filter → prune → rank → top N ---
+MAX_NUDGES = 3
+
+
+def _now() -> dt.datetime:
+    return dt.datetime.now(dt.timezone.utc).astimezone()
+
+
+def _safe(fn, now: dt.datetime) -> list[dict]:
+    try:
+        return fn(now)
+    except Exception as exc:  # noqa: BLE001 — one gatherer failing never sinks the endpoint
+        print(f"[proactive] gatherer {getattr(fn, '__name__', '?')} failed: {exc}", flush=True)
+        return []
+
+
+def get_nudges(now: dt.datetime | None = None) -> list[dict]:
+    now = now or _now()
+    gathered = _safe(calendar_nudges, now) + _safe(commitment_nudges, now)
+    prune(live_ids={n["id"] for n in gathered}, now=now)
+    visible = [n for n in gathered if not is_suppressed(n["id"], now)]
+    visible.sort(key=lambda n: n["urgency"], reverse=True)
+    return visible[:MAX_NUDGES]
+
+
+def dismiss_nudge(nudge_id: str, snooze_preset: str | None = None) -> None:
+    if snooze_preset:
+        snooze(nudge_id, snooze_preset)
+    else:
+        dismiss(nudge_id)

@@ -265,3 +265,26 @@ export function setTodoDone(index: number, done: boolean): Promise<Todo[] | null
 export function removeTodo(index: number): Promise<Todo[] | null> {
   return mutateTodos(`/todos/${index}`, { method: "DELETE" });
 }
+
+export type WaitingThread = {
+  thread_id: string;
+  from_name: string;
+  from_email: string;
+  subject: string;
+  snippet: string;
+  last_at: string;
+  age_hours: number;
+  source: string;
+};
+
+/** Threads waiting on a reply. null = backend unreachable (distinct from connected:false). */
+export async function getTriage(): Promise<{ connected: boolean; threads: WaitingThread[] } | null> {
+  try {
+    const res = await apiFetch("/triage");
+    if (!res.ok) return null;
+    const d = (await res.json()) as { connected?: boolean; threads?: WaitingThread[] };
+    return { connected: d.connected ?? false, threads: d.threads ?? [] };
+  } catch {
+    return null;
+  }
+}

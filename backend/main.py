@@ -18,6 +18,7 @@ import proactivity_service
 import secure_files
 import telegram_service
 import todo_service
+import triage_service
 import vault_service
 from stt_service import active_config, transcribe_audio, warm as warm_stt
 from tts_service import active_tts_config, synthesize
@@ -241,6 +242,17 @@ def calendar_events(when: str = "today") -> dict:
         return {"connected": True, "events": google_service.get_events(when=when)}
     except google_service.NotConnected:
         return {"connected": False, "events": []}
+
+
+@app.get("/triage")
+def triage() -> dict:
+    """Gmail threads waiting on the owner's reply (same service the list_waiting_replies tool uses).
+    Returns connected:false instead of erroring when Google isn't linked, so the view can offer
+    'Connect Google' rather than a misleading 'Nothing waiting'."""
+    try:
+        return {"connected": True, "threads": triage_service.waiting_threads()}
+    except google_service.NotConnected:
+        return {"connected": False, "threads": []}
 
 
 class DismissRequest(BaseModel):

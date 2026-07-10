@@ -351,3 +351,38 @@ def test_reply_email_executor_passes_only_thread_and_body(monkeypatch):
 
 def test_reply_email_validates_input():
     assert tools.run_tool("reply_email", {"thread_id": "t1"}) == "reply_email needs 'thread_id' and 'body'."
+
+
+# Task 5: GET /triage route
+# `import main` is at MODULE scope (runs at collection), NOT inside the `client` fixture: `auth` calls
+# load_dotenv() at import, which would re-set the real ZENITH_API_TOKEN *after* conftest's autouse
+# delenv if the import happened inside a fixture, 401ing the first route test.
+from fastapi.testclient import TestClient
+
+import main
+
+
+@pytest.fixture
+def client():
+    return TestClient(main.app)
+
+
+def test_get_triage_returns_threads(client, monkeypatch):
+    monkeypatch.setattr(main.triage_service, "waiting_threads",
+                        lambda: [{"thread_id": "t1", "from_name": "Rahul", "from_email": "r@a.com",
+                                  "subject": "Proposal", "snippet": "?", "last_at": "2026-07-08T11:04:00+00:00",
+                                  "age_hours": 51, "source": "gmail"}])
+    r = client.get("/triage")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["connected"] is True
+    assert body["threads"][0]["thread_id"] == "t1"
+
+
+def test_get_triage_reports_disconnected_not_500(client, monkeypatch):
+    def boom():
+        raise main.google_service.NotConnected("Not connected to Google.")
+    monkeypatch.setattr(main.triage_service, "waiting_threads", boom)
+    r = client.get("/triage")
+    assert r.status_code == 200
+    assert r.json() == {"connected": False, "threads": []}

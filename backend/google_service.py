@@ -278,3 +278,48 @@ def account_label(email: str | None = None) -> str | None:
     if email:
         return email if any(a["email"] == email for a in accounts) else None
     return accounts[0]["email"] if accounts else None
+
+
+# ---------- triage helpers (M7 Part 3) ----------
+# Metadata headers needed to (a) decide whether a thread awaits a reply and (b) build a threaded
+# reply envelope. `format="metadata"` keeps the payload small — bodies are never fetched here.
+_THREAD_HEADERS = ["From", "Subject", "Date", "Message-ID", "References"]
+
+
+def me_address(email: str | None = None) -> str | None:
+    """The connected address, lowercased — used to test 'did I send the last message?'.
+    None when no account is linked; callers raise NotConnected rather than compare against None."""
+    addr = account_label(email)
+    return addr.lower() if addr else None
+
+
+def list_thread_ids(query: str, max_results: int = 25, email: str | None = None) -> list[str]:
+    svc = _gmail(email)
+    resp = svc.users().threads().list(userId="me", q=query, maxResults=max_results).execute()
+    return [t["id"] for t in resp.get("threads", [])]
+
+
+def thread_summary(thread_id: str, email: str | None = None) -> dict:
+    """Describe a thread by its LAST message — the one a reply would answer."""
+    svc = _gmail(email)
+    th = (
+        svc.users()
+        .threads()
+        .get(userId="me", id=thread_id, format="metadata", metadataHeaders=_THREAD_HEADERS)
+        .execute()
+    )
+    msgs = th.get("messages", [])
+    if not msgs:
+        raise ValueError(f"thread {thread_id} has no messages")
+    last = msgs[-1]
+    h = {x["name"].lower(): x["value"] for x in last.get("payload", {}).get("headers", [])}
+    return {
+        "thread_id": thread_id,
+        "from": h.get("from", ""),
+        "subject": h.get("subject", "(no subject)"),
+        "date": h.get("date", ""),
+        "message_id": h.get("message-id", ""),
+        "references": h.get("references", ""),
+        "snippet": last.get("snippet", ""),
+        "message_count": len(msgs),
+    }

@@ -329,3 +329,37 @@ def thread_summary(thread_id: str, email: str | None = None) -> dict:
         "snippet": last.get("snippet", ""),
         "message_count": len(msgs),
     }
+
+
+def _reply_headers(last: dict) -> dict:
+    """Derive the reply envelope from a thread's last message.
+
+    SECURITY: the model supplies only the body. `To` comes from the message being answered, so a
+    prompt-injected email can never redirect a reply to an attacker-chosen address."""
+    subject = (last.get("subject") or "").strip()
+    if not subject.lower().startswith("re:"):
+        subject = f"Re: {subject}" if subject else "Re:"
+    prior = (last.get("references") or "").strip()
+    mid = (last.get("message_id") or "").strip()
+    return {
+        "to": last.get("from", ""),
+        "subject": subject,
+        "in_reply_to": mid,
+        "references": " ".join(x for x in (prior, mid) if x),
+    }
+
+
+def reply_to_thread(thread_id: str, body: str, email: str | None = None) -> dict:
+    """Send `body` as an in-thread reply to `thread_id`. Envelope is derived, never passed in."""
+    svc = _gmail(email)
+    hdr = _reply_headers(thread_summary(thread_id, email=email))
+    mime = MIMEText(body)
+    mime["To"] = hdr["to"]
+    mime["Subject"] = hdr["subject"]
+    if hdr["in_reply_to"]:
+        mime["In-Reply-To"] = hdr["in_reply_to"]
+    if hdr["references"]:
+        mime["References"] = hdr["references"]
+    raw = base64.urlsafe_b64encode(mime.as_bytes()).decode("utf-8")
+    sent = svc.users().messages().send(userId="me", body={"raw": raw, "threadId": thread_id}).execute()
+    return {"id": sent.get("id"), "to": hdr["to"], "subject": hdr["subject"], "thread_id": thread_id}

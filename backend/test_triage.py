@@ -1,5 +1,7 @@
 """M7 Part 3 — message triage. All Google seams mocked -> offline, cross-platform, no network."""
 
+import base64
+
 import pytest
 
 import google_service
@@ -49,6 +51,34 @@ def _hdrs(**kw):
     return [{"name": k.replace("_", "-").title(), "value": v} for k, v in kw.items()]
 
 
+class _Messages:
+    def __init__(self):
+        self.sent = None
+
+    def send(self, **kw):
+        self.sent = kw
+        return _Exec({"id": "sent1"})
+
+
+class _UsersWithMessages:
+    def __init__(self, threads, messages):
+        self._t, self._m = threads, messages
+
+    def threads(self):
+        return self._t
+
+    def messages(self):
+        return self._m
+
+
+class _SvcFull:
+    def __init__(self, threads, messages):
+        self._u = _UsersWithMessages(threads, messages)
+
+    def users(self):
+        return self._u
+
+
 def test_me_address_lowercases_and_handles_no_account(monkeypatch):
     monkeypatch.setattr(google_service, "account_label", lambda email=None: "Owner@Gmail.com")
     assert google_service.me_address() == "owner@gmail.com"
@@ -86,3 +116,36 @@ def test_thread_summary_empty_thread_raises(monkeypatch):
     monkeypatch.setattr(google_service, "_gmail", lambda email=None: _Svc(_Threads(thread={"messages": []})))
     with pytest.raises(ValueError):
         google_service.thread_summary("t1")
+
+
+def test_reply_headers_derive_envelope_from_last_message():
+    h = google_service._reply_headers(
+        {"from": "Rahul <rahul@acme.com>", "subject": "Proposal", "message_id": "<m2>", "references": "<m1>"}
+    )
+    assert h["to"] == "Rahul <rahul@acme.com>"     # recipient is DERIVED, never model-supplied
+    assert h["subject"] == "Re: Proposal"
+    assert h["in_reply_to"] == "<m2>"
+    assert h["references"] == "<m1> <m2>"           # prior refs + this message id
+
+
+def test_reply_headers_do_not_double_the_re_prefix():
+    h = google_service._reply_headers({"from": "a@x.com", "subject": "RE: Proposal", "message_id": "<m>", "references": ""})
+    assert h["subject"] == "RE: Proposal"           # already a reply — left alone
+    assert h["references"] == "<m>"
+
+
+def test_reply_to_thread_sends_in_thread(monkeypatch):
+    messages = _Messages()
+    thread = {"messages": [{"snippet": "s", "payload": {"headers": _hdrs(
+        From="rahul@acme.com", Subject="Proposal", Date="Tue, 7 Jul 2026 10:00:00 +0530", Message_ID="<m2>")}}]}
+    monkeypatch.setattr(google_service, "_gmail", lambda email=None: _SvcFull(_Threads(thread=thread), messages))
+
+    out = google_service.reply_to_thread("t9", "Sending it today.")
+
+    assert out == {"id": "sent1", "to": "rahul@acme.com", "subject": "Re: Proposal", "thread_id": "t9"}
+    assert messages.sent["body"]["threadId"] == "t9"          # Gmail files it in-thread
+    raw = base64.urlsafe_b64decode(messages.sent["body"]["raw"]).decode("utf-8")
+    assert "To: rahul@acme.com" in raw
+    assert "Subject: Re: Proposal" in raw
+    assert "In-Reply-To: <m2>" in raw
+    assert "Sending it today." in raw

@@ -62,3 +62,40 @@ def test_cache_roundtrip_and_corrupt_store_is_fresh(store, monkeypatch):
     assert ps.get_cache()["signature"] == "sig1"
     ps._STORE.write_text("{ broken", encoding="utf-8")                     # corrupt → fresh
     assert ps.get_cache() == {"signature": "", "commitments": []}
+
+
+def _dtstr(y, mo, d, h, mi):
+    return dt.datetime(y, mo, d, h, mi, tzinfo=dt.timezone.utc).isoformat()
+
+
+def test_calendar_prep_for_soon_meeting():
+    now = dt.datetime(2026, 7, 9, 14, 20, tzinfo=dt.timezone.utc)
+    events = [{"id": "e1", "title": "Call with Rahul", "start": _dtstr(2026, 7, 9, 15, 0),
+               "all_day": False, "attendees": ["rahul@acme.com"]}]
+    out = ps._calendar_nudges(now, events)
+    assert len(out) == 1 and out[0]["kind"] == "prep"
+    assert "Rahul" in out[0]["body"]
+    assert out[0]["action"]["prefill"].startswith("brief me")
+
+
+def test_calendar_deadline_for_all_day_today():
+    now = dt.datetime(2026, 7, 9, 9, 0, tzinfo=dt.timezone.utc)
+    events = [{"id": "e2", "title": "Invoice due", "start": "2026-07-09", "all_day": True}]
+    out = ps._calendar_nudges(now, events)
+    assert len(out) == 1 and out[0]["kind"] == "deadline" and out[0]["tone"] == "alert"
+
+
+def test_calendar_ignores_far_and_past_events():
+    now = dt.datetime(2026, 7, 9, 14, 20, tzinfo=dt.timezone.utc)
+    events = [
+        {"id": "far", "title": "Later", "start": _dtstr(2026, 7, 9, 18, 0), "all_day": False},
+        {"id": "past", "title": "Done", "start": _dtstr(2026, 7, 9, 13, 0), "all_day": False},
+    ]
+    assert ps._calendar_nudges(now, events) == []
+
+
+def test_calendar_nudges_wrapper_swallows_errors(monkeypatch):
+    def boom(**_k):
+        raise RuntimeError("google not connected")
+    monkeypatch.setattr(ps.google_service, "get_events", boom)
+    assert ps.calendar_nudges(dt.datetime.now(dt.timezone.utc)) == []

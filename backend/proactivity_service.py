@@ -12,6 +12,8 @@ import os
 import re
 from pathlib import Path
 
+import google_service
+
 
 def _slug(s: str) -> str:
     s = re.sub(r"[^a-z0-9]+", "-", (s or "").lower()).strip("-")
@@ -134,3 +136,64 @@ def set_cache(signature: str, commitments: list) -> None:
     st = _load()
     st["cache"] = {"signature": signature, "commitments": commitments}
     _save(st)
+
+
+# --- calendar gatherer (deterministic, no Claude) ---
+PREP_WINDOW_MIN = 45          # a meeting within this many minutes → a prep nudge
+_PREP_GRACE_MIN = 5           # ignore events that already started more than this many minutes ago
+
+
+def _parse_start(ev: dict) -> dt.datetime | None:
+    raw = ev.get("start")
+    if not raw:
+        return None
+    try:
+        if ev.get("all_day"):
+            d = dt.date.fromisoformat(raw)
+            return dt.datetime(d.year, d.month, d.day, tzinfo=dt.timezone.utc)
+        return dt.datetime.fromisoformat(raw)
+    except ValueError:
+        return None
+
+
+def _first_name(ev: dict) -> str:
+    """A human-ish label for the meeting subject: the event title, trimmed."""
+    return (ev.get("title") or "your meeting").strip()
+
+
+def _calendar_nudges(now: dt.datetime, events: list[dict]) -> list[dict]:
+    out: list[dict] = []
+    today = now.date()
+    for ev in events:
+        start = _parse_start(ev)
+        if start is None:
+            continue
+        title = _first_name(ev)
+        if ev.get("all_day"):
+            days = (start.date() - today).days
+            if days in (0, 1):
+                when = "today" if days == 0 else "tomorrow"
+                out.append(make_nudge(
+                    "deadline", f"{ev.get('id')}-{title}", "alert" if days == 0 else "info",
+                    "DEADLINE", f"{title} — due {when}.", None, 60 if days == 0 else 45))
+            continue
+        mins = (start - now).total_seconds() / 60
+        if -_PREP_GRACE_MIN <= mins <= PREP_WINDOW_MIN:
+            hhmm = start.strftime("%H:%M")
+            urgency = max(40, min(95, int(90 - mins)))
+            tone = "alert" if mins <= 10 else "info"
+            out.append(make_nudge(
+                "prep", f"{ev.get('id')}-{title}", tone, "PREP",
+                f"{title} at {hhmm} (in {int(max(0, mins))} min).",
+                {"label": "Brief me", "prefill": f"brief me on {title}"}, urgency))
+    return out
+
+
+def calendar_nudges(now: dt.datetime) -> list[dict]:
+    """IO wrapper — best-effort; no Google connection / any error → no calendar nudges."""
+    try:
+        events = google_service.get_events(when="today")
+    except Exception as exc:  # noqa: BLE001 — best-effort gatherer
+        print(f"[proactive] calendar gather skipped: {exc}", flush=True)
+        return []
+    return _calendar_nudges(now, events)

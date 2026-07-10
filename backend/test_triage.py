@@ -69,7 +69,8 @@ def test_thread_summary_reads_the_LAST_message(monkeypatch):
         {"snippet": "first", "payload": {"headers": _hdrs(From="a@x.com", Subject="Hi", Date="Mon, 6 Jul 2026 10:00:00 +0530", Message_ID="<m1>")}},
         {"snippet": "second", "payload": {"headers": _hdrs(From="b@y.com", Subject="Re: Hi", Date="Tue, 7 Jul 2026 10:00:00 +0530", Message_ID="<m2>", References="<m1>")}},
     ]}
-    monkeypatch.setattr(google_service, "_gmail", lambda email=None: _Svc(_Threads(thread=thread)))
+    threads = _Threads(thread=thread)
+    monkeypatch.setattr(google_service, "_gmail", lambda email=None: _Svc(threads))
     s = google_service.thread_summary("t1")
     assert s["from"] == "b@y.com"          # the LAST message, not the first
     assert s["subject"] == "Re: Hi"
@@ -77,6 +78,8 @@ def test_thread_summary_reads_the_LAST_message(monkeypatch):
     assert s["references"] == "<m1>"
     assert s["snippet"] == "second"
     assert s["message_count"] == 2
+    assert threads.seen["get"]["format"] == "metadata"
+    assert threads.seen["get"]["metadataHeaders"] == google_service._THREAD_HEADERS
 
 
 def test_thread_summary_empty_thread_raises(monkeypatch):

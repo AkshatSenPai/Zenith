@@ -202,6 +202,12 @@ def _strip_html(html: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+def _header_dict(payload: dict) -> dict:
+    """Gmail headers arrive as [{"name":..,"value":..}] with original casing — index them by
+    lower-cased name so callers can look up 'message-id' regardless of how Gmail cased it."""
+    return {h["name"].lower(): h["value"] for h in payload.get("headers", [])}
+
+
 def _extract_body(payload: dict) -> str:
     mime = payload.get("mimeType", "")
     if mime == "text/plain" and payload.get("body", {}).get("data"):
@@ -222,7 +228,7 @@ def _message_summary(svc, mid: str) -> dict:
         .get(userId="me", id=mid, format="metadata", metadataHeaders=["From", "Subject", "Date"])
         .execute()
     )
-    headers = {h["name"].lower(): h["value"] for h in msg.get("payload", {}).get("headers", [])}
+    headers = _header_dict(msg.get("payload", {}))
     return {
         "id": mid,
         "from": headers.get("from", ""),
@@ -251,7 +257,7 @@ def search_emails(query: str, max_results: int = 10, email: str | None = None) -
 def read_email(message_id: str, email: str | None = None) -> dict:
     svc = _gmail(email)
     msg = svc.users().messages().get(userId="me", id=message_id, format="full").execute()
-    headers = {h["name"].lower(): h["value"] for h in msg.get("payload", {}).get("headers", [])}
+    headers = _header_dict(msg.get("payload", {}))
     return {
         "id": message_id,
         "from": headers.get("from", ""),
@@ -312,7 +318,7 @@ def thread_summary(thread_id: str, email: str | None = None) -> dict:
     if not msgs:
         raise ValueError(f"thread {thread_id} has no messages")
     last = msgs[-1]
-    h = {x["name"].lower(): x["value"] for x in last.get("payload", {}).get("headers", [])}
+    h = _header_dict(last.get("payload", {}))
     return {
         "thread_id": thread_id,
         "from": h.get("from", ""),

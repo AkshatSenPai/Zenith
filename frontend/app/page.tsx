@@ -21,6 +21,8 @@ import { NotesView } from "../components/NotesView";
 import { ClientsView } from "../components/ClientsView";
 import { UsagePanel } from "../components/UsagePanel";
 import { StatusCard } from "../components/StatusCard";
+import { NudgeStack } from "../components/NudgeStack";
+import type { Nudge } from "../components/NudgeCard";
 import { HexCorners } from "../components/hud/primitives";
 import { BootScreen } from "../components/BootScreen";
 import { AmbientBackground } from "../components/AmbientBackground";
@@ -71,6 +73,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingAction | null>(null);
+  const [nudges, setNudges] = useState<Nudge[]>([]);
   const [voiceState, setVoiceState] = useState<OrbState>("idle");
   const [bars, setBars] = useState<number[]>([]);
   const [usage, setUsage] = useState<Usage | null>(null);
@@ -106,6 +109,24 @@ export default function Home() {
     refreshUsage();
     const id = setInterval(refreshUsage, 5000);
     return () => clearInterval(id);
+  }, []);
+
+  // Proactive nudges — recomputed on demand (60s while the tab is open + on window focus).
+  useEffect(() => {
+    let alive = true;
+    async function refreshProactive() {
+      try {
+        const r = await apiFetch("/proactive");
+        const data = await r.json();
+        if (alive && Array.isArray(data.nudges)) setNudges(data.nudges as Nudge[]);
+      } catch {
+        /* best-effort: keep last state, same as the other panels */
+      }
+    }
+    refreshProactive();
+    const id = setInterval(refreshProactive, 60000);
+    window.addEventListener("focus", refreshProactive);
+    return () => { alive = false; clearInterval(id); window.removeEventListener("focus", refreshProactive); };
   }, []);
 
   // Live Google connection status → drives the Connections panel + orb Gmail/Calendar nodes.
@@ -265,6 +286,22 @@ export default function Home() {
   function prefillInput(text: string) {
     setInput(text);
     inputRef.current?.focus();
+  }
+
+  function onNudgeAction(n: Nudge) {
+    if (n.action) prefillInput(n.action.prefill);  // the prefill never auto-runs; it rides the normal loop
+    void dismissNudge(n.id);                       // acting on it clears the card
+  }
+
+  async function dismissNudge(id: string, snooze?: "evening" | "tomorrow") {
+    setNudges((cur) => cur.filter((n) => n.id !== id));   // optimistic remove
+    try {
+      await apiFetch("/proactive/dismiss", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, snooze: snooze ?? null }),
+      });
+    } catch { /* best-effort; next poll reconciles */ }
   }
 
   const startListening = useCallback(async () => {
@@ -524,6 +561,18 @@ export default function Home() {
                   <StatusCard tone="alert" title="Action — confirm before it runs" busy={loading} onConfirm={() => resolvePending(true)} onCancel={() => resolvePending(false)}>
                     {pendingBody}
                   </StatusCard>
+                </div>
+              )}
+
+              {/* proactive nudges — below the confirm card, which always outranks them */}
+              {nudges.length > 0 && (
+                <div className="rise-in mb-2 w-full max-w-[720px]">
+                  <NudgeStack
+                    nudges={nudges}
+                    onAction={onNudgeAction}
+                    onDismiss={(id) => void dismissNudge(id)}
+                    onSnooze={(id, preset) => void dismissNudge(id, preset)}
+                  />
                 </div>
               )}
 

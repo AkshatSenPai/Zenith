@@ -118,6 +118,17 @@ def test_thread_summary_empty_thread_raises(monkeypatch):
         google_service.thread_summary("t1")
 
 
+def test_thread_summary_surfaces_bulk_headers(monkeypatch):
+    thread = {"messages": [{"snippet": "sale", "payload": {"headers": _hdrs(
+        From="news@site.com", Subject="Sale", Date="Tue, 7 Jul 2026 10:00:00 +0530",
+        Message_ID="<m1>", List_Unsubscribe="<https://site.com/u>", Precedence="bulk")}}]}
+    monkeypatch.setattr(google_service, "_gmail", lambda email=None: _Svc(_Threads(thread=thread)))
+    s = google_service.thread_summary("t1")
+    assert s["list_unsubscribe"] == "<https://site.com/u>"
+    assert s["precedence"] == "bulk"
+    assert s["list_id"] == ""              # absent header -> empty string, never KeyError
+
+
 def test_reply_headers_derive_envelope_from_last_message():
     h = google_service._reply_headers(
         {"from": "Rahul <rahul@acme.com>", "subject": "Proposal", "message_id": "<m2>", "references": "<m1>"}
@@ -235,6 +246,34 @@ def test_noreply_sender_is_not_waiting():
     for addr in ("no-reply@stripe.com", "noreply@x.com", "mailer-daemon@y.com", "DoNotReply@z.com"):
         s = _summary("t4", addr, hours_ago=30)
         assert ts._is_waiting(s, "owner@gmail.com", NOW, 4.0) is False, addr
+
+
+def test_is_bulk_detects_signals_and_ignores_plain_mail():
+    assert ts._is_bulk({"list_unsubscribe": "<https://x.com/u>"}) is True
+    assert ts._is_bulk({"list_id": "<news.x.com>"}) is True
+    assert ts._is_bulk({"precedence": "Bulk"}) is True        # case-insensitive
+    assert ts._is_bulk({"precedence": "list"}) is True
+    assert ts._is_bulk({}) is False
+    assert ts._is_bulk({"precedence": ""}) is False
+    assert ts._is_bulk({"from": "rahul@acme.com", "precedence": "normal"}) is False
+
+
+def test_bulk_mail_is_not_waiting():
+    # A newsletter/notification from a non-noreply address (e.g. insights@grammarly.com) that would
+    # otherwise pass every check is dropped by its List-Unsubscribe / List-Id / Precedence header.
+    for field, value in (("list_unsubscribe", "<https://g.com/u>"),
+                         ("list_id", "<promo.g.com>"),
+                         ("precedence", "bulk")):
+        s = _summary("b1", "Grammarly <insights@grammarly.com>", hours_ago=30)
+        s[field] = value
+        assert ts._is_waiting(s, "owner@gmail.com", NOW, 4.0) is False, field
+
+
+def test_human_mail_without_bulk_headers_is_waiting():
+    # No List-* / Precedence header -> a real person; the bulk filter must NOT hide it.
+    s = _summary("h1", "Rahul <rahul@acme.com>", hours_ago=30)
+    assert s.get("list_unsubscribe", "") == ""
+    assert ts._is_waiting(s, "owner@gmail.com", NOW, 4.0) is True
 
 
 def test_unparseable_date_is_not_waiting():

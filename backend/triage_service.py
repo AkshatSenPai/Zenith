@@ -24,6 +24,7 @@ CANDIDATE_QUERY = "in:inbox category:primary newer_than:14d"
 
 _CANDIDATE_LIMIT = 25          # bounds Gmail API calls: 1 threads.list + <=25 threads.get
 _NOREPLY = re.compile(r"no[-_.]?reply|donotreply|mailer-daemon", re.IGNORECASE)
+_BULK_PRECEDENCE = {"bulk", "list", "junk"}   # RFC-3834 / historical bulk markers
 
 
 def _min_age_hours() -> float:
@@ -50,6 +51,15 @@ def _parse_date(raw: str) -> dt.datetime | None:
     return d if d.tzinfo else d.replace(tzinfo=dt.timezone.utc)
 
 
+def _is_bulk(summary: dict) -> bool:
+    """Newsletters, marketing, notifications, and mailing lists carry List-Unsubscribe / List-Id, or
+    Precedence: bulk/list. Person-to-person mail does not, so this is a high-precision, zero-token
+    noise filter — the thing that separates 'a human is waiting' from 'Grammarly wants you back'."""
+    if summary.get("list_unsubscribe") or summary.get("list_id"):
+        return True
+    return (summary.get("precedence") or "").strip().lower() in _BULK_PRECEDENCE
+
+
 def _is_waiting(summary: dict, me: str, now: dt.datetime, min_age_hours: float) -> bool:
     frm = summary.get("from", "")
     _name, addr = parseaddr(frm)
@@ -57,6 +67,8 @@ def _is_waiting(summary: dict, me: str, now: dt.datetime, min_age_hours: float) 
         return False                       # I sent the last message — the ball is in their court
     if _NOREPLY.search(frm):
         return False                       # machine mail never awaits a reply
+    if _is_bulk(summary):
+        return False                       # newsletter/notification/list mail — nobody awaits a reply
     sent = _parse_date(summary.get("date", ""))
     if sent is None:
         return False                       # undatable → cannot age it, so don't surface it

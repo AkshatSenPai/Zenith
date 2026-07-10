@@ -289,7 +289,10 @@ def account_label(email: str | None = None) -> str | None:
 # ---------- triage helpers (M7 Part 3) ----------
 # Metadata headers needed to (a) decide whether a thread awaits a reply and (b) build a threaded
 # reply envelope. `format="metadata"` keeps the payload small — bodies are never fetched here.
-_THREAD_HEADERS = ["From", "Subject", "Date", "Message-ID", "References"]
+# List-Unsubscribe / List-Id / Precedence identify bulk/marketing/list mail (see triage_service);
+# person-to-person mail never carries them, so they are a high-precision, zero-cost noise filter.
+_THREAD_HEADERS = ["From", "Subject", "Date", "Message-ID", "References",
+                   "List-Unsubscribe", "List-Id", "Precedence"]
 
 
 def me_address(email: str | None = None) -> str | None:
@@ -328,6 +331,10 @@ def thread_summary(thread_id: str, email: str | None = None) -> dict:
         "references": h.get("references", ""),
         "snippet": last.get("snippet", ""),
         "message_count": len(msgs),
+        # bulk-mail signals — triage_service uses these to drop newsletters/notifications.
+        "list_unsubscribe": h.get("list-unsubscribe", ""),
+        "list_id": h.get("list-id", ""),
+        "precedence": h.get("precedence", ""),
     }
 
 

@@ -15,6 +15,7 @@ from pathlib import Path
 import chat_core
 import claude_service
 import google_service
+import vault_service
 
 
 def _slug(s: str) -> str:
@@ -235,3 +236,64 @@ def _extract_commitments(notes_text: str) -> list[dict]:
     except Exception as exc:  # noqa: BLE001 — extraction is best-effort
         print(f"[proactive] commitment extraction failed: {exc}", flush=True)
         return []
+
+
+# --- commitments gatherer (Claude extraction, cached & keyed on the daily-note window changing) ---
+_DAILY_WINDOW_DAYS = 7
+
+
+def _daily_window(now: dt.datetime, days: int = _DAILY_WINDOW_DAYS) -> tuple[str, str]:
+    """Return (signature, combined_text) over the last `days` daily notes. Signature = names+mtimes+
+    sizes, so any edit invalidates the cache. Missing vault/daily dir → ('', '')."""
+    try:
+        daily = vault_service.vault_root() / "daily"
+        files = []
+        for i in range(days):
+            f = daily / f"{(now - dt.timedelta(days=i)).strftime('%Y-%m-%d')}.md"
+            if f.exists():
+                files.append(f)
+    except Exception:  # noqa: BLE001
+        return "", ""
+    parts, sig = [], []
+    for f in sorted(files):
+        try:
+            stat = f.stat()
+            sig.append(f"{f.name}:{int(stat.st_mtime)}:{stat.st_size}")
+            parts.append(f"# {f.name}\n{f.read_text(encoding='utf-8')}")
+        except OSError:
+            continue
+    return "|".join(sig), "\n\n".join(parts)
+
+
+def _commitment_nudges(now: dt.datetime, items: list[dict]) -> list[dict]:
+    out: list[dict] = []
+    for it in items:
+        if it.get("done") or not it.get("what"):
+            continue
+        what = str(it["what"]).strip()
+        who = (it.get("who") or "").strip()
+        by = (it.get("by_when") or "").strip()
+        subject = f"{what} {who}".strip()
+        body = f"You committed to {what}"
+        if who:
+            body += f" for {who}"
+        body += f" (by {by})." if by else "."
+        urgency = 70 if by else 55                       # a stated deadline bumps it up
+        prefill = f"draft {what}" + (f" for {who}" if who else "")
+        out.append(make_nudge("commitment", subject, "info", "COMMITMENT", body,
+                              {"label": "Draft it", "prefill": prefill}, urgency))
+    return out
+
+
+def commitment_nudges(now: dt.datetime) -> list[dict]:
+    """IO wrapper — extract only when the daily-note window changed, else reuse the cache."""
+    signature, text = _daily_window(now)
+    if not text:
+        return []
+    cache = get_cache()
+    if signature and signature == cache.get("signature"):
+        items = cache.get("commitments", [])
+    else:
+        items = _extract_commitments(text)
+        set_cache(signature, items)
+    return _commitment_nudges(now, items)

@@ -146,3 +146,52 @@ def test_extract_bad_json_returns_empty(monkeypatch):
     monkeypatch.setattr(ps.chat_core.limiter, "ensure_budget", lambda: (True, None))
     monkeypatch.setattr(ps.chat_core.limiter, "record_usage", lambda i, o: None)
     assert ps._extract_commitments("x") == []
+
+
+def test_commitment_map_open_item_to_nudge():
+    now = dt.datetime(2026, 7, 9, 12, 0, tzinfo=dt.timezone.utc)
+    items = [{"what": "send the proposal", "who": "Rahul", "by_when": "Fri", "done": False}]
+    out = ps._commitment_nudges(now, items)
+    assert len(out) == 1 and out[0]["kind"] == "commitment"
+    assert out[0]["action"]["label"] == "Draft it"
+    assert "Rahul" in out[0]["body"]
+
+
+def test_commitment_done_item_auto_clears():
+    now = dt.datetime(2026, 7, 9, 12, 0, tzinfo=dt.timezone.utc)
+    items = [{"what": "send invoice", "who": "Priya", "by_when": None, "done": True}]
+    assert ps._commitment_nudges(now, items) == []
+
+
+def test_commitment_cache_hit_skips_claude(store, monkeypatch, tmp_path):
+    daily = tmp_path / "daily"
+    daily.mkdir(parents=True)
+    (daily / "2026-07-09.md").write_text("promised Rahul the proposal", encoding="utf-8")
+    monkeypatch.setattr(ps.vault_service, "vault_root", lambda: tmp_path)
+    calls = {"n": 0}
+
+    def fake_extract(_text):
+        calls["n"] += 1
+        return [{"what": "send the proposal", "who": "Rahul", "by_when": None, "done": False}]
+
+    monkeypatch.setattr(ps, "_extract_commitments", fake_extract)
+    now = dt.datetime(2026, 7, 9, 12, 0, tzinfo=dt.timezone.utc)
+    ps.commitment_nudges(now)          # cache miss → extract once
+    ps.commitment_nudges(now)          # unchanged signature → reuse cache
+    assert calls["n"] == 1
+
+
+def test_commitment_cache_reextracts_on_change(store, monkeypatch, tmp_path):
+    daily = tmp_path / "daily"
+    daily.mkdir(parents=True)
+    f = daily / "2026-07-09.md"
+    f.write_text("promised Rahul the proposal", encoding="utf-8")
+    monkeypatch.setattr(ps.vault_service, "vault_root", lambda: tmp_path)
+    calls = {"n": 0}
+    monkeypatch.setattr(ps, "_extract_commitments",
+                        lambda _t: calls.update(n=calls["n"] + 1) or [])
+    now = dt.datetime(2026, 7, 9, 12, 0, tzinfo=dt.timezone.utc)
+    ps.commitment_nudges(now)
+    f.write_text("promised Rahul the proposal AND the invoice", encoding="utf-8")   # signature changes
+    ps.commitment_nudges(now)
+    assert calls["n"] == 2

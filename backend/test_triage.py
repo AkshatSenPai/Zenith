@@ -134,6 +134,21 @@ def test_reply_headers_do_not_double_the_re_prefix():
     assert h["references"] == "<m>"
 
 
+def test_reply_headers_empty_subject_becomes_re():
+    h = google_service._reply_headers(
+        {"from": "a@x.com", "subject": "", "message_id": "<m>", "references": ""}
+    )
+    assert h["subject"] == "Re:"
+
+
+def test_reply_headers_without_message_id():
+    h = google_service._reply_headers(
+        {"from": "a@x.com", "subject": "Hi", "message_id": "", "references": ""}
+    )
+    assert h["in_reply_to"] == ""
+    assert h["references"] == ""
+
+
 def test_reply_to_thread_sends_in_thread(monkeypatch):
     messages = _Messages()
     thread = {"messages": [{"snippet": "s", "payload": {"headers": _hdrs(
@@ -148,4 +163,18 @@ def test_reply_to_thread_sends_in_thread(monkeypatch):
     assert "To: rahul@acme.com" in raw
     assert "Subject: Re: Proposal" in raw
     assert "In-Reply-To: <m2>" in raw
+    assert "References: <m2>" in raw
     assert "Sending it today." in raw
+
+
+def test_reply_to_thread_omits_in_reply_to_when_no_message_id(monkeypatch):
+    messages = _Messages()
+    thread = {"messages": [{"snippet": "s", "payload": {"headers": _hdrs(
+        From="rahul@acme.com", Subject="Proposal", Date="Tue, 7 Jul 2026 10:00:00 +0530")}}]}
+    monkeypatch.setattr(google_service, "_gmail", lambda email=None: _SvcFull(_Threads(thread=thread), messages))
+
+    out = google_service.reply_to_thread("t9", "Sending it today.")
+
+    assert out == {"id": "sent1", "to": "rahul@acme.com", "subject": "Re: Proposal", "thread_id": "t9"}
+    raw = base64.urlsafe_b64decode(messages.sent["body"]["raw"]).decode("utf-8")
+    assert "In-Reply-To:" not in raw

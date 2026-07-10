@@ -89,7 +89,7 @@ New backend module `triage_service.py`. **Zero changes to the chat loop or the c
 
 Thin, testable additions beside the existing Gmail functions:
 
-- `me_address(email=None) -> str | None` — the connected address; wraps the existing `account_label()`. No extra API call. **Returns `None` when no account is connected**; `waiting_threads` treats that as not-connected and returns `[]` rather than comparing against `None`.
+- `me_address(email=None) -> str | None` — the connected address, lowercased; wraps the existing `account_label()`. No extra API call. **Returns `None` when no account is connected**, in which case `waiting_threads()` raises `google_service.NotConnected` rather than comparing every sender against `None`. It must *not* return `[]` there: an empty list is indistinguishable from "nothing is waiting", so the HUD would render "Nothing waiting." while Google is actually unlinked. Raising lets `/triage` answer `connected: false` (mirroring `/calendar/events`) and lets `run_tool` surface its standard "Not connected" string.
 - `list_thread_ids(query, max_results, email=None) -> list[str]` — `users().threads().list(q=...)`.
 - `thread_summary(thread_id, email=None) -> dict` — `users().threads().get(format="metadata", metadataHeaders=[From, Subject, Date, Message-ID, References])`; returns the **last** message's `from`, `subject`, `date`, `message_id`, `references`, and `snippet`, plus the thread's `message_count`. (`snippet` is a per-message field in the Gmail API, so it comes from the last message, not the thread.)
 - `reply_to_thread(thread_id, body, email=None) -> dict` — builds the MIME reply and sends it (§6).
@@ -133,7 +133,7 @@ This matches the existing `get_emails` / `send_email` entries.
 
 **Token budget.** Listing costs **zero** Claude tokens. Drafting is one ordinary chat turn: it counts against the daily token budget *and* the 5/min request limit, because it **is** a user turn (unlike Part 2's extraction, which is not).
 
-**Error handling.** Google not connected → `{"connected": false, "threads": []}`, never a 500 (mirrors `/calendar/events`). A single thread that fails to fetch is skipped, not fatal. A `GET /triage` failure in the HUD is silent and keeps the last state, same as the other panels.
+**Error handling.** Google not connected → `waiting_threads()` raises `NotConnected` → the route returns `{"connected": false, "threads": []}`, never a 500 (mirrors `/calendar/events`); the view then renders a "Connect Google" state rather than a false "Nothing waiting." A single thread that fails to fetch is skipped and logged, not fatal. A `GET /triage` failure in the HUD is silent and keeps the last state, same as the other panels.
 
 **Auth.** `GET /triage` inherits the app-level token gate; the HUD uses `apiFetch`.
 
@@ -163,7 +163,7 @@ Including the `thread_id` in the prefill is what lets Claude call `reply_email` 
 - **`reply_email`:** derives `To` / `Subject` (`Re:` added once, not doubled) / `In-Reply-To` / `References` from the thread · passes `threadId` in the send body · the tool schema exposes **no** `to` property (assert on the JSON schema).
 - **Gate membership (regression guards):** `"reply_email" in ACTION_TOOLS` · `"list_waiting_replies" in UNTRUSTED_TOOLS` · `"reply_email" not in UNTRUSTED_TOOLS`.
 - **Activity Log:** both new tools are present in `activity_log._MAP` (guards the silent-skip behaviour of `_MAP.get`).
-- **No connected account:** `me_address()` returning `None` → `waiting_threads()` returns `[]` without raising.
+- **No connected account:** `me_address()` returning `None` → `waiting_threads()` raises `NotConnected` (so the view can distinguish "unlinked" from "nothing waiting").
 - **Route:** `GET /triage` → 200 with threads · returns `connected: false` (not 500) when Google is unlinked.
 
 **Frontend** (no unit harness): `tsc --noEmit` clean, plus live screenshots of the Triage view across all three skins, an empty state, and one end-to-end draft → confirm card (showing To/Subject/full body + ⚠) → **Cancel**.

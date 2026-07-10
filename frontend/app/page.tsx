@@ -23,6 +23,8 @@ import { UsagePanel } from "../components/UsagePanel";
 import { StatusCard } from "../components/StatusCard";
 import { NudgeStack } from "../components/NudgeStack";
 import type { Nudge } from "../components/NudgeCard";
+import { TriageView } from "../components/TriageView";
+import type { WaitingThread } from "../lib/api";
 import { HexCorners } from "../components/hud/primitives";
 import { BootScreen } from "../components/BootScreen";
 import { AmbientBackground } from "../components/AmbientBackground";
@@ -286,6 +288,14 @@ export default function Home() {
   function prefillInput(text: string) {
     setInput(text);
     inputRef.current?.focus();
+  }
+
+  function onTriageDraft(t: WaitingThread) {
+    // An inert prefill — same law as the nudge cards. It never runs a tool; the reply itself is
+    // drafted by the normal loop and sent only through the confirm gate. The thread_id rides along
+    // so Claude can call reply_email without a lookup round-trip.
+    prefillInput(`draft a reply to ${t.from_name} on the thread "${t.subject}" (thread_id: ${t.thread_id})`);
+    setView("chat");
   }
 
   function onNudgeAction(n: Nudge) {
@@ -593,6 +603,8 @@ export default function Home() {
                 />
               </div>
             </div>
+          ) : view === "triage" ? (
+            <TriageView onDraft={onTriageDraft} />
           ) : view === "memory" ? (
             <MemoryView />
           ) : view === "clients" ? (

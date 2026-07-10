@@ -98,4 +98,5 @@ def waiting_threads(now: dt.datetime | None = None, max_results: int | None = No
         if _is_waiting(summary, me, now, min_age):
             rows.append(_to_row(summary, now))
     rows.sort(key=lambda r: r["age_hours"], reverse=True)
-    return rows[: (max_results or _max_threads())]
+    limit = _max_threads() if max_results is None else max_results
+    return rows[:limit]

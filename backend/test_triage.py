@@ -237,11 +237,25 @@ def test_noreply_sender_is_not_waiting():
         assert ts._is_waiting(s, "owner@gmail.com", NOW, 4.0) is False, addr
 
 
+def test_unparseable_date_is_not_waiting():
+    s = _summary("t5", "rahul@acme.com", hours_ago=30)
+    s["date"] = "not-a-date"
+    assert ts._is_waiting(s, "owner@gmail.com", NOW, 4.0) is False
+    s["date"] = ""
+    assert ts._is_waiting(s, "owner@gmail.com", NOW, 4.0) is False
+
+
 def test_waiting_threads_ranks_oldest_first_and_caps(gmail):
     gmail([_summary(f"t{i}", "a@x.com", hours_ago=5 + i) for i in range(5)])
     rows = ts.waiting_threads(now=NOW, max_results=3)
     assert len(rows) == 3
     assert [r["age_hours"] for r in rows] == [9, 8, 7]      # oldest waiting first
+
+
+def test_waiting_threads_max_results_zero_returns_nothing(gmail):
+    gmail([_summary(f"t{i}", "a@x.com", hours_ago=5 + i) for i in range(2)])
+    rows = ts.waiting_threads(now=NOW, max_results=0)
+    assert rows == []
 
 
 def test_waiting_threads_row_shape(gmail):
@@ -254,6 +268,8 @@ def test_waiting_threads_row_shape(gmail):
     assert row["snippet"] == "any update?"
     assert row["age_hours"] == 51
     assert row["source"] == "gmail"
+    expected_sent = NOW - dt.timedelta(hours=51)
+    assert row["last_at"] == expected_sent.isoformat()
 
 
 def test_one_bad_thread_is_skipped_not_fatal(monkeypatch):

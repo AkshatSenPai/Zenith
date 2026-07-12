@@ -160,6 +160,27 @@ def test_commitment_map_open_item_to_nudge():
     assert len(out) == 1 and out[0]["kind"] == "commitment"
     assert out[0]["action"]["label"] == "Draft it"
     assert "Rahul" in out[0]["body"]
+    # the prefill must not stack a verb onto an already-verb-led `what` ("draft send ...")
+    prefill = out[0]["action"]["prefill"]
+    assert prefill == "Help me send the proposal for Rahul"
+    assert "draft send" not in prefill.lower()
+
+
+def test_commitment_prefill_no_duplicate_for_who():
+    """When `who` already appears inside `what`, don't append a second ' for {who}'."""
+    now = dt.datetime(2026, 7, 9, 12, 0, tzinfo=dt.timezone.utc)
+    items = [{"what": "send ShapeOdyssey proposal for Rahul", "who": "Rahul",
+              "by_when": None, "done": False}]
+    prefill = ps._commitment_nudges(now, items)[0]["action"]["prefill"]
+    assert prefill == "Help me send ShapeOdyssey proposal for Rahul"
+    assert prefill.lower().count("for rahul") == 1
+
+
+def test_commitment_prefill_no_who():
+    now = dt.datetime(2026, 7, 9, 12, 0, tzinfo=dt.timezone.utc)
+    items = [{"what": "follow up with Acme", "who": None, "by_when": None, "done": False}]
+    prefill = ps._commitment_nudges(now, items)[0]["action"]["prefill"]
+    assert prefill == "Help me follow up with Acme"
 
 
 def test_commitment_done_item_auto_clears():

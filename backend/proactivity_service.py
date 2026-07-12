@@ -279,7 +279,11 @@ def _commitment_nudges(now: dt.datetime, items: list[dict]) -> list[dict]:
             body += f" for {who}"
         body += f" (by {by})." if by else "."
         urgency = 70 if by else 55                       # a stated deadline bumps it up
-        prefill = f"draft {what}" + (f" for {who}" if who else "")
+        # `what` is already a verb-led action phrase ("send the proposal"), so don't stack
+        # "draft " onto it; and only append " for {who}" when it isn't already in `what`.
+        prefill = f"Help me {what}"
+        if who and who.lower() not in what.lower():
+            prefill += f" for {who}"
         out.append(make_nudge("commitment", subject, "info", "COMMITMENT", body,
                               {"label": "Draft it", "prefill": prefill}, urgency))
     return out

@@ -39,3 +39,8 @@ graphify-out/
 
 # App Launcher whitelist (personal app/file/site list — apps.example.json is the committed template)
 backend/apps.json
+
+# QA / browser-verification scratch (regenerable) — screenshots are dropped at the repo ROOT
+# during live QA; keep them off git status. Real image assets live in subdirs (docs/...), untouched.
+/*.png
+.playwright-mcp/

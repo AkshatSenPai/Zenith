@@ -42,8 +42,21 @@ app = FastAPI(
 # desktop app on :3000 alongside Zenith. So the default allows both common dev ports; override
 # via ZENITH_ALLOWED_ORIGINS (comma-separated) for anything else. A disallowed origin makes the
 # CORS preflight return "400 Bad Request", which surfaces in the HUD as a blanket "backend offline".
-_DEFAULT_ORIGINS = "http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001"
-_ALLOWED_ORIGINS = [o.strip() for o in os.getenv("ZENITH_ALLOWED_ORIGINS", _DEFAULT_ORIGINS).split(",") if o.strip()]
+_DEFAULT_ORIGINS = (
+    "http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001,"
+    "http://localhost:1420,http://127.0.0.1:1420,"          # Tauri dev (next dev -p 1420)
+    "http://tauri.localhost,https://tauri.localhost,tauri://localhost"  # Tauri bundled WebView origin
+)
+
+
+def allowed_origins(env_value: str | None) -> list[str]:
+    """Effective CORS allowlist. A set ZENITH_ALLOWED_ORIGINS replaces the default entirely;
+    unset/blank falls back to the default (which covers the browser dev ports AND the Tauri shell)."""
+    raw = env_value if (env_value and env_value.strip()) else _DEFAULT_ORIGINS
+    return [o.strip() for o in raw.split(",") if o.strip()]
+
+
+_ALLOWED_ORIGINS = allowed_origins(os.getenv("ZENITH_ALLOWED_ORIGINS"))
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_ALLOWED_ORIGINS,

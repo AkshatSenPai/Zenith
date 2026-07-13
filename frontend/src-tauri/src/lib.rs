@@ -13,6 +13,14 @@ pub fn run() {
   let child = backend::spawn_backend();
 
   tauri::Builder::default()
+    // Must be the FIRST plugin registered. A second launch focuses the existing window
+    // (via the callback) instead of starting a second app — and therefore a second backend.
+    .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+      if let Some(w) = app.get_webview_window("main") {
+        let _ = w.set_focus();
+        let _ = w.unminimize();
+      }
+    }))
     .manage(BackendProc(Mutex::new(child)))
     .setup(|app| {
       if cfg!(debug_assertions) {

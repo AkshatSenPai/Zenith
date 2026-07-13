@@ -23,6 +23,7 @@ serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
 tauri = { version = "2.11.3" }
 tauri-plugin-log = "2"
+tauri-plugin-single-instance = "2.4.2"
 
 # WebView2 permission hook: grant the microphone so the voice loop's getUserMedia works
 # in the bundled WebView (WebView2 otherwise denies it silently). Pinned to the version

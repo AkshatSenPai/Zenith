@@ -5,6 +5,7 @@ import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
 import { DUR, EASE, prefersReducedMotion } from "../lib/anim";
 import { apiFetch, getGoogleStatus, getDiscordStatus, getTelegramStatus } from "../lib/api";
+import { isTauri } from "../lib/tauri";
 
 /** v7 boot overlay. The real HUD mounts underneath immediately (so its WebGL orb warms up
  *  hidden), this covers it, plays a GSAP boot sequence (diamond fade-in + typewriter + progress),
@@ -22,12 +23,14 @@ export function BootScreen({ onDone }: { onDone: () => void }) {
   const [health, setHealth] = useState<"online" | "offline" | null>(null);
   // Real linked-connection count (Gmail/Calendar/Telegram/Discord) — set together with `health`.
   const [linked, setLinked] = useState(0);
+  // In Tauri, the boot screen shows "STARTING BACKEND…" while the auto-spawned backend warms up.
+  const [starting, setStarting] = useState(false);
   const TOTAL = 4;
 
   const lines = [
     "INITIALIZING ZENITH",
     "INTERFACE .......... ok",
-    `BACKEND :8000 ...... ${health ?? "...."}`,
+    `BACKEND :8000 ...... ${starting ? "starting" : (health ?? "....")}`,
     `CONNECTIONS ........ ${linked}/${TOTAL} linked`,
     "READY",
   ];
@@ -38,26 +41,48 @@ export function BootScreen({ onDone }: { onDone: () => void }) {
     onDone();
   }
 
-  // Real backend + connection check, raced against a 1.2s timeout so a dead backend can't hang the
-  // boot. health + the linked count resolve in one batch so the typewriter prints the true "N/4".
+  // Real backend + connection check. In the browser this is raced against a 1.2s timeout so a dead
+  // backend can't hang the boot; in Tauri the backend is auto-spawned and takes ~30-45s to warm, so
+  // we poll /health up to 90s instead of flashing a false "offline". health + the linked count
+  // resolve in one batch so the typewriter prints the true "N/4".
   useEffect(() => {
     let settled = false;
-    const finish = (h: "online" | "offline", n: number) => {
+    const finishOk = (h: "online" | "offline", n: number) => {
       if (settled) return;
       settled = true;
-      clearTimeout(t);
+      setStarting(false);
       setLinked(n);
       setHealth(h);
     };
-    const t = setTimeout(() => finish("offline", 0), 1200);
+
+    const linkedCount = async () => {
+      const [g, d, tg] = await Promise.all([getGoogleStatus(), getDiscordStatus(), getTelegramStatus()]);
+      return [g?.gmail_connected, g?.calendar_connected, tg?.connected, d?.connected].filter(Boolean).length;
+    };
+
+    if (isTauri()) {
+      // Auto-spawned backend takes ~30-45s to warm. Poll /health up to 90s before giving up.
+      setStarting(true);
+      const deadline = Date.now() + 90_000;
+      let timer: ReturnType<typeof setTimeout>;
+      const poll = async () => {
+        const ok = await apiFetch("/health").then((r) => r.ok).catch(() => false);
+        if (ok) return finishOk("online", await linkedCount());
+        if (Date.now() >= deadline) return finishOk("offline", 0);
+        timer = setTimeout(poll, 1000);
+      };
+      poll();
+      return () => { settled = true; clearTimeout(timer!); };
+    }
+
+    // Browser: fast check, raced against a 1.2s timeout so a dead backend can't hang the boot.
+    const t = setTimeout(() => finishOk("offline", 0), 1200);
     Promise.all([
       apiFetch("/health").then((r) => r.ok).catch(() => false),
-      getGoogleStatus(),
-      getDiscordStatus(),
-      getTelegramStatus(),
+      getGoogleStatus(), getDiscordStatus(), getTelegramStatus(),
     ]).then(([ok, g, d, tg]) => {
       const n = [g?.gmail_connected, g?.calendar_connected, tg?.connected, d?.connected].filter(Boolean).length;
-      finish(ok ? "online" : "offline", n);
+      finishOk(ok ? "online" : "offline", n);
     });
     return () => { settled = true; clearTimeout(t); };
   }, []);

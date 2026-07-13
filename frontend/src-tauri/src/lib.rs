@@ -1,6 +1,19 @@
+mod backend;
+
+use std::process::Child;
+use std::sync::Mutex;
+use tauri::{Manager, RunEvent};
+
+/// Handle to the uvicorn backend this app spawned (None if the owner already had one on :8000).
+struct BackendProc(Mutex<Option<Child>>);
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+  // Spawn the local FastAPI backend before the window opens; the BootScreen health-gates the reveal.
+  let child = backend::spawn_backend();
+
   tauri::Builder::default()
+    .manage(BackendProc(Mutex::new(child)))
     .setup(|app| {
       if cfg!(debug_assertions) {
         app.handle().plugin(
@@ -12,8 +25,21 @@ pub fn run() {
       grant_microphone(app);
       Ok(())
     })
-    .run(tauri::generate_context!())
-    .expect("error while running tauri application");
+    .build(tauri::generate_context!())
+    .expect("error while building Zenith")
+    .run(|app_handle, event| {
+      // Free the backend (and its VRAM) when the app closes — but only the child WE spawned.
+      if let RunEvent::Exit = event {
+        if let Some(state) = app_handle.try_state::<BackendProc>() {
+          if let Ok(mut guard) = state.0.lock() {
+            if let Some(mut child) = guard.take() {
+              let _ = child.kill();
+              eprintln!("[zenith] backend terminated on exit.");
+            }
+          }
+        }
+      }
+    });
 }
 
 /// Auto-grant the microphone permission in the WebView so the voice loop's
@@ -24,7 +50,6 @@ pub fn run() {
 fn grant_microphone(app: &tauri::App) {
   #[cfg(windows)]
   {
-    use tauri::Manager;
     if let Some(window) = app.get_webview_window("main") {
       let _ = window.with_webview(|webview| {
         use webview2_com::Microsoft::Web::WebView2::Win32::{

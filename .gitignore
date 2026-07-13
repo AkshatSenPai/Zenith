@@ -27,6 +27,9 @@ backend/.zenith/
 # local Markdown memory vault (personal notes + client data — never commit; M6)
 backend/vault/
 
+# Tauri Rust build artifacts
+frontend/src-tauri/target/
+
 # OS
 .DS_Store
 

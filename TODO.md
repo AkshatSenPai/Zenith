@@ -28,9 +28,14 @@ export · full `cargo build`. Owner verified the desktop app by hand — window,
       already covered in acceptance).
 
 ## C. Next Phase-1 features — now UNBLOCKED by the desktop shell (the main build work)
-- [ ] **Wake word "Zenith"** — always-listening activation (Porcupine / openWakeWord trained on
-      "Zenith"; `"Hey Zenith"` fallback). The marquee Phase-1 capability — was gated on having a
-      desktop host, which now exists. **Highest value; likely the next milestone.**
+- [~] **Wake word "Zenith" — DESIGNED, ON HOLD (2026-07-14).** Full design spec + `SETUP-WAKEWORD.md`
+      done on branch **`feat/wake-word`** (pushed to origin; no implementation code yet — paused at the
+      spec-review gate). Decision locked: **Porcupine Web** (WASM, in-webview) + energy-silence
+      endpointing + on-by-default real-mute toggle + barge-in; zero backend voice-path changes.
+      **BLOCKER:** Picovoice signup rejects gmail.com and wants a work-domain email the owner doesn't
+      have yet. **Resume when:** owner gets a domain email (free forward on shapeodyssey.com / Zoho) OR
+      we pivot the engine to **openWakeWord** (no account/key/email — the documented alternative in the
+      spec §11). The marquee Phase-1 capability; resume right after web search.
 - [ ] **Background proactivity watcher + native notifications** — proactivity is currently on-demand
       (60s poll + window focus) because the browser had no push channel. Tauri has system
       notifications → a real background watcher that toasts when something slips. (Keep the two

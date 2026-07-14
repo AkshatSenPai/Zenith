@@ -275,16 +275,24 @@ export type WaitingThread = {
   last_at: string;
   age_hours: number;
   source: string;
+  reason?: string; // present only on "no reply needed" (filtered) rows
 };
 
-/** Threads waiting on a reply. null = backend unreachable (distinct from connected:false).
+/** Threads waiting on a reply, plus the ones the classifier filtered as no-reply-needed.
+ *  null = backend unreachable (distinct from connected:false).
  *  no-store: this list must reflect the inbox right now, so never serve a cached response. */
-export async function getTriage(): Promise<{ connected: boolean; threads: WaitingThread[] } | null> {
+export async function getTriage(): Promise<
+  { connected: boolean; threads: WaitingThread[]; filtered: WaitingThread[] } | null
+> {
   try {
     const res = await apiFetch("/triage", { cache: "no-store" });
     if (!res.ok) return null;
-    const d = (await res.json()) as { connected?: boolean; threads?: WaitingThread[] };
-    return { connected: d.connected ?? false, threads: d.threads ?? [] };
+    const d = (await res.json()) as {
+      connected?: boolean;
+      threads?: WaitingThread[];
+      filtered?: WaitingThread[];
+    };
+    return { connected: d.connected ?? false, threads: d.threads ?? [], filtered: d.filtered ?? [] };
   } catch {
     return null;
   }

@@ -7,14 +7,45 @@ function ageLabel(hours: number): string {
   return hours < 48 ? `${hours}h` : `${Math.floor(hours / 24)}d`;
 }
 
+/** One thread row. `muted` de-emphasizes filtered (no-reply-needed) rows and shows the reason. */
+function Row({ t, onDraft, muted }: { t: WaitingThread; onDraft: (t: WaitingThread) => void; muted?: boolean }) {
+  return (
+    <li className={`status-surface border border-zenith-line2 px-4 py-3 ${muted ? "opacity-60" : ""}`}>
+      <div className="mb-1 flex items-baseline justify-between gap-3">
+        <span className="truncate text-sm font-semibold text-zenith-mid">{t.from_name}</span>
+        <span className="flex-none font-mono text-[10px] uppercase tracking-[0.14em] text-zenith-lo">
+          {ageLabel(t.age_hours)} · {t.source}
+        </span>
+      </div>
+      <div className="truncate text-sm text-zenith-mid">{t.subject}</div>
+      <div className="mt-0.5 truncate text-[12px] text-zenith-lo">{t.snippet}</div>
+      {muted && t.reason && (
+        <div className="mt-1 font-mono text-[10px] uppercase tracking-[0.14em] text-zenith-lo">
+          filtered — {t.reason}
+        </div>
+      )}
+      <div className="mt-3">
+        <button
+          onClick={() => onDraft(t)}
+          className="press rounded-md bg-zenith-cyan px-3 py-1.5 font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-zenith-bg transition hover:opacity-90"
+        >
+          Draft reply
+        </button>
+      </div>
+    </li>
+  );
+}
+
 /** Who's waiting on a reply (Gmail). Pull-only: this list is never rendered unprompted, because its
- *  text comes from third parties. "Draft reply" prefills the Command Center — an inert string that
- *  never runs a tool; the send still rides the confirm gate. */
+ *  text comes from third parties. Filtered "no reply needed" threads collapse into a drawer so nothing
+ *  is ever lost. "Draft reply" prefills the Command Center — an inert string that never runs a tool. */
 export function TriageView({ onDraft }: { onDraft: (t: WaitingThread) => void }) {
   const [threads, setThreads] = useState<WaitingThread[]>([]);
+  const [filtered, setFiltered] = useState<WaitingThread[]>([]);
   const [connected, setConnected] = useState(true);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
+  const [showFiltered, setShowFiltered] = useState(false);
 
   const load = useCallback(async () => {
     setError(false);
@@ -22,6 +53,7 @@ export function TriageView({ onDraft }: { onDraft: (t: WaitingThread) => void })
     if (d === null) setError(true);
     else {
       setThreads(d.threads);
+      setFiltered(d.filtered);
       setConnected(d.connected);
     }
     setLoaded(true);
@@ -69,26 +101,27 @@ export function TriageView({ onDraft }: { onDraft: (t: WaitingThread) => void })
       {loaded && !error && connected && threads.length > 0 && (
         <ul className="flex flex-col gap-2">
           {threads.map((t) => (
-            <li key={t.thread_id} className="status-surface border border-zenith-line2 px-4 py-3">
-              <div className="mb-1 flex items-baseline justify-between gap-3">
-                <span className="truncate text-sm font-semibold text-zenith-mid">{t.from_name}</span>
-                <span className="flex-none font-mono text-[10px] uppercase tracking-[0.14em] text-zenith-lo">
-                  {ageLabel(t.age_hours)} · {t.source}
-                </span>
-              </div>
-              <div className="truncate text-sm text-zenith-mid">{t.subject}</div>
-              <div className="mt-0.5 truncate text-[12px] text-zenith-lo">{t.snippet}</div>
-              <div className="mt-3">
-                <button
-                  onClick={() => onDraft(t)}
-                  className="press rounded-md bg-zenith-cyan px-3 py-1.5 font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-zenith-bg transition hover:opacity-90"
-                >
-                  Draft reply
-                </button>
-              </div>
-            </li>
+            <Row key={t.thread_id} t={t} onDraft={onDraft} />
           ))}
         </ul>
+      )}
+
+      {loaded && !error && connected && filtered.length > 0 && (
+        <div className="mt-4">
+          <button
+            onClick={() => setShowFiltered((v) => !v)}
+            className="press font-mono text-[10px] uppercase tracking-[0.16em] text-zenith-lo transition hover:text-zenith-mid"
+          >
+            {showFiltered ? "▾" : "▸"} {filtered.length} — no reply needed
+          </button>
+          {showFiltered && (
+            <ul className="mt-2 flex flex-col gap-2">
+              {filtered.map((t) => (
+                <Row key={t.thread_id} t={t} onDraft={onDraft} muted />
+              ))}
+            </ul>
+          )}
+        </div>
       )}
     </div>
   );

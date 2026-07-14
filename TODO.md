@@ -1,8 +1,8 @@
 # Zenith — TODO (next session)
 
-**Status (2026-07-13):** Everything through **M7 is shipped to `origin/main`** (App Launcher,
+**Status (2026-07-14):** Everything through **M7 is shipped to `origin/main`** (App Launcher,
 proactivity, Gmail triage). **M2 — the Tauri desktop shell — is CODE COMPLETE and live-acceptance
-PASSED**, sitting on branch **`feat/tauri-shell`** (kept, **unmerged, unpushed** — owner's call).
+PASSED**, and now **merged to `main` + pushed to `origin`** (`feat/tauri-shell`, ff-merge, 2026-07-14). **All of M1–M7 are done.**
 All automated gates green: backend 260 pytest · Rust `cargo test` 4 · `tsc` clean · `next` static
 export · full `cargo build`. Owner verified the desktop app by hand — window, boot health-gate,
 **hold-Space voice loop (mic works in WebView2)**, VRAM freed on close, single-instance.
@@ -11,12 +11,11 @@ export · full `cargo build`. Owner verified the desktop app by hand — window,
 
 ---
 
-## A. Close out M2 (Tauri shell) — do these first, quick + low-risk
-- [ ] **M2-complete doc commit** on `feat/tauri-shell` — flip Milestone 2 → done in `CLAUDE.md`
-      + add the PRD sync line. (Plan Task 8 Step 4; held on purpose until acceptance passed — now
-      unblocked.)
-- [ ] **Merge** `feat/tauri-shell` → `main`.
-- [ ] **Push** `main` to `origin` (branch is local-only right now).
+## A. Close out M2 (Tauri shell) — ✅ DONE 2026-07-14
+- [x] **M2-complete doc commit** on `feat/tauri-shell` — flipped Milestone 2 → done in `CLAUDE.md`
+      + PRD sync line (v2.8). (Plan Task 8 Step 4; was held on purpose until acceptance passed.)
+- [x] **Merge** `feat/tauri-shell` → `main` (fast-forward).
+- [x] **Push** `main` to `origin`.
 
 ## B. Tauri shell — polish (optional, low effort)
 - [ ] **Boot warmup feedback** — in Tauri the boot log's `"starting"` line only types once `/health`

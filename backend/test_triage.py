@@ -213,6 +213,7 @@ def test_reply_to_thread_omits_in_reply_to_when_no_message_id(monkeypatch):
 
 import datetime as dt
 
+import triage_classifier
 import triage_service as ts
 
 NOW = dt.datetime(2026, 7, 10, 12, 0, tzinfo=dt.timezone.utc)
@@ -240,7 +241,7 @@ def gmail(monkeypatch):
         monkeypatch.setattr(ts.google_service, "me_address", lambda: "owner@gmail.com")
         monkeypatch.setattr(ts.google_service, "list_thread_ids", lambda q, n: list(state["summaries"]))
         monkeypatch.setattr(ts.google_service, "thread_summary", lambda tid: state["summaries"][tid])
-        monkeypatch.setattr(ts.triage_classifier, "classify", _passthrough)
+        monkeypatch.setattr(triage_classifier, "classify", _passthrough)
 
     return setup
 
@@ -346,7 +347,7 @@ def test_one_bad_thread_is_skipped_not_fatal(monkeypatch):
         return good
 
     monkeypatch.setattr(ts.google_service, "thread_summary", summary)
-    monkeypatch.setattr(ts.triage_classifier, "classify",
+    monkeypatch.setattr(triage_classifier, "classify",
                         lambda candidates, now=None: {"waiting": candidates, "filtered": []})
     rows = ts.waiting_threads(now=NOW)["waiting"]
     assert [r["thread_id"] for r in rows] == ["ok"]
@@ -370,7 +371,7 @@ def test_classifier_failure_falls_back_to_deterministic(monkeypatch, gmail):
     gmail([_summary("t1", "Rahul <r@a.com>", hours_ago=10)])
     def boom(candidates, now=None):
         raise RuntimeError("claude down")
-    monkeypatch.setattr(ts.triage_classifier, "classify", boom)
+    monkeypatch.setattr(triage_classifier, "classify", boom)
     res = ts.waiting_threads(now=NOW)
     assert [r["thread_id"] for r in res["waiting"]] == ["t1"]
     assert res["filtered"] == []

@@ -15,7 +15,6 @@ import re
 from email.utils import parseaddr, parsedate_to_datetime
 
 import google_service
-import triage_classifier
 
 # `category:primary` is the highest-value noise filter (promotions/newsletters/bulk).
 # DELIBERATELY no "-from:me": threads.list matches a thread if ANY message matches it, so that
@@ -129,6 +128,7 @@ def waiting_threads(now: dt.datetime | None = None, max_results: int | None = No
             candidates.append(_candidate(summary, now))
     candidates.sort(key=lambda r: r["age_hours"], reverse=True)
 
+    import triage_classifier  # lazy: avoids a tools->triage_service->...->tools import cycle at load
     try:
         split = triage_classifier.classify(candidates, now=now)
     except Exception as exc:  # noqa: BLE001 — classification is best-effort; fall back to deterministic

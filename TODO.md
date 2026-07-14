@@ -18,9 +18,11 @@ export · full `cargo build`. Owner verified the desktop app by hand — window,
 - [x] **Push** `main` to `origin`.
 
 ## B. Tauri shell — polish (optional, low effort)
-- [ ] **Boot warmup feedback** — in Tauri the boot log's `"starting"` line only types once `/health`
-      resolves, so the 30–45s backend warmup looks quiet. Show a spinner / live "STARTING BACKEND…"
-      during the wait. (Reveal gating itself is correct.)
+- [x] **Boot warmup feedback ✅ (SHIPPED 2026-07-14, `e7f18d9`).** During the Tauri warmup
+      (`starting && health===null`) the boot screen now shows a spinning ring + "STARTING BACKEND…"
+      + a "~30–45s on first launch" hint and an indeterminate progress segment, handing off to the
+      normal typewriter the instant `/health` resolves. Browser boot unchanged; reduced-motion → static.
+      **Owner: glance at it on the next `tauri dev` launch to confirm it feels right.**
 - [ ] **Confirm the production bundle** — `npm run tauri build` → installer under
       `target/release/bundle/`; check the installed app behaves like `tauri dev` (only if not
       already covered in acceptance).

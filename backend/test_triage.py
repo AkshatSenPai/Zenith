@@ -129,6 +129,24 @@ def test_thread_summary_surfaces_bulk_headers(monkeypatch):
     assert s["list_id"] == ""              # absent header -> empty string, never KeyError
 
 
+def test_thread_summary_surfaces_automation_headers(monkeypatch):
+    thread = {"messages": [{"snippet": "receipt", "payload": {"headers": _hdrs(
+        From="alerts@bank.com", Subject="Statement", Date="Tue, 7 Jul 2026 10:00:00 +0530",
+        Message_ID="<m1>", Auto_Submitted="auto-generated", Feedback_ID="acme:campaign:42")}}]}
+    monkeypatch.setattr(google_service, "_gmail", lambda email=None: _Svc(_Threads(thread=thread)))
+    s = google_service.thread_summary("t1")
+    assert s["auto_submitted"] == "auto-generated"
+    assert s["feedback_id"] == "acme:campaign:42"
+
+
+def test_thread_summary_automation_headers_default_empty(monkeypatch):
+    thread = {"messages": [{"snippet": "hi", "payload": {"headers": _hdrs(
+        From="rahul@acme.com", Subject="Hi", Date="Tue, 7 Jul 2026 10:00:00 +0530", Message_ID="<m1>")}}]}
+    monkeypatch.setattr(google_service, "_gmail", lambda email=None: _Svc(_Threads(thread=thread)))
+    s = google_service.thread_summary("t1")
+    assert s["auto_submitted"] == "" and s["feedback_id"] == ""
+
+
 def test_reply_headers_derive_envelope_from_last_message():
     h = google_service._reply_headers(
         {"from": "Rahul <rahul@acme.com>", "subject": "Proposal", "message_id": "<m2>", "references": "<m1>"}

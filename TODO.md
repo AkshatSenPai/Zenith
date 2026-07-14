@@ -40,9 +40,11 @@ export · full `cargo build`. Owner verified the desktop app by hand — window,
 - [ ] **Autostart on login** — Zenith launches with Windows.
 
 ## D. Other Phase-1 leftovers (not Tauri)
-- [ ] **Triage Part-3.1** — a Claude-classification pass for residual transactional noise (bank
-      alerts / receipts that carry no `List-Unsubscribe`, so the deterministic bulk filter misses
-      them). Also deferred from M7: Discord/WhatsApp triage, multi-account.
+- [x] **Triage Part-3.1 — Claude-classification pass ✅ (SHIPPED 2026-07-14, `feat/triage-noise-classifier`).**
+      COO-aware `triage_classifier.py` re-buckets residual transactional noise (bank alerts / receipts
+      with no `List-Unsubscribe`, "thanks"/FYI) into a recoverable "no reply needed" drawer — free
+      `Auto-Submitted`/`Feedback-ID` pre-pass + a batched, no-tools, cached Claude call; +19 tests.
+      Still open from M7: **Discord/WhatsApp triage, multi-account.**
 - [ ] **Bundled Python** — ship so a fresh machine runs the shell without the dev venv (distribution
       readiness; only matters once it leaves the owner's machine).
 

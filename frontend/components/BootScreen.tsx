@@ -7,14 +7,18 @@ import { DUR, EASE, prefersReducedMotion } from "../lib/anim";
 import { apiFetch, getGoogleStatus, getDiscordStatus, getTelegramStatus } from "../lib/api";
 import { isTauri } from "../lib/tauri";
 
-/** v7 boot overlay. The real HUD mounts underneath immediately (so its WebGL orb warms up
+/** v7 boot overlay. The real HUD mounts underneath immediately (so its canvas orb warms up
  *  hidden), this covers it, plays a GSAP boot sequence (diamond fade-in + typewriter + progress),
  *  then dissolves to reveal the live HUD. Status lines are REAL (pings /health, reads the
- *  connection state) — no fake telemetry. Click / any key skips; prefers-reduced-motion → instant. */
+ *  connection state) — no fake telemetry. In Tauri the backend is auto-spawned and takes ~30-45s to
+ *  warm, so while /health is still pending a live "STARTING BACKEND…" spinner shows instead of a
+ *  dead-looking blank screen. Click / any key skips; prefers-reduced-motion → instant. */
 export function BootScreen({ onDone }: { onDone: () => void }) {
   const root = useRef<HTMLDivElement>(null);
   const mark = useRef<HTMLDivElement>(null);
   const bar = useRef<HTMLDivElement>(null);
+  const warmSeg = useRef<HTMLDivElement>(null); // indeterminate segment shown during the Tauri warmup
+  const spin = useRef<HTMLSpanElement>(null); // warmup spinner ring
   const lineEls = useRef<(HTMLSpanElement | null)[]>([]);
   const tl = useRef<gsap.core.Timeline | null>(null);
   const done = useRef(false);
@@ -27,10 +31,14 @@ export function BootScreen({ onDone }: { onDone: () => void }) {
   const [starting, setStarting] = useState(false);
   const TOTAL = 4;
 
+  // While the Tauri-spawned backend warms (health still unknown), show a live spinner instead of a
+  // dead-looking blank screen. Never true in the browser — `starting` stays false there.
+  const warming = starting && health === null;
+
   const lines = [
     "INITIALIZING ZENITH",
     "INTERFACE .......... ok",
-    `BACKEND :8000 ...... ${starting ? "starting" : (health ?? "....")}`,
+    `BACKEND :8000 ...... ${health ?? "...."}`,
     `CONNECTIONS ........ ${linked}/${TOTAL} linked`,
     "READY",
   ];
@@ -96,6 +104,21 @@ export function BootScreen({ onDone }: { onDone: () => void }) {
     { scope: root },
   );
 
+  // Tauri warmup: indeterminate progress + a spinning ring loop while /health is still pending.
+  // useGSAP reverts (kills the loops) when `warming` flips false — the typewriter then takes over.
+  useGSAP(
+    () => {
+      if (!warming || prefersReducedMotion()) return;
+      gsap.to(spin.current, { rotate: 360, duration: 0.9, ease: "none", repeat: -1 });
+      gsap.fromTo(
+        warmSeg.current,
+        { xPercent: -120 },
+        { xPercent: 360, duration: 1.15, ease: "power1.inOut", repeat: -1, yoyo: true },
+      );
+    },
+    { dependencies: [warming], scope: root },
+  );
+
   // Typewriter + progress + dissolve — runs once /health is known (or timed out).
   useGSAP(
     () => {
@@ -158,19 +181,40 @@ export function BootScreen({ onDone }: { onDone: () => void }) {
         </span>
       </div>
 
-      {/* progress line */}
-      <div className="h-[2px] w-[300px] overflow-hidden rounded-sm bg-zenith-line2">
+      {/* progress line — indeterminate segment while warming, then fills during the typewriter */}
+      <div className="relative h-[2px] w-[300px] overflow-hidden rounded-sm bg-zenith-line2">
         <div ref={bar} className="h-full w-0 bg-zenith-cyan shadow-[0_0_10px_rgb(var(--zenith-cyan)/0.9)]" />
+        {warming && (
+          <div
+            ref={warmSeg}
+            className="absolute inset-y-0 left-0 w-1/3 bg-zenith-cyan shadow-[0_0_10px_rgb(var(--zenith-cyan)/0.9)]"
+          />
+        )}
       </div>
 
-      {/* boot log (real status lines) */}
+      {/* boot log (real status lines) — or the live warmup state while the backend spins up */}
       <div className="flex h-[128px] w-[320px] flex-col gap-1.5 font-mono text-[10px] leading-relaxed tracking-wide text-zenith-lo">
-        {lines.map((_, i) => (
-          <div key={i} className="flex items-center gap-2.5 whitespace-pre">
-            <span className="text-zenith-cyan">›</span>
-            <span ref={(el) => { lineEls.current[i] = el; }} />
+        {warming ? (
+          <div className="flex h-full flex-col items-start justify-center gap-2">
+            <div className="flex items-center gap-2.5 uppercase tracking-[0.2em] text-zenith-cyan">
+              <span
+                ref={spin}
+                className="inline-block h-3 w-3 rounded-full border border-zenith-line2 border-t-zenith-cyan"
+              />
+              STARTING BACKEND…
+            </div>
+            <div className="pl-[26px] text-[9px] tracking-wide text-zenith-dim">
+              warming voice models · ~30–45s on first launch
+            </div>
           </div>
-        ))}
+        ) : (
+          lines.map((_, i) => (
+            <div key={i} className="flex items-center gap-2.5 whitespace-pre">
+              <span className="text-zenith-cyan">›</span>
+              <span ref={(el) => { lineEls.current[i] = el; }} />
+            </div>
+          ))
+        )}
       </div>
 
       <div className="font-mono text-[9px] uppercase tracking-[0.25em] text-zenith-dim">click to skip</div>

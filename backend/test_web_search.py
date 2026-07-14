@@ -59,3 +59,41 @@ def test_search_provider_error_raises(monkeypatch):
     monkeypatch.setattr(wss.requests, "post", boom)
     with pytest.raises(wss.SearchUnavailable):
         wss.search("anything")
+
+
+# --- tool registration ---
+
+import activity_log
+import tools
+
+
+def test_web_search_gate_membership():
+    assert "web_search" in tools.UNTRUSTED_TOOLS        # results are third-party web content → fenced
+    assert "web_search" not in tools.ACTION_TOOLS        # a search has no side effects
+    assert "web_search" in activity_log._MAP             # or it wouldn't show in the feed
+
+
+def test_web_search_schema_requires_query():
+    schema = next(t for t in tools.TOOLS if t["name"] == "web_search")
+    assert schema["input_schema"]["required"] == ["query"]
+
+
+def test_web_search_executor_needs_query():
+    assert tools.run_tool("web_search", {}) == "web_search needs a 'query'."
+
+
+def test_web_search_result_is_fenced(monkeypatch):
+    monkeypatch.setattr(tools.web_search_service, "search", lambda q: f"RESULTS for {q}")
+    out = tools.run_tool("web_search", {"query": "pizza"})
+    assert "RESULTS for pizza" in out
+    assert "<external-content" in out                    # injection guard applied
+
+
+def test_web_search_unconfigured_is_graceful(monkeypatch):
+    def raise_unavail(q):
+        raise tools.web_search_service.SearchUnavailable(
+            "Web search isn't configured — add TAVILY_API_KEY to backend/.env.")
+    monkeypatch.setattr(tools.web_search_service, "search", raise_unavail)
+    out = tools.run_tool("web_search", {"query": "x"})
+    assert "isn't configured" in out
+    assert "<external-content" not in out                # a config error is not fenced content

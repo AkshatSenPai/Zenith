@@ -31,6 +31,7 @@ _MAP: dict[str, tuple[str, str, str]] = {
     "get_weather": ("note", "info", "weather"),
     "get_briefing": ("note", "info", "briefing"),
     "get_news": ("note", "info", "headlines"),
+    "web_search": ("note", "info", "web search"),
     "list_discord_channels": ("message", "info", "list Discord channels"),
     "get_discord_messages": ("message", "info", "read Discord"),
     "search_discord_messages": ("message", "info", "searched Discord"),

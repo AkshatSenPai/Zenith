@@ -21,6 +21,7 @@ import todo_service
 import triage_service
 import vault_service
 import weather_service
+import web_search_service
 
 
 # ---------- existing stub tools ----------
@@ -234,6 +235,15 @@ def _get_news(i: dict) -> str:
     if not items:
         return "No headlines available right now."
     return "Top headlines (world + India):\n" + "\n".join(_news_line(h) for h in items)
+
+
+# ---------- web search ----------
+
+def _web_search(i: dict) -> str:
+    q = (i.get("query") or "").strip()
+    if not q:
+        return "web_search needs a 'query'."
+    return web_search_service.search(q)     # raises SearchUnavailable on config/API failure
 
 
 # ---------- discord executors ----------
@@ -674,6 +684,18 @@ TOOLS = [
         },
     },
     {
+        "name": "web_search",
+        "description": "Search the live web for current information, facts, news, prices, docs, "
+        "people, or anything not covered by Zenith's other tools. Use when the user says 'search', "
+        "'look up', 'google', 'find online', or asks about recent / real-time info. Returns a short "
+        "summary plus source links.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"query": {"type": "string", "description": "The search query"}},
+            "required": ["query"],
+        },
+    },
+    {
         "name": "list_discord_channels",
         "description": "List the Discord servers + text channels the bot can see (server channels only, never DMs). "
         "Use to discover channel names.",
@@ -991,7 +1013,7 @@ GATE_IF_UNTRUSTED = {"open_app"}
 UNTRUSTED_TOOLS = {
     "get_emails", "read_email", "search_emails", "list_waiting_replies",
     "get_discord_messages", "search_discord_messages",
-    "get_calendar_events", "search_calendar", "get_briefing", "get_news",
+    "get_calendar_events", "search_calendar", "get_briefing", "get_news", "web_search",
     "list_notion_pages", "list_notion_databases", "search_notion",
     "read_notion_page", "query_notion_database",
     "describe_notion_database", "get_notion_comments",
@@ -1023,6 +1045,7 @@ _EXECUTORS = {
     "get_weather": _get_weather,
     "get_briefing": _get_briefing,
     "get_news": _get_news,
+    "web_search": _web_search,
     "list_discord_channels": _list_discord_channels,
     "get_discord_messages": _get_discord_messages,
     "search_discord_messages": _search_discord_messages,
@@ -1072,6 +1095,8 @@ def _activity_target(name: str, i: dict) -> str:
     if name == "get_emails":
         return i.get("filter", "recent")
     if name in ("search_calendar", "search_emails"):
+        return i.get("query", "")
+    if name == "web_search":
         return i.get("query", "")
     if name in ("send_discord_message", "get_discord_messages"):
         return "#" + str(i.get("channel", "")).lstrip("#")
@@ -1144,6 +1169,8 @@ def run_tool(name: str, tool_input: dict) -> str:
         except weather_service.WeatherUnavailable as exc:
             result, failed = str(exc), True
         except news_service.NewsUnavailable as exc:
+            result, failed = str(exc), True
+        except web_search_service.SearchUnavailable as exc:
             result, failed = str(exc), True
         except (discord_service.DiscordNotConnected, discord_service.DiscordChannelNotFound) as exc:
             result, failed = str(exc), True

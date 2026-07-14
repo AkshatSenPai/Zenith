@@ -47,13 +47,11 @@ export · full `cargo build`. Owner verified the desktop app by hand — window,
 - [ ] **Autostart on login** — Zenith launches with Windows.
 
 ## D. Other Phase-1 leftovers (not Tauri)
-- [ ] **Web search — WANTED (owner asked 2026-07-14, "we really need it").** Zenith has no web-search
-      tool today, so she correctly refuses when asked to search the net. Add it as **one Claude tool on
-      the EXISTING loop** (same pattern as Gmail/Notion; zero route/gate changes). Pick in a quick design
-      pass: (a) **Anthropic's built-in web-search server tool** (least code, no 3rd-party key, cited
-      results, small per-search cost) or (b) a **custom tool over Brave/Tavily** (free tiers, own key,
-      more control). **Results are untrusted web content → MUST be fenced as `<external-content>`** like
-      the email/Notion reads (prompt-injection guard). Small feature — **do it right after the wake word.**
+- [x] **Web search ✅ (SHIPPED 2026-07-14, `feat/web-search`).** One read-only `web_search(query)` tool
+      on the existing loop, backed by **Tavily**; `backend/web_search_service.py`; results fenced as
+      `<external-content>` (`UNTRUSTED_TOOLS`), not gated, graceful when `TAVILY_API_KEY` unset; +9 tests
+      (288 backend green). Setup `SETUP-WEBSEARCH.md`. **Owner: add a free Tavily key to `backend/.env`
+      to turn it on.** Fast-follow: a "read/summarize a specific URL" tool.
 - [x] **Triage Part-3.1 — Claude-classification pass ✅ (SHIPPED 2026-07-14, `feat/triage-noise-classifier`).**
       COO-aware `triage_classifier.py` re-buckets residual transactional noise (bank alerts / receipts
       with no `List-Unsubscribe`, "thanks"/FYI) into a recoverable "no reply needed" drawer — free

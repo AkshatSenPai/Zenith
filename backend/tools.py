@@ -152,10 +152,15 @@ def _waiting_line(r: dict) -> str:
 
 
 def _list_waiting_replies(i: dict) -> str:
-    rows = triage_service.waiting_threads(max_results=int(i.get("max", 10)))
+    res = triage_service.waiting_threads(max_results=int(i.get("max", 10)))
+    rows, filtered = res["waiting"], res["filtered"]
     if not rows:
-        return "Nobody is waiting on a reply."
-    return "Waiting on your reply:\n" + "\n".join(_waiting_line(r) for r in rows)
+        base = "Nobody is waiting on a reply."
+        return f"{base} ({len(filtered)} filtered as no-reply-needed.)" if filtered else base
+    out = "Waiting on your reply:\n" + "\n".join(_waiting_line(r) for r in rows)
+    if filtered:
+        out += f"\n({len(filtered)} others filtered as no-reply-needed.)"
+    return out
 
 
 def _reply_email(i: dict) -> str:

@@ -263,9 +263,10 @@ def triage() -> dict:
     Returns connected:false instead of erroring when Google isn't linked, so the view can offer
     'Connect Google' rather than a misleading 'Nothing waiting'."""
     try:
-        return {"connected": True, "threads": triage_service.waiting_threads()}
+        res = triage_service.waiting_threads()
+        return {"connected": True, "threads": res["waiting"], "filtered": res["filtered"]}
     except google_service.NotConnected:
-        return {"connected": False, "threads": []}
+        return {"connected": False, "threads": [], "filtered": []}
 
 
 class DismissRequest(BaseModel):

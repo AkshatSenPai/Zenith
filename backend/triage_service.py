@@ -15,6 +15,7 @@ import re
 from email.utils import parseaddr, parsedate_to_datetime
 
 import google_service
+import triage_classifier
 
 # `category:primary` is the highest-value noise filter (promotions/newsletters/bulk).
 # DELIBERATELY no "-from:me": threads.list matches a thread if ANY message matches it, so that
@@ -90,9 +91,26 @@ def _to_row(summary: dict, now: dt.datetime) -> dict:
     }
 
 
-def waiting_threads(now: dt.datetime | None = None, max_results: int | None = None) -> list[dict]:
-    """Threads awaiting the owner's reply, oldest first. Raises NotConnected when Google is unlinked
-    (an empty list would be indistinguishable from 'nothing waiting')."""
+_INTERNAL = ("last_message_id", "auto_submitted", "feedback_id")
+
+
+def _strip(row: dict) -> dict:
+    return {k: v for k, v in row.items() if k not in _INTERNAL}
+
+
+def _candidate(summary: dict, now: dt.datetime) -> dict:
+    """A public display row plus the internal keys the classifier needs (stripped before returning)."""
+    row = _to_row(summary, now)
+    row["last_message_id"] = summary.get("message_id", "")
+    row["auto_submitted"] = summary.get("auto_submitted", "")
+    row["feedback_id"] = summary.get("feedback_id", "")
+    return row
+
+
+def waiting_threads(now: dt.datetime | None = None, max_results: int | None = None) -> dict:
+    """Threads split into {'waiting': [...], 'filtered': [...]} — the deterministic detector finds
+    candidates (unchanged), then triage_classifier re-buckets transactional noise into `filtered`.
+    Raises NotConnected when Google is unlinked (an empty list would look like 'nothing waiting')."""
     now = now or dt.datetime.now(dt.timezone.utc)
     me = google_service.me_address()
     if not me:
@@ -100,7 +118,7 @@ def waiting_threads(now: dt.datetime | None = None, max_results: int | None = No
             "Not connected to Google. Connect it in the Connections panel."
         )
     min_age = _min_age_hours()
-    rows: list[dict] = []
+    candidates: list[dict] = []
     for tid in google_service.list_thread_ids(CANDIDATE_QUERY, _CANDIDATE_LIMIT):
         try:
             summary = google_service.thread_summary(tid)
@@ -108,7 +126,14 @@ def waiting_threads(now: dt.datetime | None = None, max_results: int | None = No
             print(f"[triage] skipped thread {tid}: {exc}", flush=True)
             continue
         if _is_waiting(summary, me, now, min_age):
-            rows.append(_to_row(summary, now))
-    rows.sort(key=lambda r: r["age_hours"], reverse=True)
+            candidates.append(_candidate(summary, now))
+    candidates.sort(key=lambda r: r["age_hours"], reverse=True)
+
+    try:
+        split = triage_classifier.classify(candidates, now=now)
+    except Exception as exc:  # noqa: BLE001 — classification is best-effort; fall back to deterministic
+        print(f"[triage] classifier failed, showing deterministic list: {exc}", flush=True)
+        split = {"waiting": [_strip(c) for c in candidates], "filtered": []}
+
     limit = _max_threads() if max_results is None else max_results
-    return rows[:limit]
+    return {"waiting": split["waiting"][:limit], "filtered": split["filtered"]}

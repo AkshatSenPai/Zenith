@@ -230,11 +230,17 @@ def gmail(monkeypatch):
     """Wire google_service so triage sees exactly the summaries a test declares."""
     state = {"summaries": {}}
 
+    def _passthrough(candidates, *, now=None):
+        internal = ("last_message_id", "auto_submitted", "feedback_id")
+        return {"waiting": [{k: v for k, v in c.items() if k not in internal} for c in candidates],
+                "filtered": []}
+
     def setup(summaries):
         state["summaries"] = {s["thread_id"]: s for s in summaries}
         monkeypatch.setattr(ts.google_service, "me_address", lambda: "owner@gmail.com")
         monkeypatch.setattr(ts.google_service, "list_thread_ids", lambda q, n: list(state["summaries"]))
         monkeypatch.setattr(ts.google_service, "thread_summary", lambda tid: state["summaries"][tid])
+        monkeypatch.setattr(ts.triage_classifier, "classify", _passthrough)
 
     return setup
 
@@ -304,20 +310,19 @@ def test_unparseable_date_is_not_waiting():
 
 def test_waiting_threads_ranks_oldest_first_and_caps(gmail):
     gmail([_summary(f"t{i}", "a@x.com", hours_ago=5 + i) for i in range(5)])
-    rows = ts.waiting_threads(now=NOW, max_results=3)
+    rows = ts.waiting_threads(now=NOW, max_results=3)["waiting"]
     assert len(rows) == 3
     assert [r["age_hours"] for r in rows] == [9, 8, 7]      # oldest waiting first
 
 
 def test_waiting_threads_max_results_zero_returns_nothing(gmail):
     gmail([_summary(f"t{i}", "a@x.com", hours_ago=5 + i) for i in range(2)])
-    rows = ts.waiting_threads(now=NOW, max_results=0)
-    assert rows == []
+    assert ts.waiting_threads(now=NOW, max_results=0)["waiting"] == []
 
 
 def test_waiting_threads_row_shape(gmail):
     gmail([_summary("t1", "Rahul Sharma <rahul@acme.com>", hours_ago=51, subject="Proposal", snippet="any update?")])
-    (row,) = ts.waiting_threads(now=NOW)
+    (row,) = ts.waiting_threads(now=NOW)["waiting"]
     assert row["thread_id"] == "t1"
     assert row["from_name"] == "Rahul Sharma"
     assert row["from_email"] == "rahul@acme.com"
@@ -325,6 +330,7 @@ def test_waiting_threads_row_shape(gmail):
     assert row["snippet"] == "any update?"
     assert row["age_hours"] == 51
     assert row["source"] == "gmail"
+    assert "last_message_id" not in row and "auto_submitted" not in row   # internal keys stripped
     expected_sent = NOW - dt.timedelta(hours=51)
     assert row["last_at"] == expected_sent.isoformat()
 
@@ -340,7 +346,9 @@ def test_one_bad_thread_is_skipped_not_fatal(monkeypatch):
         return good
 
     monkeypatch.setattr(ts.google_service, "thread_summary", summary)
-    rows = ts.waiting_threads(now=NOW)
+    monkeypatch.setattr(ts.triage_classifier, "classify",
+                        lambda candidates, now=None: {"waiting": candidates, "filtered": []})
+    rows = ts.waiting_threads(now=NOW)["waiting"]
     assert [r["thread_id"] for r in rows] == ["ok"]
 
 
@@ -350,6 +358,23 @@ def test_no_connected_account_raises_not_connected(monkeypatch):
     monkeypatch.setattr(ts.google_service, "me_address", lambda: None)
     with pytest.raises(ts.google_service.NotConnected):
         ts.waiting_threads(now=NOW)
+
+
+def test_waiting_threads_returns_waiting_and_filtered_split(gmail):
+    gmail([_summary("t1", "Rahul <r@a.com>", hours_ago=10)])
+    res = ts.waiting_threads(now=NOW)
+    assert set(res) == {"waiting", "filtered"}
+
+
+def test_classifier_failure_falls_back_to_deterministic(monkeypatch, gmail):
+    gmail([_summary("t1", "Rahul <r@a.com>", hours_ago=10)])
+    def boom(candidates, now=None):
+        raise RuntimeError("claude down")
+    monkeypatch.setattr(ts.triage_classifier, "classify", boom)
+    res = ts.waiting_threads(now=NOW)
+    assert [r["thread_id"] for r in res["waiting"]] == ["t1"]
+    assert res["filtered"] == []
+    assert "last_message_id" not in res["waiting"][0]     # fallback also strips internal keys
 
 
 # Task 4: tools registration tests
@@ -382,17 +407,25 @@ def test_both_tools_are_logged():
 
 
 def test_list_waiting_replies_executor_formats_rows(monkeypatch):
-    monkeypatch.setattr(tools.triage_service, "waiting_threads", lambda max_results: [
+    monkeypatch.setattr(tools.triage_service, "waiting_threads", lambda max_results: {"waiting": [
         {"thread_id": "t1", "from_name": "Rahul", "from_email": "rahul@acme.com", "subject": "Proposal",
          "snippet": "any update?", "last_at": "2026-07-08T11:04:00+00:00", "age_hours": 51, "source": "gmail"},
-    ])
+    ], "filtered": []})
     out = tools.run_tool("list_waiting_replies", {})
     assert "Rahul" in out and "Proposal" in out and "thread:t1" in out
     assert "<external-content" in out          # fenced: it carries third-party text
 
 
+def test_list_waiting_replies_notes_filtered_count(monkeypatch):
+    monkeypatch.setattr(tools.triage_service, "waiting_threads", lambda max_results: {
+        "waiting": [], "filtered": [{"thread_id": "n1", "age_hours": 3}]})
+    out = tools.run_tool("list_waiting_replies", {})
+    assert "Nobody is waiting" in out and "1" in out
+
+
 def test_list_waiting_replies_empty(monkeypatch):
-    monkeypatch.setattr(tools.triage_service, "waiting_threads", lambda max_results: [])
+    monkeypatch.setattr(tools.triage_service, "waiting_threads",
+                        lambda max_results: {"waiting": [], "filtered": []})
     assert "Nobody is waiting" in tools.run_tool("list_waiting_replies", {})
 
 
@@ -425,15 +458,18 @@ def client():
 
 
 def test_get_triage_returns_threads(client, monkeypatch):
-    monkeypatch.setattr(main.triage_service, "waiting_threads",
-                        lambda: [{"thread_id": "t1", "from_name": "Rahul", "from_email": "r@a.com",
-                                  "subject": "Proposal", "snippet": "?", "last_at": "2026-07-08T11:04:00+00:00",
-                                  "age_hours": 51, "source": "gmail"}])
+    monkeypatch.setattr(main.triage_service, "waiting_threads", lambda: {"waiting": [
+        {"thread_id": "t1", "from_name": "Rahul", "from_email": "r@a.com", "subject": "Proposal",
+         "snippet": "?", "last_at": "2026-07-08T11:04:00+00:00", "age_hours": 51, "source": "gmail"}],
+        "filtered": [{"thread_id": "n1", "from_name": "Bank", "from_email": "a@b.com", "subject": "Alert",
+                      "snippet": "x", "last_at": "2026-07-09T00:00:00+00:00", "age_hours": 20,
+                      "source": "gmail", "reason": "automated notification"}]})
     r = client.get("/triage")
     assert r.status_code == 200
     body = r.json()
     assert body["connected"] is True
     assert body["threads"][0]["thread_id"] == "t1"
+    assert body["filtered"][0]["reason"] == "automated notification"
 
 
 def test_get_triage_reports_disconnected_not_500(client, monkeypatch):
@@ -442,4 +478,4 @@ def test_get_triage_reports_disconnected_not_500(client, monkeypatch):
     monkeypatch.setattr(main.triage_service, "waiting_threads", boom)
     r = client.get("/triage")
     assert r.status_code == 200
-    assert r.json() == {"connected": False, "threads": []}
+    assert r.json() == {"connected": False, "threads": [], "filtered": []}

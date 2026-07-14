@@ -123,3 +123,46 @@ def test_public_rows_strip_internal_keys(wired):
     row = tc.classify([_cand("t1")], now=NOW)["waiting"][0]
     for k in ("last_message_id", "auto_submitted", "feedback_id"):
         assert k not in row
+
+
+def test_cache_hit_skips_claude(wired, tmp_path):
+    client, _ = wired(json.dumps([{"id": "t1", "needs_reply": True, "reason": "x"}]))
+    (tmp_path / "triage_cache.json").write_text(json.dumps(
+        {"t1:<t1>": {"needs_reply": False, "reason": "receipt", "ts": NOW.isoformat()}}), encoding="utf-8")
+    out = tc.classify([_cand("t1")], now=NOW)
+    assert out["filtered"][0]["thread_id"] == "t1"       # served from cache
+    assert out["filtered"][0]["reason"] == "receipt"
+    assert client.messages.calls == []                   # cache hit -> no Claude
+
+
+def test_new_message_id_is_a_cache_miss(wired, tmp_path):
+    client, _ = wired(json.dumps([{"id": "t1", "needs_reply": True, "reason": "fresh"}]))
+    (tmp_path / "triage_cache.json").write_text(json.dumps(
+        {"t1:<OLD>": {"needs_reply": False, "reason": "old", "ts": NOW.isoformat()}}), encoding="utf-8")
+    out = tc.classify([_cand("t1")], now=NOW)            # candidate last_message_id is <t1>, not <OLD>
+    assert [r["thread_id"] for r in out["waiting"]] == ["t1"]
+    assert client.messages.calls, "a new message id must miss the cache and re-classify"
+
+
+def test_fresh_verdict_is_written_to_cache(wired, tmp_path):
+    wired(json.dumps([{"id": "t1", "needs_reply": False, "reason": "receipt"}]))
+    tc.classify([_cand("t1")], now=NOW)
+    saved = json.loads((tmp_path / "triage_cache.json").read_text(encoding="utf-8"))
+    assert saved["t1:<t1>"]["needs_reply"] is False
+
+
+def test_corrupt_cache_is_treated_as_empty(wired, tmp_path):
+    client, _ = wired(json.dumps([{"id": "t1", "needs_reply": True, "reason": "x"}]))
+    (tmp_path / "triage_cache.json").write_text("{not json", encoding="utf-8")
+    out = tc.classify([_cand("t1")], now=NOW)            # must not raise
+    assert [r["thread_id"] for r in out["waiting"]] == ["t1"]
+
+
+def test_stale_entries_pruned_on_write(wired, tmp_path):
+    wired(json.dumps([{"id": "t1", "needs_reply": False, "reason": "receipt"}]))
+    old = (NOW - dt.timedelta(days=40)).isoformat()
+    (tmp_path / "triage_cache.json").write_text(json.dumps(
+        {"gone:<x>": {"needs_reply": False, "reason": "old", "ts": old}}), encoding="utf-8")
+    tc.classify([_cand("t1")], now=NOW)
+    saved = json.loads((tmp_path / "triage_cache.json").read_text(encoding="utf-8"))
+    assert "gone:<x>" not in saved and "t1:<t1>" in saved

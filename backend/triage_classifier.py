@@ -11,12 +11,16 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import os
 import re
+from pathlib import Path
 
 import chat_core
 import claude_service
 
 _MAX_TOKENS = 1024
+_CACHE = Path(__file__).resolve().parent / ".zenith" / "triage_cache.json"
+_CACHE_TTL_DAYS = 30
 
 # internal-only keys the classifier reads off a candidate; stripped before a row leaves this module.
 _INTERNAL = ("last_message_id", "auto_submitted", "feedback_id")
@@ -53,6 +57,32 @@ def _public(c: dict, reason: str | None = None) -> dict:
     if reason is not None:
         row["reason"] = reason
     return row
+
+
+def _cache_key(c: dict) -> str:
+    return f"{c.get('thread_id', '')}:{c.get('last_message_id', '')}"
+
+
+def _load_cache() -> dict:
+    """Whole cache. Missing or corrupt file -> empty dict (never raises)."""
+    try:
+        data = json.loads(_CACHE.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _save_cache(cache: dict, now: dt.datetime) -> None:
+    """Atomic write (tmp -> os.replace), pruning entries older than the TTL. Best-effort."""
+    cutoff = (now - dt.timedelta(days=_CACHE_TTL_DAYS)).isoformat()
+    pruned = {k: v for k, v in cache.items() if v.get("ts", "") >= cutoff}
+    try:
+        _CACHE.parent.mkdir(parents=True, exist_ok=True)
+        tmp = _CACHE.parent / (_CACHE.name + ".tmp")
+        tmp.write_text(json.dumps(pruned, ensure_ascii=False), encoding="utf-8")
+        os.replace(tmp, _CACHE)
+    except OSError as exc:  # noqa: BLE001 — caching is best-effort
+        print(f"[triage] cache write failed: {exc}", flush=True)
 
 
 def _classify_with_claude(items: list[dict]) -> dict:
@@ -96,10 +126,26 @@ def classify(candidates: list[dict], *, now: dt.datetime | None = None) -> dict:
             to_judge.append(c)
 
     verdicts: dict = {}
-    if to_judge:
+    cache = _load_cache()
+    misses: list[dict] = []
+    for c in to_judge:
+        hit = cache.get(_cache_key(c))
+        if hit and isinstance(hit.get("needs_reply"), bool):
+            verdicts[c["thread_id"]] = hit
+        else:
+            misses.append(c)
+
+    if misses:
         ok, _reason = chat_core.limiter.ensure_budget()
         if ok:
-            verdicts = _classify_with_claude(to_judge)
+            fresh = _classify_with_claude(misses)
+            ts = now.isoformat()
+            for c in misses:
+                v = fresh.get(c["thread_id"])
+                if v:
+                    verdicts[c["thread_id"]] = v
+                    cache[_cache_key(c)] = {**v, "ts": ts}
+            _save_cache(cache, now)
 
     waiting: list[dict] = []
     for c in to_judge:

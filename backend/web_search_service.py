@@ -55,3 +55,34 @@ def _format(query: str, data: dict) -> str:
         snippet = " ".join((r.get("content") or "").split())[:300]
         lines.append(f"\n- {title}\n  {url}\n  {snippet}")
     return "\n".join(lines)
+
+
+EXTRACT_URL = "https://api.tavily.com/extract"
+_MAX_CHARS = 8000
+
+
+def extract(url: str) -> str:
+    key = _api_key()
+    if not key:
+        raise SearchUnavailable("Web search isn't configured — add TAVILY_API_KEY to backend/.env.")
+    try:
+        resp = requests.post(EXTRACT_URL, timeout=_TIMEOUT,
+            headers={"Authorization": f"Bearer {key}"},
+            json={"urls": url, "extract_depth": "basic", "format": "markdown"})
+        resp.raise_for_status()
+        data = resp.json()
+    except requests.RequestException as exc:
+        raise SearchUnavailable(f"Reading the page failed: {exc}") from exc
+    return _format_extract(url, data)
+
+
+def _format_extract(url: str, data: dict) -> str:
+    results = data.get("results") or []
+    content = ""
+    if results:
+        content = " ".join((results[0].get("raw_content") or "").split())
+    if not content:
+        return f"Couldn't read the page at {url} (it may be blocked, empty, or not extractable)."
+    if len(content) > _MAX_CHARS:
+        content = content[:_MAX_CHARS] + " …[truncated]"
+    return f"Content of {url}:\n\n{content}"

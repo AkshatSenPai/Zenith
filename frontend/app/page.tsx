@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { startRecording, transcribe, speak, cancelSpeech, getSpeechBars, type RecordingHandle } from "../lib/voice";
+import { onVoiceHotkey } from "../lib/tauri";
 import { connections as mockConnections, type Connection } from "../lib/mock";
 import { apiFetch, getGoogleStatus, connectGoogle, disconnectGoogle, getDiscordStatus, getTelegramStatus, getNotionStatus, getUsage, type GoogleStatus, type DiscordStatus, type TelegramStatus, type NotionStatus, type Usage } from "../lib/api";
 import { TopBar } from "../components/TopBar";
@@ -398,6 +399,18 @@ export default function Home() {
       window.removeEventListener("keyup", onKeyUp);
     };
   }, [startListening, stopListening]);
+
+  // Global push-to-talk: Ctrl+Alt+Z (registered natively by the Tauri host) toggles voice from any app.
+  // A ref keeps the toggle logic fresh so the one-time subscription never calls a stale startListening.
+  const toggleVoiceRef = useRef<() => void>(() => {});
+  toggleVoiceRef.current = () => {
+    if (recordingRef.current) void stopListening();
+    else void startListening();
+  };
+  useEffect(() => {
+    const unlisten = onVoiceHotkey(() => toggleVoiceRef.current());
+    return unlisten;
+  }, []);
 
   // ⌘K / Ctrl-K toggles the command palette from anywhere.
   useEffect(() => {

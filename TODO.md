@@ -40,8 +40,11 @@ export · full `cargo build`. Owner verified the desktop app by hand — window,
       (60s poll + window focus) because the browser had no push channel. Tauri has system
       notifications → a real background watcher that toasts when something slips. (Keep the two
       proactivity invariants: extraction binds no tools; a nudge action is an inert prefill.)
-- [ ] **System tray** — minimize-to-tray, keep running in the background, quick actions. Pairs with
-      the wake word + proactivity watcher (an assistant that's "always there").
+- [x] **System tray + close-to-tray ✅ (SHIPPED 2026-07-15, on `main`).** Tray icon (Show / Quit,
+      left-click summons); the window **X hides to the tray** (`on_window_event`/`prevent_close`) so the
+      backend + GPU stay warm; **only tray Quit** (`app.exit(0)`) truly exits → the existing
+      `RunEvent::Exit` frees VRAM. Ctrl+Alt+Z restores from the tray too. Spec+plan
+      `docs/superpowers/{specs,plans}/2026-07-15-tray-autostart*.md`. **⚠️ Owner manual acceptance pending.**
 - [x] **Global push-to-talk hotkey ✅ (SHIPPED 2026-07-15, on `main`).** Native **`Ctrl+Alt+Z`** owned
       by the Tauri host (`tauri-plugin-global-shortcut`): press-to-toggle from any app → shows/focuses the
       window + emits a `voice-hotkey` event; the frontend toggles `startListening`/`stopListening` off the
@@ -50,7 +53,10 @@ export · full `cargo build`. Owner verified the desktop app by hand — window,
       green. Spec+plan `docs/superpowers/{specs,plans}/2026-07-15-global-hotkey*.md`. **⚠️ Owner manual
       acceptance pending** (press it from another app — SETUP-TAURI checklist #6). The wake-word substitute
       while Picovoice is blocked.
-- [ ] **Autostart on login** — Zenith launches with Windows. (Pairs with the tray — feature #2.)
+- [x] **Autostart on login ✅ (SHIPPED 2026-07-15, on `main`).** Opt-in **"Launch on login"** toggle in
+      Settings (default OFF; Tauri-only), via `tauri-plugin-autostart`. When on, Zenith registers to start
+      with Windows **hidden in the tray** (a `--hidden` launch arg detected in `setup()`). Driven
+      dependency-free through the `withGlobalTauri` `core.invoke`. **⚠️ Owner manual acceptance pending.**
 
 ## D. Other Phase-1 leftovers (not Tauri)
 - [x] **Web search ✅ (SHIPPED 2026-07-14, `feat/web-search`).** One read-only `web_search(query)` tool

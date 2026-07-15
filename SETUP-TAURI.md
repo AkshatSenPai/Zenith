@@ -66,11 +66,19 @@ The desktop behaviors below are verified by hand (they need a real window, mic, 
    (no false "offline" flash).
 3. **Hold-Space voice loop works end to end** on Arc: mic → `/transcribe` → `/chat` → `/speak`,
    and the reply audio plays. Spot-check that Ghost + Amethyst still render.
-4. Close the window → the backend `python.exe` disappears (Task Manager → Details) and **VRAM is
-   freed** (`nvidia-smi`).
-5. Launch twice → the second launch focuses the first; exactly **one** uvicorn `python.exe` exists.
-6. **Global hotkey:** focus another app, press **Ctrl+Alt+Z** → Zenith comes to front and the orb goes
+4. **Close-to-tray:** click the window **X** → the window disappears but a **Zenith tray icon** remains;
+   the backend `python.exe` is **still alive** (Task Manager → Details) and **VRAM is NOT freed**
+   (`nvidia-smi`) — Zenith is running in the tray.
+5. **Tray restore:** **left-click** the tray icon → the window returns, HUD intact. **Right-click** → the
+   Show / Quit menu. Pressing **Ctrl+Alt+Z** while hidden also restores + starts listening.
+6. **Quit:** tray → **Quit Zenith** → the window closes, the backend `python.exe` disappears, and **VRAM
+   is freed**. (This is the only real exit.)
+7. Launch twice → the second launch focuses/un-hides the first; exactly **one** uvicorn `python.exe`.
+8. **Global hotkey:** focus another app, press **Ctrl+Alt+Z** → Zenith comes to front and the orb goes
    to LISTENING; speak; press **Ctrl+Alt+Z** again → it transcribes and replies (spoken). Hold-Space
    still works in-window. If nothing happens, check the backend/console log for a "could not register"
    warning (another app already owns the combo).
-7. `cd frontend && npm run tauri build` → the bundled app runs and repeats 1–6.
+9. **Autostart:** Settings → **Startup → Launch on login** ON → Zenith appears under Task Manager ▸
+   Startup apps; **reboot** → Zenith is running in the tray with **no window shown**; click the tray →
+   the HUD is already live. Toggle OFF → it's removed from startup.
+10. `cd frontend && npm run tauri build` → the bundled app runs and repeats 1–9.

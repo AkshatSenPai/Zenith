@@ -40,6 +40,27 @@
 
 ## BACKLOG — candidate improvements (revisit after the soak week; NOT committed yet)
 "One more tool" / polish ideas that fit the daily-driver use. Pick based on real friction, not up front.
+
+### ★ Owner-requested while using the app (2026-07-16) — top of the backlog
+- **PDF input** — a way to hand Zenith a PDF (upload/drag-drop button in the Command Center) so it can
+  read it — summarize, extract a brief, answer questions, feed the Copy Factory. Claude accepts PDFs
+  natively (document blocks) or we extract text (`pypdf`); either way fence the content as
+  `<external-content>` and watch the token budget. High fit for the agency (contracts/proposals/briefs).
+- **YouTube (and other video) understanding** — paste a YouTube URL → a `read_youtube(url)` tool that
+  pulls the transcript and lets Claude summarize / pull action items. **Transcript-first** via
+  `youtube-transcript-api` (no download, fast, free); **fallback** = `yt-dlp` audio → the **faster-whisper
+  we already run** when there are no captions. Same "read external content" family as web_search/read_url;
+  fenced as untrusted.
+- **Multi-Google-account — FINISH wiring it (foundation already exists).** Today Zenith only acts on the
+  **primary** Google account. The service layer is already multi-account (every `google_service` fn takes
+  `email=`, per-email tokens in `backend/tokens/`, `list_accounts()`), and OAuth can connect several — but
+  the **tools don't expose an account param** (`_get_emails`/`_send_email`/`_get_events` never pass `email`,
+  so Claude always uses account #0) and the **UI only surfaces `accounts[0]`**. To make it real: add an
+  optional `account` arg to the Gmail/Calendar tool schemas + thread it through, and let the Connections/
+  Settings UI connect/list/pick accounts. Medium effort; the hard part (per-account tokens) is done.
+  (This also covers the "multi-account Gmail" deferred from triage.)
+
+### Other ideas
 - **Google Drive / Docs** — read/search/draft documents (proposals, agreements; the Copy Factory could
   write straight into a Doc). Highest fit for the agency work.
 - **Google Sheets** — read/update client & project trackers; pull numbers for reporting.
@@ -47,7 +68,8 @@
   voice. (Heavier API work.)
 - **Discord voice** — join a call, listen, brief it back in Hindi. Milestone-sized + risky (needs a
   Pycord / `discord-ext-voice-recv` bot rewrite; batch-first, consent-on-join). Its own project.
-- **Deeper triage** — extend beyond Gmail (Discord/WhatsApp), multi-account Gmail.
+- **Deeper triage** — extend beyond Gmail (Discord/WhatsApp triage). (Multi-account Gmail is its own
+  item above.)
 - **Bundled Python** — ship so the app isn't tied to the dev venv (resilience even on this machine if the
   folder moves or the venv is rebuilt).
 - **More proactivity gatherers / anti-nag tuning** — as daily use reveals gaps.

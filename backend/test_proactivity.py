@@ -274,7 +274,7 @@ def test_get_proactive_stays_200_when_service_raises(client, monkeypatch):
     monkeypatch.setattr(main.proactivity_service, "get_nudges",
                         lambda: (_ for _ in ()).throw(RuntimeError("boom")))
     r = client.get("/proactive")
-    assert r.status_code == 200 and r.json() == {"nudges": []}
+    assert r.status_code == 200 and r.json() == {"nudges": [], "alerts_enabled": True}
 
 
 def test_post_dismiss_calls_service(client, monkeypatch):
@@ -284,3 +284,38 @@ def test_post_dismiss_calls_service(client, monkeypatch):
     r = client.post("/proactive/dismiss", json={"id": "prep:x:1", "snooze": "tomorrow"})
     assert r.status_code == 200 and r.json() == {"ok": True}
     assert seen == {"id": "prep:x:1", "s": "tomorrow"}
+
+
+# --- background-alerts flag (feature: background watcher + notifications) ---
+
+def test_alerts_enabled_defaults_true(store):
+    assert ps.get_alerts_enabled() is True
+
+
+def test_set_alerts_enabled_persists(store):
+    ps.set_alerts_enabled(False)
+    assert ps.get_alerts_enabled() is False
+    ps.set_alerts_enabled(True)
+    assert ps.get_alerts_enabled() is True
+
+
+def test_alerts_flag_survives_dismiss(store):
+    # dismiss() does _load()->mutate->_save(); the alerts flag must be preserved through it.
+    ps.set_alerts_enabled(False)
+    ps.dismiss("commitment:x:abc123")
+    assert ps.get_alerts_enabled() is False
+
+
+def test_get_proactive_reports_alerts_flag(client, store, monkeypatch):
+    monkeypatch.setattr(main.proactivity_service, "get_nudges", lambda: [])
+    r = client.get("/proactive")
+    assert r.status_code == 200
+    assert r.json()["alerts_enabled"] is True
+
+
+def test_post_proactive_alerts_toggles(client, store, monkeypatch):
+    monkeypatch.setattr(main.proactivity_service, "get_nudges", lambda: [])
+    assert client.post("/proactive/alerts", json={"enabled": False}).status_code == 200
+    assert client.get("/proactive").json()["alerts_enabled"] is False
+    assert client.post("/proactive/alerts", json={"enabled": True}).status_code == 200
+    assert client.get("/proactive").json()["alerts_enabled"] is True

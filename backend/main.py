@@ -274,20 +274,32 @@ class DismissRequest(BaseModel):
     snooze: str | None = None      # "evening" | "tomorrow" | None (None = dismiss permanently)
 
 
+class AlertsRequest(BaseModel):
+    enabled: bool
+
+
 @app.get("/proactive")
 def proactive() -> dict:
-    """Proactive nudges (≤3, ranked). Best-effort — never 500s the HUD poll."""
+    """Proactive nudges (≤3, ranked) + the background-alerts flag. Best-effort — never 500s the poll."""
     try:
-        return {"nudges": proactivity_service.get_nudges()}
+        return {"nudges": proactivity_service.get_nudges(),
+                "alerts_enabled": proactivity_service.get_alerts_enabled()}
     except Exception as exc:  # noqa: BLE001 — a poll must never error the HUD
         print(f"[proactive] endpoint error: {exc}", flush=True)
-        return {"nudges": []}
+        return {"nudges": [], "alerts_enabled": True}
 
 
 @app.post("/proactive/dismiss")
 def proactive_dismiss(req: DismissRequest) -> dict:
     proactivity_service.dismiss_nudge(req.id, snooze_preset=req.snooze)
     return {"ok": True}
+
+
+@app.post("/proactive/alerts")
+def proactive_alerts(req: AlertsRequest) -> dict:
+    """Toggle whether the desktop background watcher fires OS notifications."""
+    proactivity_service.set_alerts_enabled(req.enabled)
+    return {"ok": True, "alerts_enabled": proactivity_service.get_alerts_enabled()}
 
 
 @app.get("/discord/status")

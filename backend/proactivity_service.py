@@ -48,7 +48,8 @@ _STORE = Path(__file__).resolve().parent / ".zenith" / "proactive.json"
 
 
 def _blank_state() -> dict:
-    return {"ledger": {"dismissed": {}, "snoozed": {}}, "cache": {"signature": "", "commitments": []}}
+    return {"ledger": {"dismissed": {}, "snoozed": {}}, "cache": {"signature": "", "commitments": []},
+            "alerts_enabled": True}
 
 
 def _load() -> dict:
@@ -65,6 +66,7 @@ def _load() -> dict:
         if isinstance(cache, dict):
             base["cache"]["signature"] = cache.get("signature", "") or ""
             base["cache"]["commitments"] = cache.get("commitments", []) or []
+        base["alerts_enabled"] = bool(data.get("alerts_enabled", True))
     return base
 
 
@@ -138,6 +140,17 @@ def get_cache() -> dict:
 def set_cache(signature: str, commitments: list) -> None:
     st = _load()
     st["cache"] = {"signature": signature, "commitments": commitments}
+    _save(st)
+
+
+def get_alerts_enabled() -> bool:
+    """Whether the desktop background watcher should fire notifications (default True)."""
+    return bool(_load().get("alerts_enabled", True))
+
+
+def set_alerts_enabled(on: bool) -> None:
+    st = _load()
+    st["alerts_enabled"] = bool(on)
     _save(st)
 
 

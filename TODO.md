@@ -42,16 +42,35 @@
 "One more tool" / polish ideas that fit the daily-driver use. Pick based on real friction, not up front.
 
 ### ★ Owner-requested while using the app (2026-07-16) — top of the backlog
-- **PDF input** — a way to hand Zenith a PDF (upload/drag-drop button in the Command Center) so it can
-  read it — summarize, extract a brief, answer questions, feed the Copy Factory. Claude accepts PDFs
-  natively (document blocks) or we extract text (`pypdf`); either way fence the content as
-  `<external-content>` and watch the token budget. High fit for the agency (contracts/proposals/briefs).
-- **YouTube (and other video) understanding** — paste a YouTube URL → a `read_youtube(url)` tool that
-  pulls the transcript and lets Claude summarize / pull action items. **Transcript-first** via
-  `youtube-transcript-api` (no download, fast, free); **fallback** = `yt-dlp` audio → the **faster-whisper
-  we already run** when there are no captions. Same "read external content" family as web_search/read_url;
-  fenced as untrusted.
-- **Multi-Google-account — FINISH wiring it (foundation already exists).** Today Zenith only acts on the
+
+**THEME: content ingestion — "attach anything → Zenith reads it → it acts on it."** These all share one
+pattern; the clean build is a single **"Attach / drop it here" surface** in the Command Center that takes a
+file OR a link, routes it to the right extractor, fences the content as `<external-content>`, and hands it
+to the normal loop — then a consistent **"extract action items → to-dos"** / **"build a Copy Factory brief
+→ draft copy"** step so ingestion actually DOES something (the owner's *"…and what can be done from it"*).
+- **PDF** — upload/drag-drop → Claude reads it (native document blocks or `pypdf` text). Contracts,
+  proposals, briefs → summarize / feed the Copy Factory. Widen to **DOCX / PPTX / XLSX / TXT / CSV** (same
+  button). Watch the token budget on big files.
+- **Images & screenshots (Claude vision)** — drop an image → describe / critique / extract. **Top pick for
+  the ads work:** critique a competitor's creative, read a dashboard screenshot, pull text from a
+  photo/receipt. Claude vision is native → cheap + powerful.
+- **Audio / voice-note upload → transcribe + summarize** — reuses the **faster-whisper already running**.
+  Client-call recordings, voice memos → notes/tasks. Nearly free to add.
+- **YouTube + podcast / any audio-video URL** — `read_youtube(url)`-style tool: transcript-first
+  (`youtube-transcript-api`, no download/free), **whisper fallback** (`yt-dlp` audio) when no captions.
+  Works for many audio/video URLs, not just YouTube. Fenced as untrusted.
+- **Social post / thread reader** — paste an X / LinkedIn / Reddit link → summarize or draft a reply in the
+  owner's voice.
+- **Instagram Reels** — owner wants to analyze Reels (hook / content / ideas for the ads work). ⚠️ **No
+  clean path:** Instagram has no public API for arbitrary Reels, and downloading/scraping is **ToS-risky +
+  fragile** (login walls, breaks often; `yt-dlp` works only sometimes and often needs a session cookie —
+  and Reels are *visual*, so a transcript alone misses most of the value). **Recommended instead:** owner
+  saves / screen-records the Reel and drops the **video / audio / screenshots** into the attach-surface
+  above → vision + whisper analyze it (ToS-safe, reuses the same features). The owner's OWN Reels *metrics*
+  can come via the official **Meta Graph API** (ties into "Meta / Google Ads reporting" below). **Do NOT
+  build a public-Reel scraper.**
+
+**Multi-Google-account — FINISH wiring it (foundation already exists).** Today Zenith only acts on the
   **primary** Google account. The service layer is already multi-account (every `google_service` fn takes
   `email=`, per-email tokens in `backend/tokens/`, `list_accounts()`), and OAuth can connect several — but
   the **tools don't expose an account param** (`_get_emails`/`_send_email`/`_get_events` never pass `email`,

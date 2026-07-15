@@ -1,97 +1,109 @@
 # Zenith — TODO
 
 **Status (2026-07-16):** **Phase 1 is essentially COMPLETE and running as an installed Windows desktop app.**
-- All of **M1–M7** shipped to `origin/main`; **web search + read-a-URL** (Tavily) shipped; the full
-  **Tauri-unblocked cluster** shipped — global hotkey (Ctrl+Alt+Z) · system tray + close-to-tray ·
-  autostart · background watcher + native notifications.
-- Backend **port moved 8000 → 8010** (it was colliding with the owner's *Budgetting* project on :8000).
-  App **rebuilt, installed (MSI + NSIS), and running/working**; the `tauri build` production bundle is
-  confirmed.
-- Owner is now **soak-testing it in daily use.**
+All of **M1–M7** + web search + read-a-URL + the full **Tauri cluster** (global hotkey · tray + close-to-tray ·
+autostart · background watcher/notifications) are shipped to `origin/main`. Backend moved to **:8010** (was
+colliding with the owner's *Budgetting* project on :8000). App **built (MSI + NSIS), installed, and working**.
+Owner is **soak-testing it in daily use.**
 
 ## THE PLAN (owner's call 2026-07-16)
-1. **Use it as the daily driver for ~a week** — let real friction surface the next priorities.
-2. **Then iterate** — start with **TTS streaming (+ the app-icon swap)**, then revisit the backlog below.
+1. **Use it as the daily driver for ~a week** — let real friction surface priorities.
+2. **Then iterate** — start with **TTS streaming (+ app-icon swap)**, then pull from the ROADMAP below.
+
+**Priority legend:** ★★★ = reach for first · ★★ = strong · ★ = nice-to-have.
 
 ---
 
-## PHASE 1 — what's left
+## PHASE 1 — what's left (committed)
 
-### 1. TTS streaming  +  app-icon swap  ⬜ NEXT (do together, after the soak week)
-- **TTS streaming** — Kokoro generates faster than real-time; stream the *first* audio chunk while the
-  rest synthesizes so even long replies start speaking in ~1s. The main remaining voice-latency lever
-  (the GPU already killed the big lag). Self-contained: `backend/tts_service.py` + `/speak` + the
-  frontend audio playback.
-- **App icon** — replace the placeholder: one square PNG (≥1024×1024, transparent bg) →
-  `cd frontend && npm run tauri icon <path.png>` (regenerates .ico/.icns/all PNGs **and** the tray icon)
-  → `npm run tauri build` → reinstall. (Windows caches icons → sign-out/in to force the refresh.)
-  Bundled with the TTS-streaming build, per owner.
+### Next up (right after the soak week)
+- **TTS streaming ★★★** — Kokoro generates faster than real-time; stream the *first* audio chunk while the
+  rest synthesizes so even long replies start speaking in ~1s. Main remaining voice-latency lever.
+  Self-contained: `backend/tts_service.py` + `/speak` + frontend audio playback.
+- **App-icon swap ★★** — one square PNG (≥1024, transparent) → `cd frontend && npm run tauri icon <png>`
+  (regenerates .ico/.icns/all PNGs + the tray icon) → `npm run tauri build` → reinstall. (Windows caches
+  icons → sign-out/in to refresh.) Bundle with the TTS build, per owner.
 
-### 2. Wake word "Zenith"  🚧 DESIGNED, BLOCKED — the last Phase-1 feature
-- Full design spec + `SETUP-WAKEWORD.md` on branch `feat/wake-word` (pushed to origin; **no code yet**).
-  Locked: **Porcupine Web** (WASM in-webview) + energy-silence endpointing + on-by-default real-mute +
-  barge-in; zero backend voice-path changes. Plan the **`"Hey Zenith"`** fallback from the start.
-- **BLOCKER:** Picovoice signup rejects gmail and wants a work-domain email the owner doesn't have yet.
-- **Resume when:** owner gets a domain email (free Cloudflare/Zoho forward on shapeodyssey.com) **OR** we
-  pivot the engine to **openWakeWord** (Apache-2.0 — no account/key/email; spec §11). The global
-  **Ctrl+Alt+Z** hotkey is the stand-in until then.
+### Blocked
+- **Wake word "Zenith" 🚧** — the last Phase-1 feature. Spec + `SETUP-WAKEWORD.md` on `feat/wake-word`
+  (pushed; no code). Locked: **Porcupine Web** (WASM in-webview) + energy-silence endpointing + on-by-default
+  real-mute + barge-in; plan the `"Hey Zenith"` fallback. **BLOCKER:** Picovoice signup wants a work-domain
+  email the owner lacks. **Resume when:** owner gets a domain email (Cloudflare/Zoho forward on
+  shapeodyssey.com) OR pivot to **openWakeWord** (no account/email; spec §11). Ctrl+Alt+Z is the stand-in.
 
 ---
 
-## BACKLOG — candidate improvements (revisit after the soak week; NOT committed yet)
-"One more tool" / polish ideas that fit the daily-driver use. Pick based on real friction, not up front.
+## ROADMAP — post-soak build candidates (by category)
+Not committed yet — pick based on real friction after the soak week. Overall theme: today Zenith is mostly
+**reactive** (ask → it does). These add the other axes of a complete personal-COO tool: **act on a schedule**,
+**understand more input**, **produce finished deliverables**, **remember deeply**.
 
-### ★ Owner-requested while using the app (2026-07-16) — top of the backlog
+### A. Act on a schedule / proactively — *the biggest completeness gap*  ★★★
+Turn Zenith from "answers when asked" into "runs your day." The tray + notification infra already exists.
+- **Scheduler & routines ★★★** — "brief me every morning at 9", "every Friday draft the weekly client
+  report", recurring "remind me at 3pm to call Rahul". A lightweight backend scheduler runs a prompt on a
+  cadence and surfaces it (spoken / toast). The morning briefing exists only as a button today — this
+  automates it. Keep proactivity's invariants (no tools bound to auto-runs; anything that sends/creates
+  still hits the confirm gate).
+- **Daily focus digest ★★★** — one prioritized "here's your day" that *synthesizes existing data* —
+  calendar + to-dos + waiting replies (triage) + unkept commitments. Cheap: the data's already there.
+- **More proactivity gatherers / anti-nag tuning ★** — as daily use reveals gaps.
 
-**THEME: content ingestion — "attach anything → Zenith reads it → it acts on it."** These all share one
-pattern; the clean build is a single **"Attach / drop it here" surface** in the Command Center that takes a
-file OR a link, routes it to the right extractor, fences the content as `<external-content>`, and hands it
-to the normal loop — then a consistent **"extract action items → to-dos"** / **"build a Copy Factory brief
-→ draft copy"** step so ingestion actually DOES something (the owner's *"…and what can be done from it"*).
-- **PDF** — upload/drag-drop → Claude reads it (native document blocks or `pypdf` text). Contracts,
-  proposals, briefs → summarize / feed the Copy Factory. Widen to **DOCX / PPTX / XLSX / TXT / CSV** (same
-  button). Watch the token budget on big files.
-- **Images & screenshots (Claude vision)** — drop an image → describe / critique / extract. **Top pick for
-  the ads work:** critique a competitor's creative, read a dashboard screenshot, pull text from a
-  photo/receipt. Claude vision is native → cheap + powerful.
-- **Audio / voice-note upload → transcribe + summarize** — reuses the **faster-whisper already running**.
-  Client-call recordings, voice memos → notes/tasks. Nearly free to add.
-- **YouTube + podcast / any audio-video URL** — `read_youtube(url)`-style tool: transcript-first
-  (`youtube-transcript-api`, no download/free), **whisper fallback** (`yt-dlp` audio) when no captions.
-  Works for many audio/video URLs, not just YouTube. Fenced as untrusted.
-- **Social post / thread reader** — paste an X / LinkedIn / Reddit link → summarize or draft a reply in the
-  owner's voice.
-- **Instagram Reels** — owner wants to analyze Reels (hook / content / ideas for the ads work). ⚠️ **No
-  clean path:** Instagram has no public API for arbitrary Reels, and downloading/scraping is **ToS-risky +
-  fragile** (login walls, breaks often; `yt-dlp` works only sometimes and often needs a session cookie —
-  and Reels are *visual*, so a transcript alone misses most of the value). **Recommended instead:** owner
-  saves / screen-records the Reel and drops the **video / audio / screenshots** into the attach-surface
-  above → vision + whisper analyze it (ToS-safe, reuses the same features). The owner's OWN Reels *metrics*
-  can come via the official **Meta Graph API** (ties into "Meta / Google Ads reporting" below). **Do NOT
-  build a public-Reel scraper.**
+### B. Content ingestion — "attach anything → understand → act"  ★★★
+One **"Attach / drop it here" surface** in the Command Center: takes a file OR a link → routes to the right
+extractor → fences content as `<external-content>` → hands it to the loop → then a consistent **"extract
+action items → to-dos" / "build a Copy Factory brief → draft copy"** step (the owner's *"…what can be done
+from it"*).
+- **PDF (+ DOCX/PPTX/XLSX/TXT/CSV) ★★★** — Claude reads it (native document blocks or `pypdf`). Contracts,
+  proposals, briefs. Watch the token budget on big files.
+- **Images & screenshots (Claude vision) ★★★** — describe / critique / extract. *Standout for the ads work:*
+  critique a competitor's creative, read a dashboard screenshot, pull text from a photo/receipt.
+- **Audio / voice-note upload → transcribe + summarize ★★** — reuses the **faster-whisper already running**.
+  Client-call recordings, voice memos → notes/tasks. Nearly free.
+- **YouTube + podcast / any audio-video URL ★★** — `read_youtube(url)`: transcript-first
+  (`youtube-transcript-api`), **whisper fallback** (`yt-dlp` audio) when no captions.
+- **Social post / thread reader ★** — X / LinkedIn / Reddit link → summarize or draft a reply in voice.
+- **Instagram Reels ★** — ⚠️ no public API; scraping is ToS-risky + fragile + Reels are *visual*. **Do NOT
+  build a scraper.** Realistic path: owner saves / screen-records the Reel → drops the **video / audio /
+  screenshots** into the attach surface → vision + whisper analyze it. Own-Reels *metrics* via the official
+  **Meta Graph API** (see E).
 
-**Multi-Google-account — FINISH wiring it (foundation already exists).** Today Zenith only acts on the
-  **primary** Google account. The service layer is already multi-account (every `google_service` fn takes
-  `email=`, per-email tokens in `backend/tokens/`, `list_accounts()`), and OAuth can connect several — but
-  the **tools don't expose an account param** (`_get_emails`/`_send_email`/`_get_events` never pass `email`,
-  so Claude always uses account #0) and the **UI only surfaces `accounts[0]`**. To make it real: add an
-  optional `account` arg to the Gmail/Calendar tool schemas + thread it through, and let the Connections/
-  Settings UI connect/list/pick accounts. Medium effort; the hard part (per-account tokens) is done.
-  (This also covers the "multi-account Gmail" deferred from triage.)
+### C. Produce deliverables (not just draft text)  ★★
+- **Generate finished files ★★** — turn Copy Factory output into a **sendable PDF/DOCX** — proposal,
+  one-pager, invoice draft. Brief in → finished document out.
 
-### Other ideas
-- **Google Drive / Docs** — read/search/draft documents (proposals, agreements; the Copy Factory could
-  write straight into a Doc). Highest fit for the agency work.
-- **Google Sheets** — read/update client & project trackers; pull numbers for reporting.
-- **Meta / Google Ads reporting** — campaign reporting is squarely in Zenith's lane; pull ad metrics by
-  voice. (Heavier API work.)
-- **Discord voice** — join a call, listen, brief it back in Hindi. Milestone-sized + risky (needs a
-  Pycord / `discord-ext-voice-recv` bot rewrite; batch-first, consent-on-join). Its own project.
-- **Deeper triage** — extend beyond Gmail (Discord/WhatsApp triage). (Multi-account Gmail is its own
-  item above.)
-- **Bundled Python** — ship so the app isn't tied to the dev venv (resilience even on this machine if the
-  folder moves or the venv is rebuilt).
-- **More proactivity gatherers / anti-nag tuning** — as daily use reveals gaps.
+### D. Memory & recall  ★★
+- **Semantic search over the vault + past conversations ★★** — "what did I tell Acme about pricing last
+  month?" Today vault search is keyword-only; semantic recall makes it feel like it truly remembers.
+
+### E. Integrations (each ≈ "one more tool" on the existing loop)
+- **Multi-Google-account — FINISH wiring ★★** — today Zenith only acts on the **primary** account. The
+  service layer is already multi-account (`google_service` fns take `email=`, per-email tokens in
+  `backend/tokens/`, `list_accounts()`) and OAuth can connect several — but the **tools never pass `email`**
+  (so Claude always uses account #0) and the **UI only shows `accounts[0]`**. To finish: add an optional
+  `account` arg to the Gmail/Calendar tool schemas + thread it through, and let Connections/Settings
+  connect/list/pick accounts. Hard part (per-account tokens) is done.
+- **Google Drive / Docs ★★** — read/search/draft documents (proposals live here; Copy Factory could write
+  into a Doc).
+- **Google Sheets ★★** — read/update client & project trackers; pull numbers for reporting.
+- **Meta / Google Ads reporting ★★** — campaign reporting is in Zenith's lane; pull ad metrics by voice.
+  (Heavier API work; also serves own-Reels/IG metrics.)
+- **Slack ★★** — the team's main comms channel; probably the biggest missing one.
+- **SMS reminders (Twilio) ★** — a phone-side push/reminder fallback.
+- **Deeper triage ★** — extend beyond Gmail (Discord / WhatsApp triage).
+
+### F. Business-ops lite (lightweight; full versions stay Phase 2)  ★
+- **Time logging ★** — "log 2 hours on Acme" → vault-backed.
+- **Invoice draft ★** — assemble an invoice (the *billing/payments* side stays Phase 2).
+- **Receipt capture ★** — drop a receipt photo (vision) → logged. Rides the ingestion work.
+
+### G. Robustness  ★
+- **Bundled Python ★** — ship so the app isn't tied to the dev venv (resilience if the folder moves / venv
+  is rebuilt).
+
+### H. Big swing — its own milestone
+- **Discord voice** — join a call, listen, brief it back in Hindi. Doable but risky (needs a Pycord /
+  `discord-ext-voice-recv` bot rewrite; batch-first; consent-on-join). Scope separately.
 
 ---
 
@@ -99,31 +111,31 @@ to the normal loop — then a consistent **"extract action items → to-dos"** /
 - **Multi-user auth** (Clerk) + per-user **encrypted key storage**.
 - **Razorpay billing** (₹999–2999/mo tiers).
 - **Hosted backend + PWA** (the no-download path) — one codebase already serves desktop + web + PWA.
-- **Full business-data dashboard** — clients / projects / invoices / time as a real DB module (the M6
-  vault is the lightweight version).
+- **Full business-data dashboard** — clients / projects / invoices / time as a real DB module (the M6 vault
+  + the Phase-1 business-ops-lite items are the lightweight version).
 - **WhatsApp Business** (Cloud API, multi-number) — customer comms at scale.
-- **Computer Use + Higgsfield** — optional / experimental.
+- **Computer Use + Higgsfield** (AI image/video creative) — optional / experimental.
 - **Trademark sign-off + domain lock** before any paid launch (see the naming note in `CLAUDE.md`).
 
 ---
 
 ## DON'T BUILD (saturated / non-differentiating — deliberately out of scope)
 PC/system telemetry (CPU/GPU/disk/reactor/battery cosplay) · calendar auto-scheduling à la Motion ·
-WhatsApp Business customer-chatbots / lead-gen · smart-home/IoT · more 3D holographic eye-candy.
+WhatsApp Business customer-chatbots / lead-gen · smart-home/IoT · more 3D holographic eye-candy ·
+a public Instagram/social scraper.
 
 ---
 
 ## Context / reminders
 - **Desktop app:** installed from `frontend/src-tauri/target/release/bundle/nsis/Zenith_..._setup.exe`.
-  It spawns the backend from the **repo's `backend\.venv`** (path baked in at build) → **keep the
-  `Zenith` project folder where it is** or the installed app won't find its backend.
-- **Backend runs on `:8010`** (moved off 8000). If the frontend ever can't reach it, check
-  `frontend/.env.local` has `NEXT_PUBLIC_API_URL=http://localhost:8010` (the `.env*` files are
-  owner-edited — agent-blocked).
+  It spawns the backend from the **repo's `backend\.venv`** (path baked in at build) → **keep the `Zenith`
+  project folder where it is** or the installed app won't find its backend.
+- **Backend runs on `:8010`** (moved off 8000). If the frontend can't reach it, check `frontend/.env.local`
+  has `NEXT_PUBLIC_API_URL=http://localhost:8010` (the `.env*` files are owner-edited — agent-blocked).
 - **Tauri shell** in `frontend/src-tauri/` (v2, id `com.zenith.desktop`, dev port 1420). Rust host:
-  `src/lib.rs` (backend spawn/kill · mic grant · single-instance · Ctrl+Alt+Z hotkey · tray · autostart),
+  `src/lib.rs` (spawn/kill · mic · single-instance · Ctrl+Alt+Z hotkey · tray · autostart),
   `src/backend.rs` (path + API-token resolution), `src/watcher.rs` (proactive notifications). Run/build +
-  acceptance checklist in `SETUP-TAURI.md`.
+  acceptance in `SETUP-TAURI.md`.
 - **Windows toasts only fire in the BUILT/installed app**, not `tauri dev`.
 - **Don't `npm run build` while `npm run dev` is live** (desyncs `.next`).
 - STT `backend/stt_service.py` · TTS `backend/tts_service.py` · routes `backend/main.py`.
@@ -137,5 +149,5 @@ WhatsApp Business customer-chatbots / lead-gen · smart-home/IoT · more 3D holo
   usage/cost dashboard + Settings.
 - **M6:** memory vault + Copy Factory + to-dos. **Notion** (18 tools). **App Launcher.**
 - **M7:** proactivity nudges + Gmail message triage (+ Part-3.1 noise classifier).
-- **v3.0–v3.4 / M2 close-out:** web search + read-a-URL (Tavily); **Tauri desktop shell** + global
-  hotkey + tray/autostart + background watcher/notifications. Backend port 8000→8010. Built + installed.
+- **v3.0–v3.4 / M2 close-out:** web search + read-a-URL (Tavily); **Tauri desktop shell** + global hotkey +
+  tray/autostart + background watcher/notifications. Backend port 8000→8010. Built + installed.

@@ -26,10 +26,14 @@ def search(query: str) -> str:
     if not key:
         raise SearchUnavailable("Web search isn't configured — add TAVILY_API_KEY to backend/.env.")
     try:
-        resp = requests.post(API_URL, timeout=_TIMEOUT, json={
-            "api_key": key, "query": query, "max_results": _MAX_RESULTS,
-            "include_answer": True, "search_depth": "basic",
-        })
+        # Current Tavily API wants the key in an Authorization: Bearer header; older
+        # integrations passed it as "api_key" in the body. Send both so it works either way.
+        resp = requests.post(API_URL, timeout=_TIMEOUT,
+            headers={"Authorization": f"Bearer {key}"},
+            json={
+                "api_key": key, "query": query, "max_results": _MAX_RESULTS,
+                "include_answer": True, "search_depth": "basic",
+            })
         resp.raise_for_status()
         data = resp.json()
     except requests.RequestException as exc:

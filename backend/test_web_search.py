@@ -20,6 +20,7 @@ def _wire(monkeypatch, payload, key="tvly-test"):
     def fake_post(url, **kw):
         seen["url"] = url
         seen["json"] = kw.get("json")
+        seen["headers"] = kw.get("headers") or {}
         return _Resp(payload)
     monkeypatch.setattr(wss.requests, "post", fake_post)
     return seen
@@ -38,7 +39,8 @@ def test_search_formats_answer_and_results(monkeypatch):
     assert "https://ex.com/fr" in out and "https://ex.com/paris" in out
     assert "France" in out and "Paris" in out
     assert seen["json"]["query"] == "capital of france"
-    assert seen["json"]["api_key"] == "tvly-test"
+    assert seen["json"]["api_key"] == "tvly-test"           # legacy body auth (back-compat)
+    assert seen["headers"]["Authorization"] == "Bearer tvly-test"  # current Tavily header auth
 
 
 def test_search_no_results(monkeypatch):

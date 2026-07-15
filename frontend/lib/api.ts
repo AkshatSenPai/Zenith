@@ -20,6 +20,30 @@ export function apiFetch(path: string, init: RequestInit = {}): Promise<Response
   return fetch(url, { ...init, headers });
 }
 
+/** Whether the desktop background watcher may fire OS notifications. Default true / on any error. */
+export async function getProactiveAlerts(): Promise<boolean> {
+  try {
+    const r = await apiFetch("/proactive");
+    const d = await r.json();
+    return d.alerts_enabled !== false;
+  } catch {
+    return true;
+  }
+}
+
+/** Toggle background alerts (persisted server-side; the Rust watcher reads it from /proactive). */
+export async function setProactiveAlerts(enabled: boolean): Promise<void> {
+  try {
+    await apiFetch("/proactive/alerts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled }),
+    });
+  } catch {
+    /* ignore */
+  }
+}
+
 export type GoogleAccount = { email: string; needs_reconnect: boolean };
 export type GoogleStatus = {
   gmail_connected: boolean;

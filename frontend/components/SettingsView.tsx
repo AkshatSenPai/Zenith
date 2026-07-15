@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getHealth, type Health, type GoogleStatus, type DiscordStatus, type TelegramStatus } from "../lib/api";
+import { getHealth, getProactiveAlerts, setProactiveAlerts, type Health, type GoogleStatus, type DiscordStatus, type TelegramStatus } from "../lib/api";
 import { SkinPicker } from "./SkinPicker";
 import { getReduceMotion, setReduceMotion } from "../lib/prefs";
 import { isTauri, getAutostartEnabled, setAutostartEnabled } from "../lib/tauri";
@@ -63,6 +63,18 @@ export function SettingsView({
     setAutostartOn(await getAutostartEnabled()); // reconcile with the OS
   };
 
+  // Background alerts: desktop watcher notifications. State lives in the backend (rides /proactive),
+  // so the Rust watcher respects it. Seed from the backend; the toggle POSTs the new value.
+  const [alertsOn, setAlertsOn] = useState(true);
+  useEffect(() => {
+    if (isTauri()) getProactiveAlerts().then(setAlertsOn);
+  }, []);
+  const toggleAlerts = async () => {
+    const next = !alertsOn;
+    setAlertsOn(next);
+    await setProactiveAlerts(next);
+  };
+
   const googleConnected = Boolean(gstatus?.gmail_connected || gstatus?.calendar_connected);
 
   return (
@@ -103,6 +115,18 @@ export function SettingsView({
                 desc="Start Zenith with Windows, hidden in the tray. Summon it with the tray icon or Ctrl+Alt+Z."
                 on={autostartOn}
                 onChange={toggleAutostart}
+              />
+            </Section>
+          )}
+
+          {/* Notifications — desktop watcher toasts (backend-backed flag) */}
+          {isDesktop && (
+            <Section title="Notifications" caption="Desktop app">
+              <ToggleRow
+                label="Background alerts"
+                desc="Toast me when something slips (an approaching meeting, an unkept commitment) while Zenith is hidden in the tray."
+                on={alertsOn}
+                onChange={toggleAlerts}
               />
             </Section>
           )}

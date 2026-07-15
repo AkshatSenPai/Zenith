@@ -42,9 +42,15 @@ export · full `cargo build`. Owner verified the desktop app by hand — window,
       proactivity invariants: extraction binds no tools; a nudge action is an inert prefill.)
 - [ ] **System tray** — minimize-to-tray, keep running in the background, quick actions. Pairs with
       the wake word + proactivity watcher (an assistant that's "always there").
-- [ ] **Global push-to-talk hotkey** — trigger voice from anywhere, not just when the window is
-      focused.
-- [ ] **Autostart on login** — Zenith launches with Windows.
+- [x] **Global push-to-talk hotkey ✅ (SHIPPED 2026-07-15, on `main`).** Native **`Ctrl+Alt+Z`** owned
+      by the Tauri host (`tauri-plugin-global-shortcut`): press-to-toggle from any app → shows/focuses the
+      window + emits a `voice-hotkey` event; the frontend toggles `startListening`/`stopListening` off the
+      existing `recordingRef` (interoperates with hold-Space). No new npm dep (uses `withGlobalTauri`);
+      zero voice-path/loop/gate change. Gates: `cargo build` + 4 `cargo test` + `tsc` + `next` export all
+      green. Spec+plan `docs/superpowers/{specs,plans}/2026-07-15-global-hotkey*.md`. **⚠️ Owner manual
+      acceptance pending** (press it from another app — SETUP-TAURI checklist #6). The wake-word substitute
+      while Picovoice is blocked.
+- [ ] **Autostart on login** — Zenith launches with Windows. (Pairs with the tray — feature #2.)
 
 ## D. Other Phase-1 leftovers (not Tauri)
 - [x] **Web search ✅ (SHIPPED 2026-07-14, `feat/web-search`).** One read-only `web_search(query)` tool

@@ -69,4 +69,8 @@ The desktop behaviors below are verified by hand (they need a real window, mic, 
 4. Close the window → the backend `python.exe` disappears (Task Manager → Details) and **VRAM is
    freed** (`nvidia-smi`).
 5. Launch twice → the second launch focuses the first; exactly **one** uvicorn `python.exe` exists.
-6. `cd frontend && npm run tauri build` → the bundled app runs and repeats 1–5.
+6. **Global hotkey:** focus another app, press **Ctrl+Alt+Z** → Zenith comes to front and the orb goes
+   to LISTENING; speak; press **Ctrl+Alt+Z** again → it transcribes and replies (spoken). Hold-Space
+   still works in-window. If nothing happens, check the backend/console log for a "could not register"
+   warning (another app already owns the combo).
+7. `cd frontend && npm run tauri build` → the bundled app runs and repeats 1–6.

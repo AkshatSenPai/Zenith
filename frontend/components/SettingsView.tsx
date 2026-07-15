@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { getHealth, type Health, type GoogleStatus, type DiscordStatus, type TelegramStatus } from "../lib/api";
 import { SkinPicker } from "./SkinPicker";
 import { getReduceMotion, setReduceMotion } from "../lib/prefs";
+import { isTauri, getAutostartEnabled, setAutostartEnabled } from "../lib/tauri";
 
 /** Settings view (v7): Appearance (the live SkinPicker) · Motion (reduced-motion toggle) ·
  *  read-only active config from /health · live connection status · the security posture.
@@ -47,6 +48,21 @@ export function SettingsView({
     setReduceMotion(next);
   };
 
+  // Startup (Tauri desktop only): "Launch on login" toggles the OS autostart entry via the plugin.
+  // Seed from the real OS state; reconcile after a write so the UI reflects what actually happened.
+  const [isDesktop, setIsDesktop] = useState(false);
+  const [autostartOn, setAutostartOn] = useState(false);
+  useEffect(() => {
+    setIsDesktop(isTauri());
+    getAutostartEnabled().then(setAutostartOn);
+  }, []);
+  const toggleAutostart = async () => {
+    const next = !autostartOn;
+    setAutostartOn(next); // optimistic
+    await setAutostartEnabled(next);
+    setAutostartOn(await getAutostartEnabled()); // reconcile with the OS
+  };
+
   const googleConnected = Boolean(gstatus?.gmail_connected || gstatus?.calendar_connected);
 
   return (
@@ -78,6 +94,18 @@ export function SettingsView({
               Your system &ldquo;reduce motion&rdquo; setting is always respected too.
             </p>
           </Section>
+
+          {/* Startup — desktop app only (autostart is meaningless in a browser tab) */}
+          {isDesktop && (
+            <Section title="Startup" caption="Desktop app">
+              <ToggleRow
+                label="Launch on login"
+                desc="Start Zenith with Windows, hidden in the tray. Summon it with the tray icon or Ctrl+Alt+Z."
+                on={autostartOn}
+                onChange={toggleAutostart}
+              />
+            </Section>
+          )}
 
           <Section title="Active config" caption="Read-only · set in backend/.env">
             {healthError && !health ? (

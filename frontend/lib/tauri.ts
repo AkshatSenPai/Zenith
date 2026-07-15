@@ -22,3 +22,24 @@ export function onVoiceHotkey(cb: () => void): () => void {
     .catch(() => {});
   return () => { cancelled = true; if (unlisten) unlisten(); };
 }
+
+function tauriInvoke<T>(cmd: string): Promise<T> | null {
+  const invoke = (window as unknown as {
+    __TAURI__?: { core?: { invoke?: (c: string) => Promise<unknown> } };
+  }).__TAURI__?.core?.invoke;
+  return typeof invoke === "function" ? (invoke(cmd) as Promise<T>) : null;
+}
+
+/** Whether "launch on login" is currently registered. False outside Tauri / on any error. */
+export async function getAutostartEnabled(): Promise<boolean> {
+  if (!isTauri()) return false;
+  try { return (await tauriInvoke<boolean>("plugin:autostart|is_enabled")) ?? false; }
+  catch { return false; }
+}
+
+/** Enable/disable launch-on-login. No-op outside Tauri; swallows errors. */
+export async function setAutostartEnabled(on: boolean): Promise<void> {
+  if (!isTauri()) return;
+  try { await tauriInvoke<void>(on ? "plugin:autostart|enable" : "plugin:autostart|disable"); }
+  catch { /* ignore */ }
+}

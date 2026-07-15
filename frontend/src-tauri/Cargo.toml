@@ -31,7 +31,9 @@ tauri-plugin-single-instance = "2.4.2"
 [target.'cfg(windows)'.dependencies]
 webview2-com = "0.38"
 
-# Global push-to-talk hotkey (Ctrl+Alt+Z) + autostart on login — desktop-only plugins.
+# Global push-to-talk hotkey (Ctrl+Alt+Z) + autostart + background-watcher notifications — desktop-only.
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
 tauri-plugin-global-shortcut = "2"
 tauri-plugin-autostart = "2"
+tauri-plugin-notification = "2"
+ureq = { version = "2", default-features = false }

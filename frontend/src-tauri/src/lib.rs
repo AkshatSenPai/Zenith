@@ -1,4 +1,5 @@
 mod backend;
+mod watcher;
 
 use std::process::Child;
 use std::sync::Mutex;
@@ -22,6 +23,7 @@ pub fn run() {
         let _ = w.set_focus();
       }
     }))
+    .plugin(tauri_plugin_notification::init())
     .manage(BackendProc(Mutex::new(child)))
     .setup(|app| {
       if cfg!(debug_assertions) {
@@ -119,6 +121,9 @@ pub fn run() {
             let _ = w.hide();
           }
         }
+
+        // Background proactivity watcher — toasts new nudges while hidden to the tray.
+        watcher::spawn(app.handle().clone());
       }
 
       Ok(())

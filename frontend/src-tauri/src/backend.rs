@@ -21,6 +21,40 @@ pub fn resolve_python_from(env: Option<String>, backend_dir: &Path) -> PathBuf {
     }
 }
 
+/// The resolved backend directory (ZENITH_BACKEND_DIR or `<manifest>/../../backend`).
+pub fn backend_dir() -> PathBuf {
+    resolve_backend_dir_from(
+        std::env::var("ZENITH_BACKEND_DIR").ok(),
+        Path::new(env!("CARGO_MANIFEST_DIR")),
+    )
+}
+
+/// The API token the background watcher must send to reach `/proactive` when auth is enforced.
+/// Env `ZENITH_API_TOKEN` first, else parsed from `<backend_dir>/.env`. None → send no header
+/// (the backend is fail-open when the token is unset, which is the common local case).
+pub fn api_token_from(env: Option<String>, backend_dir: &Path) -> Option<String> {
+    if let Some(t) = env {
+        let t = t.trim().to_string();
+        if !t.is_empty() {
+            return Some(t);
+        }
+    }
+    let text = std::fs::read_to_string(backend_dir.join(".env")).ok()?;
+    for line in text.lines() {
+        if let Some(rest) = line.trim().strip_prefix("ZENITH_API_TOKEN=") {
+            let v = rest.trim().trim_matches('"').trim_matches('\'').to_string();
+            if !v.is_empty() {
+                return Some(v);
+            }
+        }
+    }
+    None
+}
+
+pub fn api_token() -> Option<String> {
+    api_token_from(std::env::var("ZENITH_API_TOKEN").ok(), &backend_dir())
+}
+
 pub fn port_in_use(addr: &str) -> bool {
     match addr.parse::<SocketAddr>() {
         Ok(sa) => TcpStream::connect_timeout(&sa, Duration::from_millis(300)).is_ok(),
@@ -34,10 +68,7 @@ pub fn spawn_backend() -> Option<Child> {
         eprintln!("[zenith] backend already on {BACKEND_ADDR}; not spawning.");
         return None;
     }
-    let backend_dir = resolve_backend_dir_from(
-        std::env::var("ZENITH_BACKEND_DIR").ok(),
-        Path::new(env!("CARGO_MANIFEST_DIR")),
-    );
+    let backend_dir = backend_dir();
     let python = resolve_python_from(std::env::var("ZENITH_PYTHON").ok(), &backend_dir);
     let mut cmd = Command::new(&python);
     cmd.args(["-m", "uvicorn", "main:app", "--host", "127.0.0.1", "--port", "8000"])
@@ -97,5 +128,25 @@ mod tests {
             resolve_python_from(Some("py".into()), dir),
             PathBuf::from("py")
         );
+    }
+
+    #[test]
+    fn api_token_prefers_env() {
+        let dir = Path::new("C:/nonexistent");
+        assert_eq!(api_token_from(Some("  tok  ".into()), dir), Some("tok".into()));
+    }
+
+    #[test]
+    fn api_token_reads_dotenv() {
+        let d = std::env::temp_dir().join(format!("ztok{}", std::process::id()));
+        std::fs::create_dir_all(&d).unwrap();
+        std::fs::write(d.join(".env"), "FOO=1\nZENITH_API_TOKEN=\"abc\"\n").unwrap();
+        assert_eq!(api_token_from(None, &d), Some("abc".into()));
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn api_token_none_when_absent() {
+        assert_eq!(api_token_from(None, Path::new("C:/nonexistent")), None);
     }
 }

@@ -51,7 +51,14 @@ export · full `cargo build`. Owner verified the desktop app by hand — window,
       on the existing loop, backed by **Tavily**; `backend/web_search_service.py`; results fenced as
       `<external-content>` (`UNTRUSTED_TOOLS`), not gated, graceful when `TAVILY_API_KEY` unset; +9 tests
       (288 backend green). Setup `SETUP-WEBSEARCH.md`. **Owner: add a free Tavily key to `backend/.env`
-      to turn it on.** Fast-follow: a "read/summarize a specific URL" tool.
+      to turn it on.** Wire-format fix 2026-07-15 (`c7a5c5f`): key now sent as `Authorization: Bearer`
+      header per current Tavily docs (was body-only → would've 401'd).
+- [x] **Read-a-URL ✅ (SHIPPED 2026-07-15, on `main`).** The fast-follow: one read-only `read_url(url)`
+      tool that fetches a specific page's content via **Tavily Extract** (`extract()` added to
+      `web_search_service.py`; same key/Bearer auth). Fenced (`UNTRUSTED_TOOLS`), not gated, content
+      truncated to 8000 chars, graceful when unconfigured. +10 tests (298 backend green). Spec+plan
+      `docs/superpowers/{specs,plans}/2026-07-15-read-url-tool*.md`. Same live-QA caveat as web search
+      (tests mock the HTTP → owner verifies with a real key + a real URL).
 - [x] **Triage Part-3.1 — Claude-classification pass ✅ (SHIPPED 2026-07-14, `feat/triage-noise-classifier`).**
       COO-aware `triage_classifier.py` re-buckets residual transactional noise (bank alerts / receipts
       with no `List-Unsubscribe`, "thanks"/FYI) into a recoverable "no reply needed" drawer — free

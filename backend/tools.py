@@ -246,6 +246,13 @@ def _web_search(i: dict) -> str:
     return web_search_service.search(q)     # raises SearchUnavailable on config/API failure
 
 
+def _read_url(i: dict) -> str:
+    url = (i.get("url") or "").strip()
+    if not url:
+        return "read_url needs a 'url'."
+    return web_search_service.extract(url)  # raises SearchUnavailable on config/API failure
+
+
 # ---------- discord executors ----------
 
 def _list_discord_channels(_i: dict) -> str:
@@ -696,6 +703,19 @@ TOOLS = [
         },
     },
     {
+        "name": "read_url",
+        "description": "Fetch and read the full content of a specific web page or article by its "
+        "URL. Use when the user pastes a link or asks to 'read', 'open', 'summarize', or 'what does "
+        "this say' about a specific URL. For finding pages by topic, use web_search instead. Returns "
+        "the page's cleaned text.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"url": {"type": "string",
+                "description": "The full URL of the page to read (including https://)"}},
+            "required": ["url"],
+        },
+    },
+    {
         "name": "list_discord_channels",
         "description": "List the Discord servers + text channels the bot can see (server channels only, never DMs). "
         "Use to discover channel names.",
@@ -1013,7 +1033,7 @@ GATE_IF_UNTRUSTED = {"open_app"}
 UNTRUSTED_TOOLS = {
     "get_emails", "read_email", "search_emails", "list_waiting_replies",
     "get_discord_messages", "search_discord_messages",
-    "get_calendar_events", "search_calendar", "get_briefing", "get_news", "web_search",
+    "get_calendar_events", "search_calendar", "get_briefing", "get_news", "web_search", "read_url",
     "list_notion_pages", "list_notion_databases", "search_notion",
     "read_notion_page", "query_notion_database",
     "describe_notion_database", "get_notion_comments",
@@ -1046,6 +1066,7 @@ _EXECUTORS = {
     "get_briefing": _get_briefing,
     "get_news": _get_news,
     "web_search": _web_search,
+    "read_url": _read_url,
     "list_discord_channels": _list_discord_channels,
     "get_discord_messages": _get_discord_messages,
     "search_discord_messages": _search_discord_messages,
@@ -1098,6 +1119,8 @@ def _activity_target(name: str, i: dict) -> str:
         return i.get("query", "")
     if name == "web_search":
         return i.get("query", "")
+    if name == "read_url":
+        return i.get("url", "")
     if name in ("send_discord_message", "get_discord_messages"):
         return "#" + str(i.get("channel", "")).lstrip("#")
     if name == "search_discord_messages":

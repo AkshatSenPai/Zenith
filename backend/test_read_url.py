@@ -65,3 +65,41 @@ def test_extract_provider_error_raises(monkeypatch):
     monkeypatch.setattr(wss.requests, "post", boom)
     with pytest.raises(wss.SearchUnavailable):
         wss.extract("https://ex.com/a")
+
+
+# --- tool registration ---
+
+import activity_log
+import tools
+
+
+def test_read_url_gate_membership():
+    assert "read_url" in tools.UNTRUSTED_TOOLS         # fetched page content is fenced
+    assert "read_url" not in tools.ACTION_TOOLS         # reading has no side effects
+    assert "read_url" in activity_log._MAP              # or it wouldn't show in the feed
+
+
+def test_read_url_schema_requires_url():
+    schema = next(t for t in tools.TOOLS if t["name"] == "read_url")
+    assert schema["input_schema"]["required"] == ["url"]
+
+
+def test_read_url_executor_needs_url():
+    assert tools.run_tool("read_url", {}) == "read_url needs a 'url'."
+
+
+def test_read_url_result_is_fenced(monkeypatch):
+    monkeypatch.setattr(tools.web_search_service, "extract", lambda u: f"PAGE {u}")
+    out = tools.run_tool("read_url", {"url": "https://x"})
+    assert "PAGE https://x" in out
+    assert "<external-content" in out                   # injection guard applied
+
+
+def test_read_url_unconfigured_is_graceful(monkeypatch):
+    def raise_unavail(u):
+        raise tools.web_search_service.SearchUnavailable(
+            "Web search isn't configured — add TAVILY_API_KEY to backend/.env.")
+    monkeypatch.setattr(tools.web_search_service, "extract", raise_unavail)
+    out = tools.run_tool("read_url", {"url": "https://x"})
+    assert "isn't configured" in out
+    assert "<external-content" not in out               # a config error is not fenced content

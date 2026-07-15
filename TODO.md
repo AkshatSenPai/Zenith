@@ -36,10 +36,17 @@ export · full `cargo build`. Owner verified the desktop app by hand — window,
       have yet. **Resume when:** owner gets a domain email (free forward on shapeodyssey.com / Zoho) OR
       we pivot the engine to **openWakeWord** (no account/key/email — the documented alternative in the
       spec §11). The marquee Phase-1 capability; resume right after web search.
-- [ ] **Background proactivity watcher + native notifications** — proactivity is currently on-demand
-      (60s poll + window focus) because the browser had no push channel. Tauri has system
-      notifications → a real background watcher that toasts when something slips. (Keep the two
-      proactivity invariants: extraction binds no tools; a nudge action is an inert prefill.)
+- [x] **Background proactivity watcher + native notifications ✅ (SHIPPED 2026-07-15, on `main`).** A Rust
+      background thread (`watcher.rs`) polls the existing `/proactive` every 120s (after a 60s warmup) via
+      `ureq` and fires native Windows toasts for **new** nudges — but only when **`alerts_enabled`** and the
+      **HUD isn't focused** (in-memory id dedup). Backend gained an `alerts_enabled` flag on
+      `.zenith/proactive.json` (`GET /proactive` returns it; `POST /proactive/alerts` sets it) + a default-on
+      Settings **"Background alerts"** toggle. Auth token read from env or `backend/.env`. **Invariants kept:
+      it only surfaces existing nudges — computes/acts nothing.** Gates: backend pytest (303) + `cargo build`
+      + 7 `cargo test` + `tsc` + `next` export all green. Spec+plan
+      `docs/superpowers/{specs,plans}/2026-07-15-background-watcher*.md`. **⚠️ Owner acceptance pending — and
+      Windows toasts only fire in the BUILT app (`npm run tauri build`), NOT `tauri dev`.** This completes
+      the Tauri-unblocked cluster; only the wake word (blocked on Picovoice) remains to finish Phase 1.
 - [x] **System tray + close-to-tray ✅ (SHIPPED 2026-07-15, on `main`).** Tray icon (Show / Quit,
       left-click summons); the window **X hides to the tray** (`on_window_event`/`prevent_close`) so the
       backend + GPU stay warm; **only tray Quit** (`app.exit(0)`) truly exits → the existing

@@ -81,4 +81,9 @@ The desktop behaviors below are verified by hand (they need a real window, mic, 
 9. **Autostart:** Settings → **Startup → Launch on login** ON → Zenith appears under Task Manager ▸
    Startup apps; **reboot** → Zenith is running in the tray with **no window shown**; click the tray →
    the HUD is already live. Toggle OFF → it's removed from startup.
-10. `cd frontend && npm run tauri build` → the bundled app runs and repeats 1–9.
+10. **Background alerts — BUILT APP ONLY** (Windows toasts don't fire under `tauri dev` — they show the
+    PowerShell name or nothing; test this from the `tauri build` app below): put a calendar event ~30 min
+    out (or a commitment line in today's `daily/<today>.md`), **hide Zenith to the tray**, wait ≤2 min →
+    a **"Zenith · …" Windows toast** appears once. Open the HUD → the same nudge is a card (no duplicate
+    toast while focused). Settings → **Notifications → Background alerts OFF** → no more toasts.
+11. `cd frontend && npm run tauri build` → the bundled app runs and repeats 1–10 (**required** for #10).

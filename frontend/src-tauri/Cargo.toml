@@ -30,3 +30,7 @@ tauri-plugin-single-instance = "2.4.2"
 # Tauri already resolves transitively so there is no duplicate.
 [target.'cfg(windows)'.dependencies]
 webview2-com = "0.38"
+
+# Global push-to-talk hotkey (Ctrl+Alt+Z) — the Rust host owns the OS-global shortcut.
+[target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
+tauri-plugin-global-shortcut = "2"

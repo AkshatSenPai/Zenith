@@ -31,6 +31,39 @@ pub fn run() {
         )?;
       }
       grant_microphone(app);
+
+      #[cfg(desktop)]
+      {
+        use tauri::Emitter;  // Manager is already imported at the top of this file
+        use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
+
+        // Ctrl+Alt+Z — summon Zenith and toggle voice from any app.
+        let hotkey = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::KeyZ);
+
+        app.handle().plugin(
+          tauri_plugin_global_shortcut::Builder::new()
+            .with_handler(move |app, _shortcut, event| {
+              // Press-to-toggle: act on key-DOWN only; ignore the release.
+              if event.state() == ShortcutState::Pressed {
+                if let Some(w) = app.get_webview_window("main") {
+                  let _ = w.show();
+                  let _ = w.unminimize();
+                  let _ = w.set_focus();
+                }
+                let _ = app.emit("voice-hotkey", ());
+              }
+            })
+            .build(),
+        )?;
+
+        match app.global_shortcut().register(hotkey) {
+          Ok(_) => {}
+          Err(e) => eprintln!(
+            "[zenith] could not register the Ctrl+Alt+Z global hotkey (already in use?): {e}"
+          ),
+        }
+      }
+
       Ok(())
     })
     .build(tauri::generate_context!())

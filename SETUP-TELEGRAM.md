@@ -31,7 +31,7 @@ TELEGRAM_ALLOWED_USER_IDS=123456789        # comma-separate to allow a few peopl
 `.env` is gitignored. **Treat the token like a password.**
 
 ## 4. Restart + test
-1. Restart the backend (`uvicorn main:app --reload --port 8000`). Watch for
+1. Restart the backend (`uvicorn main:app --reload --port 8010`). Watch for
    `[telegram] polling as @YourBot (1 allowed id(s))`.
 2. In the HUD, the orb's **Telegram** node (bottom, where WhatsApp used to be) lights up and the
    Connections row shows `@YourBot`.

@@ -496,7 +496,7 @@ ZENITH_TTS_VOICE=en-IN-NeerjaNeural   # edge-tts voice (used only when ENGINE=ed
 DATABASE_URL=postgresql://user:password@localhost:5432/zenith
 
 # App
-NEXT_PUBLIC_API_URL=http://localhost:8000
+NEXT_PUBLIC_API_URL=http://localhost:8010
 NEXT_PUBLIC_ZENITH_API_TOKEN=         # must equal backend ZENITH_API_TOKEN (sent as the X-Zenith-Token header)
 SECRET_KEY=
 ```

@@ -15,11 +15,12 @@ local Kokoro TTS (edge-tts fallback) · react-three-fiber orb · GSAP HUD motion
 daily driver. See `CLAUDE.md`.
 
 ## How to run (local)
-- **Frontend:** `cd frontend && npm run dev` (Next.js). Expects the backend at `http://localhost:8000`.
+- **Frontend:** `cd frontend && npm run dev` (Next.js). Expects the backend at `http://localhost:8010`.
   Don't `npm run build` while `dev` is live (desyncs `.next`).
-- **Backend:** FastAPI app in `backend/main.py`, served on `:8000`. Runs on the **Python 3.11**
-  venv (`backend/.venv` — rebuilt for Kokoro; old 3.14 venv parked as `.venv314-bak`). Start:
-  `backend/.venv/Scripts/python.exe -m uvicorn main:app --reload --port 8000`. Routes: `/chat`,
+- **Backend:** FastAPI app in `backend/main.py`, served on `:8010` (moved off 8000 to avoid a clash with
+  another local project's backend). Runs on the **Python 3.11** venv (`backend/.venv` — rebuilt for
+  Kokoro; old 3.14 venv parked as `.venv314-bak`). Start:
+  `backend/.venv/Scripts/python.exe -m uvicorn main:app --reload --port 8010`. Routes: `/chat`,
   `/chat/confirm`, `/transcribe`, `/speak`, `/usage`, `/health` (whisper + TTS engine diagnostics).
 - Voice loop: mic → `/transcribe` (whisper, English default) → `/chat` (Claude + tools + confirm gate)
   → `/speak` (Kokoro WAV, local default / edge-tts MP3 fallback) → browser plays it.

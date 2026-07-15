@@ -22,7 +22,7 @@ GPU setup (faster-whisper / CTranslate2 on Windows, NVIDIA only):
          pip install nvidia-cublas-cu12 nvidia-cudnn-cu12
      (If the load still fails, match the cuDNN major to your ctranslate2 build.)
   3. .env:  WHISPER_DEVICE=cuda  WHISPER_MODEL=large-v3  WHISPER_COMPUTE=float16
-  4. Verify it ACTUALLY loaded on the GPU: open http://localhost:8000/health and check
+  4. Verify it ACTUALLY loaded on the GPU: open http://localhost:8010/health and check
      whisper.device == "cuda" and whisper.fallback == false (or read the startup log).
   No NVIDIA GPU? Use WHISPER_DEVICE=cpu + WHISPER_MODEL=medium (English) - still far
   faster than Hinglish small/CPU.

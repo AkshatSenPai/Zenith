@@ -39,7 +39,7 @@ python-telegram-bot>=20
 #    pip install nvidia-cublas-cu12 nvidia-cudnn-cu12
 #  .env:  ZENITH_KOKORO_DEVICE=cuda  WHISPER_DEVICE=cuda  WHISPER_COMPUTE=float16
 #         WHISPER_MODEL=medium   (small/int8_float16 if VRAM is tight on 8GB)
-#  Verify on http://localhost:8000/health — whisper.device/tts.device == "cuda",
+#  Verify on http://localhost:8010/health — whisper.device/tts.device == "cuda",
 #  whisper.fallback == false.  Measured: a paragraph TTS goes ~17s (CPU) -> ~1s.
 #
 #  CPU-only (portable fallback, no GPU): smaller install, but TTS runs at ~real

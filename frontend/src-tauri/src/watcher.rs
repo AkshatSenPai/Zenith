@@ -9,7 +9,7 @@ use std::time::Duration;
 use tauri::Manager;
 use tauri_plugin_notification::NotificationExt;
 
-const POLL_URL: &str = "http://127.0.0.1:8000/proactive";
+const POLL_URL: &str = "http://127.0.0.1:8010/proactive";
 const INITIAL_DELAY_SECS: u64 = 60; // let the backend finish its GPU warmup first
 const INTERVAL_SECS: u64 = 120;
 

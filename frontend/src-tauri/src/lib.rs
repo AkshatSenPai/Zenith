@@ -5,7 +5,7 @@ use std::process::Child;
 use std::sync::Mutex;
 use tauri::{Manager, RunEvent};
 
-/// Handle to the uvicorn backend this app spawned (None if the owner already had one on :8000).
+/// Handle to the uvicorn backend this app spawned (None if the owner already had one on :8010).
 struct BackendProc(Mutex<Option<Child>>);
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

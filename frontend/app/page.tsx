@@ -261,7 +261,7 @@ export default function Home() {
       applyData(data);
       return data.reply ?? null;
     } catch {
-      setError("Can't reach Zenith's backend. Is it running on :8000?");
+      setError("Can't reach Zenith's backend. Is it running on :8010?");
       return null;
     } finally {
       setLoading(false);
@@ -350,7 +350,7 @@ export default function Home() {
       reply = await sendMessage(text); // swallows its own network/API errors, returns null
     } catch {
       // Only reached if recording.stop() or transcribe() throws — this label is accurate here.
-      setError("Voice failed — could not transcribe. Is the backend running on :8000?");
+      setError("Voice failed — could not transcribe. Is the backend running on :8010?");
       setVoiceState("idle");
       return;
     }
@@ -456,7 +456,7 @@ export default function Home() {
       // owner can retry — after a *lost response* a retry harmlessly 404s instead of double-running,
       // because the backend pops-first. On an !res.ok above the id is already consumed → stays cleared.
       setPending(cur);
-      setError("Can't reach Zenith's backend. Is it running on :8000?");
+      setError("Can't reach Zenith's backend. Is it running on :8010?");
     } finally {
       setLoading(false);
       refreshUsage();

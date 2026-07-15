@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
 use std::time::Duration;
 
-pub const BACKEND_ADDR: &str = "127.0.0.1:8000";
+pub const BACKEND_ADDR: &str = "127.0.0.1:8010";
 
 /// Backend dir: explicit ZENITH_BACKEND_DIR wins; else `<base>/../../backend` (base = CARGO_MANIFEST_DIR).
 pub fn resolve_backend_dir_from(env: Option<String>, base: &Path) -> PathBuf {
@@ -71,7 +71,7 @@ pub fn spawn_backend() -> Option<Child> {
     let backend_dir = backend_dir();
     let python = resolve_python_from(std::env::var("ZENITH_PYTHON").ok(), &backend_dir);
     let mut cmd = Command::new(&python);
-    cmd.args(["-m", "uvicorn", "main:app", "--host", "127.0.0.1", "--port", "8000"])
+    cmd.args(["-m", "uvicorn", "main:app", "--host", "127.0.0.1", "--port", "8010"])
         .current_dir(&backend_dir);
     #[cfg(windows)]
     {

@@ -4,7 +4,7 @@
 
 import type { ActivityEntry } from "./mock";
 
-export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8010";
 const TOKEN = process.env.NEXT_PUBLIC_ZENITH_API_TOKEN ?? "";
 
 /**
@@ -72,7 +72,7 @@ export async function connectGoogle(): Promise<{ ok: boolean; error?: string }> 
     }
     return { ok: true };
   } catch {
-    return { ok: false, error: "Can't reach Zenith's backend on :8000." };
+    return { ok: false, error: "Can't reach Zenith's backend on :8010." };
   }
 }
 

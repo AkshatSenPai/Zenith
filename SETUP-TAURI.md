@@ -3,7 +3,7 @@
 Run Zenith as a native Windows desktop app. The Tauri shell wraps the existing Next.js HUD
 in Win11's WebView2 and **auto-spawns the local FastAPI backend on launch, killing it (and
 freeing its VRAM) on close**. Everything else — the chat loop, confirm gate, voice endpoints —
-is unchanged; the WebView calls `http://localhost:8000` exactly as the browser does.
+is unchanged; the WebView calls `http://localhost:8010` exactly as the browser does.
 
 ## Prerequisites (one-time, per machine)
 - **Rust** (stable, MSVC): install via [rustup](https://rustup.rs) → `rustup default stable-msvc`.
@@ -43,7 +43,7 @@ npm run tauri build
 Output lands under `frontend/src-tauri/target/release/bundle/` (MSI/NSIS installer + the exe).
 
 ## Behavior
-- **Launch** auto-spawns the backend — **unless** something already answers on `127.0.0.1:8000`
+- **Launch** auto-spawns the backend — **unless** something already answers on `127.0.0.1:8010`
   (e.g. you started uvicorn by hand). In that case the app uses the existing one and won't kill it.
 - **Close** the window → the backend the app spawned is terminated, freeing RAM + VRAM.
 - **Second launch** focuses the existing window instead of starting a second app/backend.

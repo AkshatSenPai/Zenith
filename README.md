@@ -125,7 +125,7 @@ blur-mask crossfade and no flash on reload):
 **Prerequisites:** Python **3.11** (Kokoro's deps have no 3.12+ wheels), Node.js 18+, and an
 Anthropic API key — <https://console.anthropic.com>.
 
-### 1. Backend — FastAPI on `:8000`
+### 1. Backend — FastAPI on `:8010`
 
 ```bash
 cd backend
@@ -133,8 +133,11 @@ python3.11 -m venv .venv
 source .venv/bin/activate            # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 cp .env.example .env                 # then edit .env and paste your ANTHROPIC_API_KEY
-uvicorn main:app --port 8000         # no --reload — the reloader double-loads the voice models
+uvicorn main:app --port 8010         # no --reload — the reloader double-loads the voice models
 ```
+
+> Zenith uses port **8010** (not the usual 8000) so it doesn't collide with other local dev backends.
+> The Tauri desktop app spawns the backend on 8010 automatically; only manual runs need this flag.
 
 On boot the server loads the Whisper STT model and warms both voice engines (so the first call
 isn't a slow cold-start) — expect **~30–45s** to "ready" the first time, longer if model weights
@@ -229,7 +232,7 @@ Every route **except `GET /` and `GET /health`** requires the `X-Zenith-Token` h
   `GET /health`: `whisper.device` / `tts.device` should read `cuda` on a GPU box. If
   `whisper.fallback` is `true`, CUDA was requested but **silently fell back to CPU** — install a
   CUDA-matched torch + `nvidia-cudnn`/`nvidia-cublas`, then re-check `/health`.
-- **HUD shows "Can't reach the backend"** — is `uvicorn` up on `:8000`? And if `ZENITH_API_TOKEN`
+- **HUD shows "Can't reach the backend"** — is `uvicorn` up on `:8010`? And if `ZENITH_API_TOKEN`
   is set, the frontend's `NEXT_PUBLIC_ZENITH_API_TOKEN` must match it exactly, or every call 401s.
 - **First reply of the session is slow** — the boot warmups (~30–45s) front-load model init so the
   *first* real call isn't a cold-start. Wait for the `Application startup complete` log line.

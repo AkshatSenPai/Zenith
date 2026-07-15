@@ -38,7 +38,7 @@ export function BootScreen({ onDone }: { onDone: () => void }) {
   const lines = [
     "INITIALIZING ZENITH",
     "INTERFACE .......... ok",
-    `BACKEND :8000 ...... ${health ?? "...."}`,
+    `BACKEND :8010 ...... ${health ?? "...."}`,
     `CONNECTIONS ........ ${linked}/${TOTAL} linked`,
     "READY",
   ];

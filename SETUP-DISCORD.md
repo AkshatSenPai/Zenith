@@ -44,7 +44,7 @@ DISCORD_BOT_TOKEN=your-bot-token-here
    permissions can override server defaults).
 
 ## 5. Restart + check
-1. Restart the backend (`uvicorn main:app --reload --port 8000`). Watch the log for
+1. Restart the backend (`uvicorn main:app --reload --port 8010`). Watch the log for
    `[discord] connected as Zenith#1234 (N server(s))`.
 2. In the HUD, the **Discord** node on the orb lights up and the **Connections** row shows the bot.
 

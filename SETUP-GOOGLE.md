@@ -59,7 +59,7 @@ WEATHER_DEFAULT_LOCATION=Hyderabad,IN
   A new key can take a few minutes to activate. `WEATHER_DEFAULT_LOCATION` is `City,CountryCode`.
 
 ## 6. Connect
-1. Start the backend (`uvicorn main:app --reload --port 8000`) and frontend (`npm run dev`, on `:3000`).
+1. Start the backend (`uvicorn main:app --reload --port 8010`) and frontend (`npm run dev`, on `:3000`).
 2. In the HUD's **Connections** panel, click **Connect Google**.
 3. Your browser opens the Google consent screen → pick your account → (Advanced → continue past the
    unverified warning) → **Allow**.
